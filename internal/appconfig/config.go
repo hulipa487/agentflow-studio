@@ -3,6 +3,7 @@ package appconfig
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -104,7 +105,7 @@ func (c *Config) syncActive() {
 	}
 	name := c.Active
 	if name == "" {
-		name = profileName(c.URL)
+		name = c.uniqueName(c.URL)
 	}
 	for i := range c.Profiles {
 		if c.Profiles[i].Name == name {
@@ -150,6 +151,7 @@ func (c *Config) RememberConnection(rawURL, token string, remember bool) string 
 			return name
 		}
 	}
+	name = c.uniqueName(rawURL)
 	c.Profiles = append(c.Profiles, Profile{Name: name, URL: rawURL, Token: token, ForgetToken: !remember})
 	c.Active = name
 	c.URL, c.Token, c.ForgetToken = rawURL, token, !remember
@@ -164,6 +166,37 @@ func profileName(rawURL string) string {
 		return "default"
 	}
 	return u.Host
+}
+
+// uniqueName names a new profile for rawURL without taking a name a saved
+// profile already has. Two cells behind one host (a path per region, or two
+// ports) are two profiles: the host alone is tried first, then the host with
+// the URL's path, then a counter, so selecting one never selects the other.
+func (c *Config) uniqueName(rawURL string) string {
+	taken := func(n string) bool {
+		for _, p := range c.Profiles {
+			if p.Name == n {
+				return true
+			}
+		}
+		return false
+	}
+	base := profileName(rawURL)
+	if !taken(base) {
+		return base
+	}
+	if u, err := url.Parse(strings.TrimSpace(rawURL)); err == nil && u.Host != "" {
+		if path := strings.Trim(u.Path, "/"); path != "" {
+			if n := u.Host + "/" + path; !taken(n) {
+				return n
+			}
+		}
+	}
+	for i := 2; ; i++ {
+		if n := fmt.Sprintf("%s (%d)", base, i); !taken(n) {
+			return n
+		}
+	}
 }
 
 // Save writes the config with owner-only permissions. The token is a secret

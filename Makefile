@@ -56,7 +56,7 @@ AGENTFLOW_DIR ?= ../agentflow
 docs-sync:
 	@test -f "$(AGENTFLOW_DIR)/api/openapi/users.yaml" || { echo "missing $(AGENTFLOW_DIR)/api/openapi/users.yaml"; exit 1; }
 	@test -f "$(AGENTFLOW_DIR)/api/luau/af.d.luau" || { echo "missing $(AGENTFLOW_DIR)/api/luau/af.d.luau"; exit 1; }
-	cp "$(AGENTFLOW_DIR)/api/openapi/users.yaml" docs/openapi/users.yaml
+	tr -d '\r' < "$(AGENTFLOW_DIR)/api/openapi/users.yaml" > docs/openapi/users.yaml
 	tr -d '\r' < "$(AGENTFLOW_DIR)/api/luau/af.d.luau" > docs/luau/af.d.luau
 
 clean:

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"io/fs"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -54,5 +56,44 @@ func TestDocsSearchAndLinks(t *testing.T) {
 	}
 	if _, ok := lib.SlugFor("https://example.com"); ok {
 		t.Fatal("external URL resolved as a page")
+	}
+}
+
+// Every embedded Markdown file is a page, and every relative .md link in a page
+// opens one: a file left out of the manifest is unreachable and every link to
+// it is shown as plain text.
+func TestEveryDocIsReachable(t *testing.T) {
+	lib, err := docs.New(studioDocsFS, "docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := fs.Glob(studioDocsFS, "docs/*.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if _, ok := lib.SlugFor(strings.TrimPrefix(f, "docs/")); !ok {
+			t.Errorf("%s is embedded but not in the docs manifest", f)
+		}
+	}
+	link := regexp.MustCompile(`\]\(([^)\s]+)\)`)
+	for _, p := range lib.Pages() {
+		body, _ := lib.Read(p.Slug)
+		for _, m := range link.FindAllStringSubmatch(body, -1) {
+			href := m[1]
+			if strings.Contains(href, "://") || strings.HasPrefix(href, "#") || strings.HasPrefix(href, "mailto:") {
+				continue
+			}
+			base := href
+			if i := strings.IndexAny(base, "?#"); i >= 0 {
+				base = base[:i]
+			}
+			if !strings.HasSuffix(base, ".md") {
+				continue
+			}
+			if _, ok := lib.SlugFor(href); !ok {
+				t.Errorf("%s links to %s, which is not a page", p.File, href)
+			}
+		}
 	}
 }

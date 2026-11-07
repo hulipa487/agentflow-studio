@@ -81,3 +81,26 @@ func TestNormalizeFallsBackFromAMissingActiveProfile(t *testing.T) {
 		t.Fatalf("normalized %+v", c)
 	}
 }
+
+// Two cells behind one host are two profiles, each selecting its own URL.
+func TestProfilesOnOneHostDoNotCollide(t *testing.T) {
+	var c Config
+	eu := c.RememberConnection("https://agents.example.com/eu", "t-eu", true)
+	us := c.RememberConnection("https://agents.example.com/us", "t-us", true)
+	root := c.RememberConnection("https://agents.example.com", "t-root", true)
+	again := c.RememberConnection("https://agents.example.com/", "t-root2", true)
+	names := map[string]bool{eu: true, us: true, root: true, again: true}
+	if len(names) != 4 || len(c.Profiles) != 4 {
+		t.Fatalf("names %q %q %q %q, %d profiles; want four distinct", eu, us, root, again, len(c.Profiles))
+	}
+	if !c.SelectProfile(eu) || c.URL != "https://agents.example.com/eu" || c.Token != "t-eu" {
+		t.Fatalf("selecting %q gave %s", eu, c.URL)
+	}
+	if !c.SelectProfile(us) || c.URL != "https://agents.example.com/us" || c.Token != "t-us" {
+		t.Fatalf("selecting %q gave %s", us, c.URL)
+	}
+	// The same URL again reuses its profile instead of adding one.
+	if n := c.RememberConnection("https://agents.example.com/us", "t-us2", true); n != us || len(c.Profiles) != 4 {
+		t.Fatalf("re-login made %q and %d profiles", n, len(c.Profiles))
+	}
+}

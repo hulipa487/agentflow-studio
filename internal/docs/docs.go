@@ -38,10 +38,11 @@ type Library struct {
 var manifest = []Page{
 	{Slug: "getting-started", File: "getting-started.md", Title: "Overview", Section: "Start here", Order: 1},
 	{Slug: "architecture", File: "architecture.md", Title: "Architecture & deployment", Section: "Start here", Order: 2},
-	{Slug: "loops", File: "loops.md", Title: "Luau loops", Section: "Build", Order: 3},
-	{Slug: "extending", File: "extending.md", Title: "Extending", Section: "Build", Order: 4},
-	{Slug: "configuration", File: "configuration.md", Title: "Configuration", Section: "Reference", Order: 5},
-	{Slug: "loops-reference", File: "loops-reference.md", Title: "Loop API reference", Section: "Reference", Order: 6},
+	{Slug: "multi-region", File: "multi-region.md", Title: "Multi-region", Section: "Start here", Order: 3},
+	{Slug: "loops", File: "loops.md", Title: "Luau loops", Section: "Build", Order: 4},
+	{Slug: "extending", File: "extending.md", Title: "Extending", Section: "Build", Order: 5},
+	{Slug: "configuration", File: "configuration.md", Title: "Configuration", Section: "Reference", Order: 6},
+	{Slug: "loops-reference", File: "loops-reference.md", Title: "Loop API reference", Section: "Reference", Order: 7},
 }
 
 // New validates the manifest against fsys. root is the directory that holds
