@@ -430,7 +430,10 @@ is accepted as a no-op. Cron triggers, by contrast, match in
 ```lua
 agent.info() -> {
   name, session_id, address, model, instructions,
-  history_budget, memory, shell, skills, capabilities,
+  history_budget,
+  memory = { stores = { [name] = { backend, table, features, locality } },
+             recall, embed_model, rerank_model, oversample },
+  shell, skills, capabilities,
   agent_model, instructions_append, ...          -- per-user overrides
 }
 agent.config() -> {
@@ -449,6 +452,12 @@ agent.spawn(profile, spec?) -> { address, session_id, agent } -- cap: agent.spaw
 - `agent.info().instructions` is the system prompt after any per-user layer is
   applied; `agent_model` and `instructions_append` expose the override pieces
   if a loop wants to branch on them.
+- `agent.info().memory.stores[name].locality` is `deployment`, `region` or
+  `instance`: how far the store's data reaches. Durable conversation data (the
+  `dialogue`/`facts` stores) belongs on a `deployment` or `region` store; an
+  `instance` store dies with the process, which makes it a cache, not history.
+  A single-instance deployment may use one deliberately, and a regional cell
+  must set `locality_ok: true` on a durable store to do so.
 - `agent.config()` is the deployment profile as data. Secret references render
   as opaque markers `{env="VAR"}` / `{cred="service"}`; resolved values never
   cross the bridge.

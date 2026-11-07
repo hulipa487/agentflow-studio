@@ -58,7 +58,7 @@ var preludeEntries = []APIEntry{
 
 	// agent
 	{Path: "agent", Signature: "agent", Summary: "Identity, profile and agent-to-agent sends.", Kind: SymbolTable},
-	{Path: "agent.info", Signature: "agent.info() -> { name, session_id, address, model, instructions, ... }", Summary: "The running agent's identity and effective settings, including per-user overrides.", Kind: SymbolFunction, Insert: "info()"},
+	{Path: "agent.info", Signature: "agent.info() -> { name, session_id, address, model, instructions, memory = { stores = { [name] = { backend, table, features, locality } } }, ... }", Summary: "The running agent's identity and effective settings, including per-user overrides and each memory store's locality (deployment, region or instance).", Kind: SymbolFunction, Insert: "info()"},
 	{Path: "agent.config", Signature: "agent.config() -> { name, model, prompts, goal?, extras }", Summary: "The deployment profile as data. Secrets appear as {env=...} or {cred=...} markers.", Kind: SymbolFunction, Insert: "config()"},
 	{Path: "agent.send", Signature: "agent.send(address, payload)", Summary: "Deliver a message to agent:<name> or session:<id>. Subject to can_contact.", Capability: "agent.send", Kind: SymbolFunction, Insert: "send(${1:address}, ${2:payload})", Yields: true},
 	{Path: "agent.request", Signature: "agent.request(address, payload, timeout_s?) -> Message", Summary: "Send and wait for a reply; the timeout is in seconds.", Capability: "agent.request", Kind: SymbolFunction, Insert: "request(${1:address}, ${2:payload})", Yields: true},

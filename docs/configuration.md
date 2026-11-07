@@ -351,6 +351,39 @@ Every backend below is a real provider — no stubs. Storage backends carry KV/p
 | `qdrant` | vector | vector (cosine k-NN over Qdrant's gRPC API — `url`'s port is read as a REST one, so `:6333` becomes gRPC's `:6334`; `dim` default 1536, `collection` default `agentflow`, optional `api_key`) |
 | `redisvector` | vector | kv, prefix\_scan, ttl, vector (needs the RediSearch module, e.g. Redis Stack; cosine k-NN, `dim` default 1536) |
 
+Each backend has a **locality**, derived from its provider and `runtime.topology`
+and exposed to loops as `agent.info().memory.stores[*].locality`:
+
+| Provider | `single` | `regional` |
+| --- | --- | --- |
+| `postgres`, `pgvector`, `qdrant` | `deployment` | `deployment` |
+| `sqlite` | `deployment` (the one instance is the deployment) | refused |
+| `redis`, `redisvector` | `deployment` | `region` (one cluster per cell) |
+| `volatile` | `instance` | `instance` |
+
+In a regional cell a durable conversation store — `dialogue`, `facts`, or
+`semantic` under `recall: plugin:semantic` — must be on a `deployment` or
+`region` backend. Validation refuses a durable store on `volatile` (a session
+that moves to another instance would lose its history) unless the store sets
+`locality_ok: true`. Volatile memory is also bounded in every tier: either the
+backend sets `config.max_entries` (oldest entries are evicted) or every store
+bound to it sets a `retention` TTL.
+
+```yaml
+memory:
+  backends:
+    cache:
+      provider: volatile
+      config: { max_entries: 10000 }
+
+profiles:
+  memory:
+    p:
+      stores:
+        dialogue: { backend: main_db, table: dialogue, retention: 30d }
+        scratch:  { backend: cache, table: scratch, retention: 1h }
+```
+
 ```
 memory:
   backends:

@@ -145,7 +145,8 @@ local r = llm.embed({ "trip to the beach", img_part }, { model = "omni", merged 
 
 ```
 agent.info() -> { name, session_id, address, model, instructions,
-                  history_budget, memory, shell, skills, capabilities, ... }
+                  history_budget, memory, shell, skills, capabilities,
+                  memory.stores[name] = { backend, table, features, locality }, ... }
 agent.config() -> { name, model, instructions_path, instructions_prompt?,
                     prompts = {  = "", ... },
                     goal = {type, success_signal, max_turns, on_goal_met}?,
@@ -156,6 +157,8 @@ agent.reply(request_id, payload)
 agent.list() -> [{ session_id, agent, parent_id }]
 agent.spawn(profile) -> { address, session_id, agent }
 ```
+
+A store's `locality` is `deployment`, `region` or `instance`. Durable conversation data belongs on a deployment- or region-wide store; an instance-local store is a cache whose contents die with the process (in a regional cell, a durable store on one is refused at validation unless it sets `locality_ok: true`).
 
 `agent.spawn` requires a `profiles.agent` template; the child’s capabilities are the intersection of the parent’s and the template’s. The second argument accepted by earlier builds is reserved and is not applied — configure the template instead.
 
