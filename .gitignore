@@ -1,0 +1,11 @@
+# build output
+/agentflow-studio
+/agentflow-studio.exe
+*.exe
+/dist/
+
+# packaged app output
+/FyneApp.toml
+
+# rendered UI snapshots (development aid)
+/snapshots/
