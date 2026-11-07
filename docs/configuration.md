@@ -191,6 +191,27 @@ Redis and Qdrant. Each line is PASS/FAIL with the fix.
 
 `agentflow cred set|get|list|delete <name>` manages engine-wide credentials in the store named by the loaded config (configdir or `-config`). `set` reads the value from an interactive prompt or stdin — never argv (pipe it: `printf %s "$TOKEN" | agentflow cred set github_token`). The master key comes from the env var named by `credentials.master_key_env` (default `CREDENTIALS_MASTER_KEY`); an unset key is a clear error. `list` prints names only, never values. These are the same records `credential.get()` and `cred:<service>` config references resolve against.
 
+### Migrating a deployment
+
+The tier change from a single instance to a regional cell is a data move, and
+`agentflow migrate` does it without a transform: both backends speak the same
+SQL dialect and blobs are content-addressed.
+
+```
+agentflow migrate store -from sqlite://./data/agentflow.db -to postgres://...
+agentflow migrate store -from <src> -to <dst> -tables files_meta -append
+agentflow migrate blobs -from fs:./data/media -kind media -config agentflow.yaml
+```
+
+`migrate store` copies the runtime planes, the identity registry and the
+credential store. It refuses a non-empty destination unless `-append` is
+passed, and it reports which tables were copied or absent. Credentials are
+copied as ciphertext: the destination must use the same master key, or every
+secret fails to decrypt. `migrate blobs` walks a local media or files directory
+and PUTs each blob into the S3 bucket named by `-kind`; content addressing
+means a rerun HEADs what is already there and uploads only what is missing.
+Both commands are safe to interrupt and rerun.
+
 ### User API
 
 The engine ships **no user interface**. Instead it exposes a JSON-only profile API on the same public listener the HTTP channels use (`runtime.users.enabled`, requires `runtime.identity.enabled`), so a frontend can live in its own repository and deploy on its own cadence. The contract is published as OpenAPI at `openapi/users.yaml`.
@@ -343,11 +364,11 @@ Every backend below is a real provider — no stubs. Storage backends carry KV/p
 
 | Provider | Kind | Features |
 | --- | --- | --- |
-| `sqlite` | storage | kv, prefix\_scan, text\_search, ttl, transaction |
+| `sqlite` | storage | kv, prefix\_scan, text\_search, ttl, transaction, vector (brute-force cosine over a BLOB column; no extension, capped by `vector_scan_limit`, default 50000 rows) |
 | `redis` | storage | kv, prefix\_scan, ttl |
-| `postgres` | storage | kv, prefix\_scan, text\_search, transaction |
-| `volatile` | storage | kv, prefix\_scan, ttl — in-memory, non-persistent |
-| `pgvector` | vector | vector (cosine k-NN; embedding dim configurable via `dim`, default 1536) |
+| `postgres` | storage | kv, prefix\_scan, text\_search, transaction — plus vector when the database has the pgvector extension (detected at boot; same table) |
+| `volatile` | storage | kv, prefix\_scan, ttl — in-memory, non-persistent; bound by `max_entries` |
+| `pgvector` | vector | vector (cosine k-NN; embedding dim configurable via `dim`, default 1536). Kept as an alias/compatibility provider; `postgres` now serves vectors when the extension is present |
 | `qdrant` | vector | vector (cosine k-NN over Qdrant's gRPC API — `url`'s port is read as a REST one, so `:6333` becomes gRPC's `:6334`; `dim` default 1536, `collection` default `agentflow`, optional `api_key`) |
 | `redisvector` | vector | kv, prefix\_scan, ttl, vector (needs the RediSearch module, e.g. Redis Stack; cosine k-NN, `dim` default 1536) |
 
@@ -403,6 +424,8 @@ memory:
 All three vector stores are vector-query-only, like `pgvector`: any other query kind is an explicit error, never a silent empty iterator. `dim` is fixed when the store is first created, so it must match the embedding model; changing it later needs a manual migration. `redisvector` stores the value beside the vector, so it also serves kv, prefix\_scan and ttl; `redis` is unchanged and remains the plain-KV option.
 
 `qdrant` speaks gRPC, but its `url` keeps the shape every deployment already has — a REST one. The scheme picks the transport (`https` dials with TLS) and the port is translated: an explicit `6333`, Qdrant's REST default, becomes gRPC's `6334`; any other explicit port is dialled as given, so a gRPC proxy still works; a URL with no port gets `6334`. A deployment that reached Qdrant through a REST-only proxy has to point at the gRPC listener instead. The points themselves are addressed by the same deterministic ids as before, so an existing `agentflow` collection is read and written unchanged.
+
+With no `memory.backends` block at all, the engine registers `main_db` on the runtime store: provider `sqlite` with `path` for a file, provider `postgres` with `url` for a DSN. That is what makes the built-in `memory: conversational` profile work in a minimal config, and it means a single-instance deployment needs no second database to have durable memory. A `postgres` runtime store therefore needs no `memory:` section either; its database serves vectors when the pgvector extension is installed.
 
 A backend whose `config.url`/`config.password`/`config.api_key` secret reference cannot be resolved is **skipped with a warning** rather than failing the boot: stores bound to it rebind to a surviving backend (preferring one whose provider offers `text_search`, so a vector store degrades to full-text search; loops feature-detect from the binding's features) with `requires` lowered to what the fallback offers, or are dropped when no backend survives. A genuinely unknown backend name is still a boot error.
 
