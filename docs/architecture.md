@@ -242,14 +242,16 @@ validator refuses a log-plane directory there. Retention stays per plane:
 
 | Guarantee | Mechanism | Limit worth knowing |
 | --- | --- | --- |
-| One conversation runs in one place | A `session:<agent\|key>` lease; an instance that cannot take it queues the message instead of delivering it | A lease outlives a hard-killed holder by its TTL (30s by default), and a graceful shutdown releases it immediately |
+| One conversation runs in one place | A `session:<agent\|key>` lease; an instance that cannot take it queues the message instead of delivering it. A lease taken by a peer stops the old owner's actor, and timer ticks are routed through the hub like any other message | A lease outlives a hard-killed holder by its TTL (30s by default), and a graceful shutdown releases it immediately. Detection of a lost lease is within a third of the TTL while a session is idle, immediately when it has messages waiting |
 | Every message reaches its session | The shared inbox, drained by the owner, ordered by enqueue time | At-least-once: a crash between delivery and acknowledgement redelivers. A repost of the same message id from the same instance is one row |
-| A takeover carries the backlog | Undelivered rows stay claimable; the new owner drains them | An in-flight turn is lost and re-delivered, so a loop may see a message twice |
+| A takeover carries the backlog | Undelivered rows stay claimable; the new owner drains them. Delivered rows are swept after an hour, so the inbox does not grow forever | An in-flight turn is lost and re-delivered, so a loop may see a message twice |
+| A daemon survives its instance | A failover pass every half session TTL asks the lease table whether each persistent agent's `boot` session is owned; when nobody owns it, an instance claims and boots it | The boot turn runs once on the new owner. A daemon's conversation lives in the shared memory backend, so it resumes rather than starting empty |
 | A session keeps its shell across a failover | Every handle is recorded with the container it names; the instance that takes the session over adopts it by id | Docker containers are adopted; an SSH handle is dialled again from the session's shell profile, because a record never carries a password or key. A handle whose session is alive nowhere, and unused for 24h, is reclaimed |
 | A scheduled trigger fires once | A `trigger:<name>` lease, claimed for the trigger's own interval | A killed holder stalls its trigger until the claim expires (one interval plus a margin) |
-| Housekeeping runs once per cell | `files-gc`, `files-scratch`, `journal-prune`, `usage-prune`, `shell-reclaim`, `rows-sweep` leases | A sweep that outlives its lease can overlap another instance's |
+| Housekeeping runs once per cell | `files-gc`, `files-scratch`, `journal-prune`, `usage-prune`, `shell-reclaim`, `rows-sweep` leases, each held for the job's own interval plus slack | A sweep that outlives its lease can still overlap another instance's |
+| A graceful shutdown drains | Readiness turns false, then `runtime.shutdown_grace` (5s regional, 0 single) passes before listeners close; the hub releases its sessions as it exits | A crash skips the drain; peers recover at the lease TTL instead |
 | Budgets hold in aggregate | A daily agent budget reads the ledger rather than its own counter (refreshed at most every 15s) | Overshoot is bounded by what the fleet spends in one refresh interval, not by the instance count. Rolling-window budgets stay per-instance |
-| Per-user quotas hold | The shared ledger, with in-flight holds | In-flight reservation is refined in the regional tier's quota implementation; the ledger itself is exact and shared |
+| Per-user quotas hold | The shared ledger, plus in-flight holds that are shared in a regional cell and process-local in `single` | A regional hold costs one transaction per model call; the per-user advisory lock is what makes two instances' reservations one decision |
 
 ### Invariants a deployment has to keep
 

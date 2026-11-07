@@ -31,6 +31,10 @@ type modelsView struct {
 	newBtn *widget.Button
 
 	models []api.Model
+	// topology is the runtime's deployment tier, read alongside the model list.
+	// A regional fleet applies a hot model edit to one instance only, and the
+	// screen has to say so rather than let an operator believe it rolled out.
+	topology string
 }
 
 var modelNameRe = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
@@ -76,6 +80,7 @@ func (v *modelsView) load() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		models, fileErr, err := v.app.api.Models(ctx)
+		state, _ := v.app.api.State(ctx)
 		fyne.Do(func() {
 			if err != nil {
 				v.meta.SetText("")
@@ -85,6 +90,7 @@ func (v *modelsView) load() {
 				return
 			}
 			v.models = models
+			v.topology = state.Topology
 			v.render(fileErr)
 		})
 	}()
@@ -118,6 +124,9 @@ func (v *modelsView) render(fileErr string) {
 	}
 	if fileErr != "" {
 		meta += " · config read failed"
+	}
+	if v.topology == "regional" {
+		meta += " · regional fleet: edits apply to this instance only; save and roll the fleet"
 	}
 	v.meta.SetText(meta)
 	if drift > 0 {
@@ -434,7 +443,11 @@ func (v *modelsView) showEditor(existing *api.Model) {
 					return
 				}
 				closePopup()
-				v.app.setStatus("model "+strings.TrimSpace(name.Text)+" applied · save to config to keep", toneWarning)
+				msg := "model " + strings.TrimSpace(name.Text) + " applied · save to config to keep"
+				if v.topology == "regional" {
+					msg = "model " + strings.TrimSpace(name.Text) + " applied to this instance only · save to config and roll the fleet"
+				}
+				v.app.setStatus(msg, toneWarning)
 				v.load()
 				v.app.reloadCatalog()
 			})
