@@ -273,8 +273,24 @@ func (v *loginView) build() fyne.CanvasObject {
 	v.connectBtn = primaryButton("Connect", theme.NavigateNextIcon(), v.connect)
 
 	cardTitle := titleText("Connect to a runtime", theme.SizeNameSubHeadingText)
+	// Saved connections are a shortlist, not a replacement for the form: a
+	// click fills the URL and token, and editing either is still allowed.
+	saved := vstack(spaceXS)
+	if len(a.cfg.Profiles) > 0 {
+		saved.Add(fieldLabel("Saved connections"))
+		for _, p := range a.cfg.Profiles {
+			p := p
+			saved.Add(widget.NewButton(p.Name+"  "+p.URL, func() {
+				urlEntry.SetText(p.URL)
+				tokenEntry.SetText(p.Token)
+			}))
+		}
+	} else {
+		saved.Hide()
+	}
 	v.form = vstack(spaceM,
 		vstack(2, insetLeading(cardTitle), compactLabel(muted("Studio talks to AgentFlow's admin API with its bearer token. No browser, no CORS."), true)),
+		saved,
 		vstack(spaceXS, fieldLabel("Transport"), seg),
 		v.url.root,
 		v.token.root,
@@ -509,12 +525,11 @@ func (v *loginView) connect() {
 			v.cancel = nil
 			a.api = c
 			a.catalog = cat
-			a.cfg.URL = c.DisplayURL
-			a.cfg.ForgetToken = !remember
-			a.cfg.Token = ""
+			saved := ""
 			if remember {
-				a.cfg.Token = token
+				saved = token
 			}
+			a.cfg.RememberConnection(c.DisplayURL, saved, remember)
 			_ = appconfig.Save(a.cfg)
 			a.showMain()
 			a.startHeartbeat()

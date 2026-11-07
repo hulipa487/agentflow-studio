@@ -188,6 +188,59 @@ func (a *App) lock() {
 	a.showLogin("")
 }
 
+// showProfileSwitcher lists the saved connections under the active one. It is
+// the rail's account footer: switching cells is a click, and the token for the
+// new cell comes from the saved profile rather than the clipboard.
+func (a *App) showProfileSwitcher(anchor fyne.CanvasObject) {
+	if a.win == nil || a.win.Canvas() == nil {
+		return
+	}
+	items := container.NewVBox()
+	var pop *widget.PopUp
+	pop = widget.NewPopUp(items, a.win.Canvas())
+	for _, p := range a.cfg.Profiles {
+		p := p
+		label := p.Name
+		if p.Name == a.cfg.Active {
+			label += "  ✓"
+		}
+		items.Add(widget.NewButton(label+"\n"+p.URL, func() {
+			pop.Hide()
+			a.switchProfile(p.Name)
+		}))
+	}
+	if len(a.cfg.Profiles) == 0 {
+		items.Add(caption("No saved connections yet."))
+	}
+	items.Add(widget.NewSeparator())
+	items.Add(widget.NewButton("Use another connection…", func() {
+		pop.Hide()
+		// Keep the saved profiles; clear only the active mirror so the login
+		// screen starts blank and a successful login appends a profile.
+		a.cfg.URL = ""
+		a.cfg.Token = ""
+		a.cfg.Active = ""
+		a.showLogin("")
+	}))
+	pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(anchor)
+	pop.ShowAtPosition(fyne.NewPos(pos.X, pos.Y-a.win.Canvas().Size().Height/2))
+}
+
+// switchProfile makes a saved profile active and reconnects. A profile without
+// a remembered token opens the login screen prefilled with its URL.
+func (a *App) switchProfile(name string) {
+	if !a.cfg.SelectProfile(name) {
+		return
+	}
+	_ = appconfig.Save(a.cfg)
+	a.closeLuaEditor()
+	a.cancelChat()
+	a.cancelView()
+	a.stopHeartbeat()
+	a.api = nil
+	a.showLoginWith(loginOptions{auto: a.cfg.Token != "" && a.cfg.URL != ""})
+}
+
 // ---- main shell ------------------------------------------------------------
 
 func (a *App) showMain() {
@@ -227,7 +280,11 @@ func (a *App) showMain() {
 			iconButton(theme.SettingsIcon(), "Settings", a.showSettings),
 			iconButton(theme.LogoutIcon(), "Lock", a.lock)),
 		a.connLabel)
-	connection := subpanel(connectionRow)
+	var profileBtn *widget.Button
+	profileBtn = actionButton(orDash(a.cfg.Active), theme.AccountIcon(), func() {
+		a.showProfileSwitcher(profileBtn)
+	})
+	connection := container.NewVBox(profileBtn, subpanel(connectionRow))
 
 	railWidth := canvas.NewRectangle(color.Transparent)
 	railWidth.SetMinSize(fyne.NewSize(248, 0))
