@@ -40,21 +40,38 @@ type StateSession struct {
 	Busy      bool   `json:"busy"`
 }
 
+// StateInstance is one live process in the runtime's instance registry.
+type StateInstance struct {
+	Owner              string `json:"owner"`
+	Region             string `json:"region"`
+	Zone               string `json:"zone"`
+	Version            string `json:"version"`
+	Topology           string `json:"topology"`
+	ConfigEpoch        string `json:"config_epoch"`
+	ConfigEpochDiffers bool   `json:"config_epoch_differs"`
+	StartedAt          int64  `json:"started_at"`
+	LastSeen           int64  `json:"last_seen"`
+	Self               bool   `json:"self"`
+}
+
 type State struct {
-	OK                 bool           `json:"ok"`
-	Version            string         `json:"version"`
-	StartedAt          int64          `json:"started_at"`
-	UptimeS            int64          `json:"uptime_s"`
-	ConfigPath         string         `json:"config_path"`
-	ConfigEpoch        string         `json:"config_epoch"`
-	Instance           string         `json:"instance"`
-	Region             string         `json:"region"`
-	Agents             []StateAgent   `json:"agents"`
-	Channels           []StateChannel `json:"channels"`
-	Sessions           []StateSession `json:"sessions"`
-	SessionsActive     int            `json:"sessions_active"`
-	SessionsIdle       int            `json:"sessions_idle"`
-	CredentialsEnabled bool           `json:"credentials_enabled"`
+	OK                 bool            `json:"ok"`
+	Version            string          `json:"version"`
+	StartedAt          int64           `json:"started_at"`
+	UptimeS            int64           `json:"uptime_s"`
+	ConfigPath         string          `json:"config_path"`
+	ConfigEpoch        string          `json:"config_epoch"`
+	Instance           string          `json:"instance"`
+	Region             string          `json:"region"`
+	Topology           string          `json:"topology"`
+	Zone               string          `json:"zone"`
+	Instances          []StateInstance `json:"instances"`
+	Agents             []StateAgent    `json:"agents"`
+	Channels           []StateChannel  `json:"channels"`
+	Sessions           []StateSession  `json:"sessions"`
+	SessionsActive     int             `json:"sessions_active"`
+	SessionsIdle       int             `json:"sessions_idle"`
+	CredentialsEnabled bool            `json:"credentials_enabled"`
 }
 
 // State is the instance snapshot behind the Overview screen.

@@ -27,12 +27,13 @@ type overviewView struct {
 	app *App
 	s   *screen
 
-	built    bool
-	tiles    *fyne.Container
-	sessions *fyne.Container
-	agents   *fyne.Container
-	channels *fyne.Container
-	counters *fyne.Container
+	built     bool
+	tiles     *fyne.Container
+	sessions  *fyne.Container
+	agents    *fyne.Container
+	channels  *fyne.Container
+	instances *fyne.Container
+	counters  *fyne.Container
 }
 
 func (a *App) showOverview() {
@@ -110,6 +111,15 @@ func (v *overviewView) render(d overviewData) {
 	if st.Region != "" {
 		parts = append(parts, "region "+st.Region)
 	}
+	if st.Zone != "" {
+		parts = append(parts, "zone "+st.Zone)
+	}
+	if st.Topology != "" {
+		parts = append(parts, "topology "+st.Topology)
+	}
+	if n := len(st.Instances); n > 1 {
+		parts = append(parts, fmt.Sprintf("%d instances", n))
+	}
 	parts = append(parts, "version "+orDash(st.Version), "up "+humanDuration(st.UptimeS))
 	if st.ConfigEpoch != "" {
 		parts = append(parts, "epoch "+st.ConfigEpoch)
@@ -125,12 +135,14 @@ func (v *overviewView) render(d overviewData) {
 		v.sessions = vstack(spaceS)
 		v.agents = vstack(spaceS)
 		v.channels = vstack(spaceS)
+		v.instances = vstack(spaceS)
 		left := section("Live sessions", "One actor per (agent, session key). Busy means a turn is running.", v.sessions)
 		right := vstack(spaceS,
 			sectionAction("Agents", "Configured at boot; Studio-applied agents appear under Agents.",
 				actionButton("Open", theme.NavigateNextIcon(), v.app.showAgents), v.agents),
 			sectionAction("Channels", "Bound when the runtime started.",
 				actionButton("Open", theme.NavigateNextIcon(), v.app.showChannels), v.channels),
+			section("Instances", "Every process currently heartbeating on this runtime store. An epoch that differs means two instances run different configs.", v.instances),
 		)
 		v.s.setBody(
 			v.tiles,
@@ -249,6 +261,39 @@ func (v *overviewView) render(d overviewData) {
 			nil, oneLine(detail)))
 	}
 	v.channels.Refresh()
+
+	// Instances. The registry row for this process is marked, and a peer on a
+	// different config epoch is the one thing here an operator must not miss:
+	// the fleet is running two configurations.
+	clearBox(v.instances)
+	if len(st.Instances) == 0 {
+		v.instances.Add(centerNote("No live instances reported. This runtime may predate the instance registry."))
+	} else {
+		var cells [][]fyne.CanvasObject
+		for _, in := range st.Instances {
+			who := chip("peer", toneNeutral)
+			if in.Self {
+				who = chip("this instance", toneAccent)
+			}
+			last := "now"
+			if age := time.Now().Unix() - in.LastSeen; age > 5 {
+				last = humanDuration(age) + " ago"
+			}
+			epoch := orDash(shortID(in.ConfigEpoch))
+			if in.ConfigEpochDiffers {
+				epoch += " (differs)"
+			}
+			cells = append(cells, []fyne.CanvasObject{
+				vCenter(who), cellMono(shortID(in.Owner)), cellText(orDash(in.Zone)),
+				cellText(orDash(in.Version)), cellMono(epoch), cellText(last),
+			})
+		}
+		v.instances.Add(simpleTable([]tableColumn{
+			{title: "state", width: 110}, {title: "owner", width: 110}, {title: "zone", width: 100},
+			{title: "version", width: 80}, {title: "config epoch", width: 140}, {title: "last seen"},
+		}, cells))
+	}
+	v.instances.Refresh()
 	v.s.refresh()
 }
 

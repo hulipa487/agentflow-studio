@@ -75,6 +75,8 @@ A `profiles/*.yaml` file is an agent config plus a `name` and a `spawn` flag: `s
 | `scheduler.workers` | int | 8 | Op-pool size. The `-workers` flag overrides this when given; otherwise this value is used |
 | `reload.watch` | bool | — | **Deprecated — no effect.** The reload watcher always runs. Warns when set |
 | `persistence` | string | sqlite://./data/agentflow.db | Where the message journal, the token ledger and its per-call detail, and the engine’s key/value rows (file trees, session state, route state, shell handles) live. Scheduler timers are *not* here: the timer service is in memory, so a restart forgets every timer until its loop re-registers it |
+| `topology` | string | single | The deployment tier: `single` (one process) or `regional` (several instances in one region sharing one PostgreSQL). Unset means `single`. The tier decides which other settings are valid; boot refuses one it cannot honour. See [Topology](#topology) |
+| `zone` | string | "" | Availability-zone label inside the region (letters, digits and `. _ -`, at most 32 characters). Reported in metrics and `/admin/api/state`; it is a label, never a routing decision |
 | `admin.listen` | string | 127.0.0.1:9090 | Metrics/admin HTTP endpoint; also serves the web console and the Studio API |
 | `admin.cors_origins` | list | \[\] | Exact browser origins allowed to call `/admin/api/*` (a custom frontend or another browser client). The native Studio desktop app sends the token directly and does not need it. Empty keeps the API same-origin only; `"*"` is refused. Preflight is answered before the bearer check |
 | `admin.socket` | string | "" | Adds a local-only admin listener: a unix socket path on Unix (relative paths resolve against the config directory) or a named pipe such as `\\.\pipe\agentflow-admin` on Windows. The bearer token is still required |
@@ -103,10 +105,10 @@ A `profiles/*.yaml` file is an agent config plus a `name` and a `spawn` flag: `s
 | `users.jit_provisioning` | bool | true | Create a profile on a verified first OIDC login; `false` refuses unknown subjects until an operator provisions them |
 | `users.oidc.issuer` · `audience` · `jwks_url` | string | — | Identity provider verification (see *Identity provider* below) |
 | `users.oidc.subject_claim` · `email_claim` · `name_claim` | string | sub · email · name | Token claims that carry the identity and the provisioned profile's fields |
-| `cluster.persistence` | string | `persistence` | Where the lease table and the session inbox live — the one store every region must share. An empty value follows `persistence` |
-| `cluster.session_ttl` | duration | 30s | How long a session claim survives without renewal. Raise it with the poll interval for a cluster store in another region |
+| `cluster.persistence` | string | `persistence` | **Deprecated — warns when set.** Leases and the session inbox always live in `runtime.persistence` now. In a regional cell it is refused unless it names the same target |
+| `cluster.session_ttl` | duration | 30s | How long a session claim survives without renewal |
 | `cluster.poll_interval` | duration | 250ms | How often an instance looks for messages waiting for the sessions it owns — the added latency of a message that arrives on the wrong instance |
-| `region` | string | "" | Names where this instance runs: a metric label `region`, a field in `/admin/api/state`, and the token a boot warning compares against the cluster store |
+| `region` | string | "" | Names the region this instance serves: a metric label `region`, a field in `/admin/api/state`, and part of the instance registry. A region is one independent cell, not a shard of a global deployment |
 | `log_plane.persistence` | string | "" | A directory for the append-only planes — the message journal and the per-call usage detail — written as one JSONL file per UTC day. Empty keeps both in the runtime store |
 | `timezone_offset_hours` | float | 0 | UTC offset cron triggers are matched in (e.g. `8`, `-5.5`); `every:` is unaffected |
 
@@ -115,6 +117,74 @@ A `profiles/*.yaml` file is an agent config plus a `name` and a `spawn` flag: `s
 >  **Nothing migrates, and the engine cannot tell what moved.** Rows written under the old head — files, memory, whatever a loop keyed itself — are not adopted, because there is no way to know that yesterday's `agent:bot` belonged to the person who is now `user:u_xxxx`. So turn the layer on before real traffic, or write the adoption yourself: a loop that copies the old head's rows to the new one, run once, at the switch. The same holds in reverse — turning it off, or unlinking a handle, leaves the personal scope behind.
 
 The admin server exposes `GET /healthz`, `GET /readyz`, `GET /metrics` (Prometheus text format), `GET /admin/sessions`, and `/admin/credentials`. (The session listing was `/v1/sessions` before: that prefix belongs to the public user API, which this private listener does not serve.) Live counters include `agentflow_sessions_active`, `agentflow_children_spawned`/`died`, `agentflow_llm_calls`, `agentflow_llm_tokens`, `agentflow_budget_denied`, and `agentflow_trigger_fires`.
+
+### Topology
+
+`runtime.topology` picks the deployment shape, and the shape decides which
+settings are valid. It is one setting rather than a dozen because the alternative
+is a deployment that is half-configured and looks healthy: a regional fleet with
+a local blob directory gives every instance its own copy of the data with no
+error. Boot refuses those combinations, and `agentflow validate` refuses them
+before boot.
+
+#### `single`
+
+The default, and every configuration written before the setting existed. One
+process; anything valid before stays valid:
+
+| Backend | `single` |
+| --- | --- |
+| Runtime, identity, credentials, leases, inbox | SQLite or PostgreSQL |
+| Memory: `sqlite`, `postgres`, `pgvector`, `qdrant`, `redis`, `redisvector`, `volatile` | All allowed |
+| Blobs (`media`, `files`) | Local directory or S3 |
+| `runtime.log_plane.persistence` | Allowed |
+
+A second live process on the same store is refused at boot with the peer's id
+and last-seen time. `-force-single` starts anyway; use it only after a crash,
+or wait out the 30-second liveness window.
+
+#### `regional`
+
+Several instances across availability zones in one region, sharing one
+PostgreSQL. Boot refuses:
+
+| Setting | Refusal |
+| --- | --- |
+| `runtime.persistence` not PostgreSQL | Every instance would keep its own database |
+| `runtime.identity.persistence` / `runtime.credentials.path` set to SQLite | Each instance would keep its own identities or credentials. Unset them to follow the runtime store, or point them at PostgreSQL |
+| `runtime.cluster.persistence` naming a different target | Leases and the inbox always live in the runtime store |
+| Any `memory.backends` entry with provider `sqlite` | Each instance would keep its own conversation history |
+| `media.backend` or `files.backend` not `s3` | Each instance would keep its own blobs |
+| `runtime.log_plane.persistence` set | A local directory belongs to one process |
+| `ADMIN_TOKEN` unset and `runtime.admin.operators` empty | A per-boot token is unknown to every peer, so none is minted (checked at boot, since it is an environment setting) |
+
+```
+runtime:
+  topology: regional
+  region: eu-west
+  zone: eu-west-1a
+  persistence: postgres://agentflow:${PG_PASSWORD}@db.internal:5432/agentflow?sslmode=require
+  admin:
+    operators: { alice: ${ALICE_ADMIN_TOKEN} }
+
+media: { backend: s3, s3: { bucket: agentflow-media, region: eu-west-1 } }
+files: { backend: s3, s3: { bucket: agentflow-files, region: eu-west-1 } }
+```
+
+Redis is one region-wide cluster (locality `region`); `volatile` stays
+instance-local. Each instance writes a heartbeat row to the `instances` table
+every 10 seconds and is live while its last heartbeat is within 30 seconds;
+`/admin/api/state` reports `topology`, `zone` and every live `instances` entry,
+flagging a peer whose `config_epoch` differs. Studio's Overview shows the same
+list.
+
+A multi-region deployment is one independent `regional` cell per region — there
+is no global tier. See [Multi-region](multi-region.md).
+
+`agentflow doctor -online` (the default for a regional config) checks the live
+side: it opens the runtime store, confirms the `vector` extension on every
+pgvector backend, puts/gets/deletes a probe object in each S3 bucket, and pings
+Redis and Qdrant. Each line is PASS/FAIL with the fix.
 
 ### Credential CLI
 
