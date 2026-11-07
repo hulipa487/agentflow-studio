@@ -3,9 +3,7 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"image/color"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -116,13 +114,10 @@ func (a *App) applyAppearance(p themePalette, v appTheme) {
 	}
 }
 
+// Start shows the login screen, reconnecting at once when a URL and token
+// were remembered from the last session.
 func (a *App) Start() {
-	a.showLogin("")
-	if a.cfg.Token != "" && a.cfg.URL != "" {
-		a.connect(a.cfg.URL, a.cfg.Token, func(err error) {
-			a.showLogin(err.Error())
-		})
-	}
+	a.showLoginWith(loginOptions{auto: a.cfg.Token != "" && a.cfg.URL != ""})
 }
 
 func (a *App) setContent(obj fyne.CanvasObject) {
@@ -180,166 +175,6 @@ func (a *App) clearActions() {
 	a.sendAction = nil
 	a.backAction = nil
 	a.refreshAction = nil
-}
-
-// ---- login -----------------------------------------------------------------
-
-func (a *App) showLogin(errMsg string) {
-	a.cancelChat()
-	a.cancelView()
-	a.stopHeartbeat()
-	a.clearActions()
-	a.view = "login"
-	a.shell = nil
-	a.railPane = nil
-	a.railToggle = nil
-	a.railVisible = false
-
-	urlEntry := widget.NewEntry()
-	urlEntry.SetPlaceHolder("http://127.0.0.1:9090 · unix:///run/agentflow/admin.sock · npipe://agentflow-admin")
-	if a.cfg.URL != "" {
-		urlEntry.SetText(a.cfg.URL)
-	} else {
-		urlEntry.SetText("http://127.0.0.1:9090")
-	}
-
-	tokenEntry := widget.NewPasswordEntry()
-	tokenEntry.SetPlaceHolder("ADMIN_TOKEN, or the token printed at boot")
-	if a.cfg.Token != "" {
-		tokenEntry.SetText(a.cfg.Token)
-	}
-
-	messages := vstack(spaceXS)
-	showErr := func(text string) {
-		clearBox(messages)
-		if text != "" {
-			messages.Add(messageCard(text, toneDanger))
-		}
-		messages.Refresh()
-		if a.win != nil && a.win.Canvas() != nil && a.win.Canvas().Content() != nil {
-			a.win.Canvas().Content().Refresh()
-		}
-	}
-	if errMsg != "" {
-		showErr(errMsg)
-	}
-
-	activity := widget.NewActivity()
-	activity.Hide()
-	progress := caption("")
-
-	connectBtn := primaryButton("Connect", theme.NavigateNextIcon(), nil)
-	doConnect := func() {
-		rawURL := strings.TrimSpace(urlEntry.Text)
-		token := strings.TrimSpace(tokenEntry.Text)
-		if rawURL == "" {
-			showErr("An instance URL is required.")
-			return
-		}
-		if token == "" {
-			showErr("The admin token is required.")
-			return
-		}
-		showErr("")
-		connectBtn.Disable()
-		connectBtn.SetText("Connecting…")
-		activity.Show()
-		activity.Start()
-		progress.SetText("contacting " + rawURL)
-		a.connect(rawURL, token, func(err error) {
-			activity.Stop()
-			activity.Hide()
-			connectBtn.Enable()
-			connectBtn.SetText("Connect")
-			progress.SetText("")
-			showErr(err.Error())
-		})
-	}
-	connectBtn.OnTapped = doConnect
-	urlEntry.OnSubmitted = func(string) { a.win.Canvas().Focus(tokenEntry) }
-	tokenEntry.OnSubmitted = func(string) { doConnect() }
-
-	logo := logoMark(96)
-	title := widget.NewLabelWithStyle("AgentFlow Studio", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	title.SizeName = theme.SizeNameHeadingText
-	tagline := muted("Build, run, and trace agents on your own runtime.")
-	tagline.Alignment = fyne.TextAlignCenter
-
-	form := vstack(spaceM,
-		labeled("Instance URL", urlEntry),
-		labeled("Admin token", tokenEntry),
-		messages,
-		vSpacer(spaceXS),
-		widthBox(460, controlFrame(connectBtn)),
-		container.NewHBox(activity, progress),
-	)
-	card := panel(widthBox(460, form))
-
-	transports := container.NewCenter(hstack(spaceXS,
-		chip("HTTP / TLS", toneNeutral),
-		chip("Unix Socket", toneNeutral),
-		chip("Named Pipe", toneNeutral),
-	))
-	footer := caption("Native desktop client · admin bearer token · TCP or a local socket")
-	footer.Alignment = fyne.TextAlignCenter
-
-	body := vstack(spaceS,
-		container.NewCenter(logo),
-		container.NewCenter(title),
-		container.NewCenter(tagline),
-		container.NewCenter(newTransStripe(168, 3)),
-		vSpacer(spaceXS),
-		container.NewCenter(card),
-		vSpacer(spaceXS),
-		transports,
-		container.NewCenter(footer),
-	)
-
-	var bottom fyne.CanvasObject
-	if grip := a.resizeGrip(); grip != nil {
-		bottom = container.NewHBox(layout.NewSpacer(), grip)
-	}
-	a.setContent(container.NewStack(
-		canvas.NewRectangle(colorBG),
-		container.NewBorder(a.chromeStrip(), bottom, nil, nil,
-			container.NewCenter(container.NewPadded(body))),
-	))
-	a.win.Resize(fyne.NewSize(1080, 800))
-	if a.cfg.URL == "" {
-		a.win.Canvas().Focus(urlEntry)
-	} else {
-		a.win.Canvas().Focus(tokenEntry)
-	}
-}
-
-// connect verifies the token and the Studio API. Credentials are saved only
-// after both succeed, so a typo never becomes a sticky auto-connect.
-func (a *App) connect(rawURL, token string, onError func(error)) {
-	go func() {
-		c := api.New(rawURL, token)
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		defer cancel()
-		if err := c.Ping(ctx); err != nil {
-			fyne.Do(func() { onError(err) })
-			return
-		}
-		cat, err := c.Catalog(ctx)
-		if err != nil {
-			fyne.Do(func() {
-				onError(fmt.Errorf("connected, but the Studio API is unavailable: %w", err))
-			})
-			return
-		}
-		fyne.Do(func() {
-			a.api = c
-			a.catalog = cat
-			a.cfg.URL = c.DisplayURL
-			a.cfg.Token = token
-			_ = appconfig.Save(a.cfg)
-			a.showMain()
-			a.startHeartbeat()
-		})
-	}()
 }
 
 func (a *App) lock() {

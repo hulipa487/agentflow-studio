@@ -478,9 +478,16 @@ func (borderlessEntryTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) co
 	return studioTheme{}.Color(n, v)
 }
 
+// caretWidth is the text caret's width inside framed entries. Fyne draws the
+// caret SizeNameInputBorder wide, so this size must never be 0: zero is what
+// made the caret invisible in every framed field. The unfocused border is
+// hidden by the transparent InputBorder color above; the focused one is the
+// frame's focus ring (see singleLineEntryLayout).
+const caretWidth = 2
+
 func (borderlessEntryTheme) Size(n fyne.ThemeSizeName) float32 {
 	if n == theme.SizeNameInputBorder {
-		return 0
+		return caretWidth
 	}
 	return studioTheme{}.Size(n)
 }
@@ -926,13 +933,14 @@ func (singleLineEntryLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	return fyne.NewSize(min.Width, controlHeight)
 }
 
+// Layout gives the entry the whole frame. Its own border is transparent until
+// it has focus, then Fyne draws it in the Primary color; filling the frame puts
+// that focus ring exactly on the frame's outline instead of a second ring
+// inset inside it.
 func (singleLineEntryLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	for _, obj := range objs {
-		eh := obj.MinSize().Height
-		// Shift +1px down for optical cap-height centering inside the 30px frame.
-		y := (size.Height-eh)/2 + 1
-		obj.Resize(fyne.NewSize(size.Width-4, eh))
-		obj.Move(fyne.NewPos(2, y))
+		obj.Resize(size)
+		obj.Move(fyne.NewPos(0, 0))
 	}
 }
 

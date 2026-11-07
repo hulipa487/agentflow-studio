@@ -365,8 +365,12 @@ STUDIO_SNAPSHOT_DIR=./snapshots go test ./internal/ui -run TestSnapshots
 ## Connecting
 
 On first launch enter the instance URL and the admin token — `ADMIN_TOKEN`, the
-per-boot token printed at startup, or a named operator token. The URL accepts a
-TCP origin, a Unix socket, or a Windows named pipe:
+per-boot token printed at startup, or a named operator token. The **Transport**
+switch (HTTP, Unix socket, Named pipe) fills in a typical address, and the hint
+under the URL says what it will reach before you connect. While connecting the
+button becomes **Cancel** and shows each step. A failure points at the field to
+fix: a rejected token marks the token, an address where nothing answers marks
+the URL. The URL accepts a TCP origin, a Unix socket, or a Windows named pipe:
 
 ```
 http://127.0.0.1:9090
@@ -397,7 +401,9 @@ The app verifies `GET /admin/api/state` and loads
 `GET /admin/api/studio/catalog` before saving the connection. A wrong URL or
 token is not persisted, so the next launch starts clean.
 
-The token is stored in plain text in the user's config directory:
+With **Remember the token on this computer** checked (the default) the token is
+stored in plain text in the user's config directory; unchecked, only the URL is
+kept and the token is asked for at each launch (`forget_token` in the file):
 
 - Windows: `%APPDATA%\agentflow-studio\config.json`
 - Linux: `~/.config/agentflow-studio/config.json`

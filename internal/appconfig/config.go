@@ -12,6 +12,10 @@ type Config struct {
 	Token   string `json:"token"`
 	Theme   string `json:"theme,omitempty"`   // "light" or "dark"; empty follows the OS
 	Palette string `json:"palette,omitempty"` // "trans" or "obsidian"; empty defaults to "trans"
+	// ForgetToken keeps the admin token out of this file: the URL is still
+	// remembered, the token is asked for at every launch. The zero value
+	// (remember) is the historical behaviour.
+	ForgetToken bool `json:"forget_token,omitempty"`
 }
 
 // Path returns the config file. AGENTFLOW_STUDIO_CONFIG overrides it (useful
