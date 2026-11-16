@@ -23,10 +23,10 @@ import (
 	"agentflow-studio/internal/docs"
 )
 
-// SetDocs installs the embedded documentation set. main owns the embed
-// directive because the content lives at the repository root.
+// SetDocs installs the documentation set: the shared docs module's file
+// system, with the guides at its root.
 func (a *App) SetDocs(fsys fs.FS) error {
-	lib, err := docs.New(fsys, "docs")
+	lib, err := docs.New(fsys, "")
 	if err != nil {
 		return err
 	}

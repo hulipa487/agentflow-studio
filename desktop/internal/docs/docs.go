@@ -1,7 +1,8 @@
-// Package docs loads the Markdown documentation embedded in AgentFlow Studio.
-// The content lives at the repository root (docs/) because it is edited as
-// ordinary files; main embeds it and hands the FS to this package so the viewer
-// works offline and over a local admin socket.
+// Package docs loads the Markdown documentation shipped with AgentFlow Studio.
+// The content lives in the repository's docs/ directory, shared with the web
+// app and edited as ordinary files; main hands this package the embedded file
+// system from the docs module, so the viewer works offline and over a local
+// admin socket.
 package docs
 
 import (
@@ -47,7 +48,8 @@ var manifest = []Page{
 }
 
 // New validates the manifest against fsys. root is the directory that holds
-// the Markdown pages (normally "docs").
+// the Markdown pages ("" when they sit at the root of fsys, as they do in the
+// shared docs module).
 func New(fsys fs.FS, root string) (*Library, error) {
 	l := &Library{fs: fsys, root: strings.Trim(root, "/"), bySlug: map[string]Page{}}
 	for _, p := range manifest {

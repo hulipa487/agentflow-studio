@@ -6,11 +6,13 @@ import (
 	"strings"
 	"testing"
 
+	studiodocs "agentflow-studio-docs"
+
 	"agentflow-studio/internal/docs"
 )
 
 func TestEmbeddedDocs(t *testing.T) {
-	lib, err := docs.New(studioDocsFS, "docs")
+	lib, err := docs.New(studiodocs.FS, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +45,7 @@ func TestEmbeddedDocs(t *testing.T) {
 }
 
 func TestDocsSearchAndLinks(t *testing.T) {
-	lib, err := docs.New(studioDocsFS, "docs")
+	lib, err := docs.New(studiodocs.FS, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,16 +65,16 @@ func TestDocsSearchAndLinks(t *testing.T) {
 // opens one: a file left out of the manifest is unreachable and every link to
 // it is shown as plain text.
 func TestEveryDocIsReachable(t *testing.T) {
-	lib, err := docs.New(studioDocsFS, "docs")
+	lib, err := docs.New(studiodocs.FS, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	files, err := fs.Glob(studioDocsFS, "docs/*.md")
+	files, err := fs.Glob(studiodocs.FS, "*.md")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range files {
-		if _, ok := lib.SlugFor(strings.TrimPrefix(f, "docs/")); !ok {
+		if _, ok := lib.SlugFor(f); !ok {
 			t.Errorf("%s is embedded but not in the docs manifest", f)
 		}
 	}

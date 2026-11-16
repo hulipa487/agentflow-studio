@@ -4,6 +4,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 
+	studiodocs "agentflow-studio-docs"
+
 	"agentflow-studio/internal/appconfig"
 	"agentflow-studio/internal/ui"
 )
@@ -20,7 +22,7 @@ func main() {
 	win.CenterOnScreen()
 
 	studio := ui.New(fyneApp, win, appconfig.Load())
-	if err := studio.SetDocs(studioDocsFS); err != nil {
+	if err := studio.SetDocs(studiodocs.FS); err != nil {
 		println("documentation:", err.Error())
 	}
 	studio.Start()

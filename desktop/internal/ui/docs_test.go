@@ -15,7 +15,7 @@ func TestRenderMarkdownBlocks(t *testing.T) {
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("docs")
 	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})
-	if err := a.SetDocs(os.DirFS("../..")); err != nil {
+	if err := a.SetDocs(os.DirFS("../../../docs")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -38,7 +38,7 @@ func TestDocsSearchSidebarBuilds(t *testing.T) {
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("docs")
 	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})
-	if err := a.SetDocs(os.DirFS("../..")); err != nil {
+	if err := a.SetDocs(os.DirFS("../../../docs")); err != nil {
 		t.Fatal(err)
 	}
 	a.content = container.NewStack()

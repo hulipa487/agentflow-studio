@@ -3,6 +3,10 @@ module agentflow-studio
 go 1.27.2
 
 require (
+	// The documentation set is shared with the web app and lives beside this
+	// module, at ../docs. A Go embed cannot reach outside its module, so the docs
+	// directory is a small module of its own.
+	agentflow-studio-docs v0.0.0
 	fyne.io/fyne/v2 v2.8.2
 	github.com/Microsoft/go-winio v0.6.3
 	github.com/yuin/goldmark v1.8.2
@@ -43,3 +47,5 @@ require (
 	golang.org/x/text v0.22.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace agentflow-studio-docs => ../docs

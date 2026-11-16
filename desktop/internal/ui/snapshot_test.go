@@ -89,7 +89,7 @@ func TestSnapshots(t *testing.T) {
 	win.Resize(fyne.NewSize(1280, 860))
 
 	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})
-	if err := a.SetDocs(os.DirFS("../..")); err != nil {
+	if err := a.SetDocs(os.DirFS("../../../docs")); err != nil {
 		t.Fatal(err)
 	}
 	a.api = api.New(srv.URL, "token")
