@@ -28,7 +28,7 @@ func TestFramedEntryCaretIsVisible(t *testing.T) {
 	app.Settings().SetTheme(studioTheme{})
 	win := app.NewWindow("caret")
 	e := widget.NewEntry()
-	e.SetText("http://127.0.0.1:9090")
+	e.SetText("http://127.0.0.1:8080")
 	win.SetContent(controlFrame(e))
 	win.Resize(fyne.NewSize(400, 80))
 	win.Canvas().Focus(e)
@@ -63,13 +63,13 @@ func TestDescribeURL(t *testing.T) {
 		contains  string
 		transport int
 	}{
-		{"http://127.0.0.1:9090", true, "this machine", 0},
-		{"127.0.0.1:9090", true, "this machine", 0},
+		{"http://127.0.0.1:8080", true, "this machine", 0},
+		{"127.0.0.1:8080", true, "this machine", 0},
 		{"https://agentflow.example.com", true, "HTTPS", 0},
 		{"ftp://x", false, "Unknown scheme", 0},
 		{"unix:///run/agentflow/admin.sock", true, "/run/agentflow/admin.sock", 1},
 		{"unix://run/agentflow.sock", false, "needs a path", 1},
-		{"", true, "admin.listen", 0},
+		{"", true, "gateway.listen", 0},
 	}
 	for _, c := range cases {
 		got, ok := describeURL(c.in)
@@ -90,7 +90,7 @@ func TestLoginFailurePointsAtTheField(t *testing.T) {
 	app := test.NewApp()
 	defer app.Quit()
 	win := app.NewWindow("login")
-	a := New(app, win, appconfig.Config{URL: "http://127.0.0.1:9090"})
+	a := New(app, win, appconfig.Config{URL: "http://127.0.0.1:8080"})
 	v := &loginView{app: a}
 	win.SetContent(v.build())
 

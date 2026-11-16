@@ -78,10 +78,9 @@ A `profiles/*.yaml` file is an agent config plus a `name` and a `spawn` flag: `s
 | `topology` | string | single | The deployment tier: `single` (one process) or `regional` (several instances in one region sharing one PostgreSQL). Unset means `single`. The tier decides which other settings are valid; boot refuses one it cannot honour. See [Topology](#topology) |
 | `zone` | string | "" | Availability-zone label inside the region (letters, digits and `. _ -`, at most 32 characters). Reported in metrics and `/admin/api/state`; it is a label, never a routing decision |
 | `shutdown_grace` | duration | 5s regional · 0 single | How long a shutdown first reports unready and keeps serving before the listeners close, so a load balancer can drain and an in-flight turn can finish. `0` disables the wait |
-| `admin.listen` | string | 127.0.0.1:9090 | Metrics/admin HTTP endpoint; also serves the web console and the Studio API |
 | `admin.cors_origins` | list | \[\] | Exact browser origins allowed to call `/admin/api/*` (a custom frontend or another browser client). The native Studio desktop app sends the token directly and does not need it. Empty keeps the API same-origin only; `"*"` is refused. Preflight is answered before the bearer check |
 | `admin.socket` | string | "" | Adds a local-only admin listener: a unix socket path on Unix (relative paths resolve against the config directory) or a named pipe such as `\\.\pipe\agentflow-admin` on Windows. The bearer token is still required |
-| `admin.tcp` | bool | true | The loopback HTTP admin listener. `false` serves the admin plane only on `admin.socket`; at least one transport must remain |
+| `admin.tcp` | bool | true | Serve the admin plane on the HTTP listener (`gateway.listen`), under `/admin/` plus `/healthz`, `/readyz` and `/metrics`. `false` serves it only on `admin.socket`; at least one transport must remain. There is no `admin.listen`: the admin plane has no port of its own, and a config that sets one is refused |
 | `admin.operators` | map | {} | Named admin tokens (`name: token`), each with the same authority as `ADMIN_TOKEN`. Requests are attributed to the name in logs. Values may be `${VAR}` or `cred:<service>` references, resolved at boot; an unresolvable one is skipped with a warning |
 | `limits.sessions_per_tenant` | int | 0 | Caps live sessions per tenant at the supervisor's spawn boundary (routed first contact and `agent.spawn`). 0 disables |
 | `limits.egress_per_minute` | int | 0 | Caps `http.request` and mail ops per tenant per minute (fixed window). 0 disables. Op-pool fairness between tenants is always on and not configurable |
@@ -218,8 +217,8 @@ Every command follows the same conventions:
   and `cred list`.
 - A flag that does not apply to a command is an error, never silently ignored.
 - `user export` and `user import` find the admin API from `-url`, then
-  `$AGENTFLOW_URL`, then the config's `runtime.admin.listen`, then
-  `http://127.0.0.1:9090`; the token is `-token` or `$ADMIN_TOKEN`.
+  `$AGENTFLOW_URL`, then the config's `gateway.listen`, then
+  `http://127.0.0.1:8080`; the token is `-token` or `$ADMIN_TOKEN`.
 
 The worker pool size is `runtime.scheduler.workers` (there is no flag for it).
 Removed flags (`-configdir`, `-workers`, `-log-json`, `-no-webui`, `init -dir`,
@@ -267,16 +266,18 @@ The engine ships **no user interface**. Instead it exposes a JSON-only profile A
 
 ### Web console
 
-The admin server also hosts an embedded **web console** (on by default; `-no-console` disables the static files) at `http://<admin.listen>/` — a single-page UI for the operator, no build step or separate port. It has four tabs:
+The admin server also hosts an embedded **web console** (on by default; `-no-console` disables the static files) at `http://<gateway.listen>/admin/` — a single-page UI for the operator, no build step or separate port. It has four tabs:
 
 - **Dashboard** — instance info, live sessions, agents/channels, an API-key manager over the credential store (per-user create/revoke, write-only secrets), and a streaming log tail.
 - **Models** — list every named model (key masked to a last-4 fingerprint), edit/add/remove, and a *test* button that makes a 1-token call through the live manager and classifies the result (auth / not\_found / unreachable / …). Edits **hot-apply to the running process** immediately, then an explicit *Persist to config* writes them into the file (backup kept as `.bak`) and *Revert* reloads from the file. A drift badge shows whenever runtime and file disagree — on this instance: the comparison is between this process's model set and the file, so in a fleet each console sees its own drift. An edit here applies to **this instance** immediately; the others keep their current models until they restart, so the path to a fleet-wide change is *Persist to config* and a rolling restart.
 - **Config** — a raw YAML editor with boot-equivalent *Validate* (strict fields, env expansion, cross-references — errors name the line), an atomic *Save* that backs up first and refuses if the file changed on disk underneath you, and a masked structured view. Saving prompts a restart; the runtime never silently live-reloads topology.
 - **Metrics** — the counters as sparklines, sampled in-process (~2h at 5s) so no external TSDB is needed; `/metrics` stays the Prometheus integration point.
 
-**Auth:** every console API route (and `/metrics`, `/admin/sessions`, `/admin/credentials`) requires a bearer token — even on loopback. Set `ADMIN_TOKEN` to pin it; otherwise a random per-boot token is generated and printed once to the console. `-no-console` disables the static console files, *not* the admin or Studio APIs and not the authentication: the token is still minted, and a non-loopback `runtime.admin.listen` with no `ADMIN_TOKEN` is a boot error, because a token generated per boot is only a secret while nothing else can reach the port. The static SPA files are served open but are inert without the token. Secrets are write-only throughout: list endpoints return metadata and fingerprints, never values, and the config view masks sensitive keys while preserving `${VAR}` placeholders.
+**One port.** The admin plane shares `gateway.listen` with the channels: `/admin/` (the console, `/admin/api/*`, `/admin/sessions`, `/admin/credentials`), `/healthz`, `/readyz` and `/metrics`. Channel paths under those are refused, and so are `/health` and `/v1/users/`.
 
-**Local transport:** `runtime.admin.socket` adds a second, local-only admin listener — a unix domain socket on Unix or a named pipe on Windows — and `runtime.admin.tcp: false` removes the loopback HTTP listener. The socket is owner-only (0600; the pipe DACL grants the owner, Administrators and SYSTEM), the bearer token is still required, and the Studio desktop app accepts `unix:///path` or `npipe://name` URLs. The browser console is served on the HTTP listener, so keep TCP enabled if you use it. Documentation now lives in AgentFlow Studio and works over a local socket or pipe.
+**Auth:** every console API route (and `/metrics`, `/admin/sessions`, `/admin/credentials`) requires a bearer token — even from loopback. Set `ADMIN_TOKEN` (or name `runtime.admin.operators`) to pin it; otherwise a random per-boot token is generated and printed once to the log. A per-boot token is not a secret from anyone who can read that log, so while the token is minted the admin plane answers **only local clients**: a request from another machine, or one that carries `Forwarded`, `X-Forwarded-For` or `X-Real-IP` (so a reverse proxy on the same host does not count as local), gets `403`; `/healthz` and `/readyz` stay open for load balancers. A configured credential opens the admin plane to remote clients, guarded by the token alone, so put TLS in front of it. A regional cell must configure one: a per-boot token is unknown to the other instances. `-no-console` disables the static console files, *not* the admin or Studio APIs and not the authentication. The static SPA files are served open but are inert without the token. Secrets are write-only throughout: list endpoints return metadata and fingerprints, never values, and the config view masks sensitive keys while preserving `${VAR}` placeholders.
+
+**Local transport:** `runtime.admin.socket` adds a second, local-only admin listener — a unix domain socket on Unix or a named pipe on Windows — and `runtime.admin.tcp: false` takes the admin plane off the HTTP listener. The socket is owner-only (0600; the pipe DACL grants the owner, Administrators and SYSTEM), the bearer token is still required, and the Studio desktop app accepts `unix:///path` or `npipe://name` URLs. The browser console is served on the HTTP listener, so keep TCP enabled if you use it. Documentation now lives in AgentFlow Studio and works over a local socket or pipe.
 
 **Admin API.** Everything the console does is a JSON route under `/admin/api/`, so an operator can script it. All of them require the same bearer token.
 
@@ -340,7 +341,7 @@ make build        # or: CGO_ENABLED=1 CC="zig cc" CXX="zig c++" go build -o agen
 ./agentflow-studio
 ```
 
-Enter the instance URL (`http://127.0.0.1:9090`) and the admin token. As a native client it sends the token directly, so no `runtime.admin.cors_origins` entry is needed; keep the admin listener on loopback. That allow-list remains for *browser* clients of the admin API, and exact origins only (`http://localhost:5173` and `http://127.0.0.1:5173` are different origins); `"*"` is refused.
+Enter the instance URL (`http://127.0.0.1:8080`, the `gateway.listen` address) and the admin token. As a native client it sends the token directly, so no `runtime.admin.cors_origins` entry is needed. To connect from another machine the runtime needs a configured `ADMIN_TOKEN` (a per-boot token answers local clients only); put TLS in front of it. That allow-list remains for *browser* clients of the admin API, and exact origins only (`http://localhost:5173` and `http://127.0.0.1:5173` are different origins); `"*"` is refused.
 
 | Studio route | Does |
 | --- | --- |

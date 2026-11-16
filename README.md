@@ -373,7 +373,7 @@ fix: a rejected token marks the token, an address where nothing answers marks
 the URL. The URL accepts a TCP origin, a Unix socket, or a Windows named pipe:
 
 ```
-http://127.0.0.1:9090
+http://127.0.0.1:8080
 unix:///run/agentflow/admin.sock
 npipe://agentflow-admin
 ```

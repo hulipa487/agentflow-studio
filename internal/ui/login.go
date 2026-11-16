@@ -34,7 +34,7 @@ type loginTransport struct {
 }
 
 var loginTransports = []loginTransport{
-	{label: "HTTP", example: "http://127.0.0.1:9090", placeholder: "http://127.0.0.1:9090", supported: true},
+	{label: "HTTP", example: "http://127.0.0.1:8080", placeholder: "http://127.0.0.1:8080", supported: true},
 	{label: "Unix socket", example: "unix:///run/agentflow/admin.sock", placeholder: "unix:///run/agentflow/admin.sock", supported: true},
 	{label: "Named pipe", example: "npipe://agentflow-admin", placeholder: "npipe://agentflow-admin",
 		supported: runtime.GOOS == "windows", why: "Named pipes are Windows only"},
@@ -57,7 +57,7 @@ func transportOf(raw string) int {
 func describeURL(raw string) (string, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "Where the runtime's admin API listens (runtime.admin.listen, default 127.0.0.1:9090).", true
+		return "The runtime's HTTP address (gateway.listen, default :8080); the admin API is served there under /admin/.", true
 	}
 	switch transportOf(raw) {
 	case 1:
@@ -418,7 +418,10 @@ func (v *loginView) fail(err error) {
 		msg = "Authentication failed: " + ae.Message
 		v.app.win.Canvas().Focus(v.token.entry)
 	case errors.As(err, &ae) && ae.Status == 0:
-		v.url.setHint("Nothing answered here. Is AgentFlow running, and is this its admin address (runtime.admin.listen, or runtime.admin.socket with tcp: false)?", true)
+		v.url.setHint("Nothing answered here. Is AgentFlow running, and is this its address (gateway.listen, or runtime.admin.socket with tcp: false)?", true)
+		v.app.win.Canvas().Focus(v.url.entry)
+	case errors.As(err, &ae) && ae.Status == 403:
+		v.url.setHint("This runtime answers its admin API only on its own machine: its token is minted per boot. Set ADMIN_TOKEN (or runtime.admin.operators) on the runtime to connect from here.", true)
 		v.app.win.Canvas().Focus(v.url.entry)
 	case errors.As(err, &ae) && ae.Status == 503:
 		msg += "\n\nThe Studio API is off on this runtime: set runtime.studio.enabled: true and restart AgentFlow."

@@ -136,12 +136,12 @@ Run it and hit the webhook with curl:
 curl -X POST localhost:8080/webhook/ -d '{"from":"alice","text":"hello"}'
 ```
 
-You should see `echo: hello` in the response. Note the trailing slash — the webhook mounts the `/webhook/` subtree, and a POST to bare `/webhook` returns a `307` redirect that `curl -d` will not follow. Also check the admin endpoints and the shared listener's health probe:
+You should see `echo: hello` in the response. Note the trailing slash — the webhook mounts the `/webhook/` subtree, and a POST to bare `/webhook` returns a `307` redirect that `curl -d` will not follow. Everything is on that one port, including the admin plane's probes:
 
 ```
-curl http://127.0.0.1:9090/healthz
-curl http://127.0.0.1:9090/readyz
-curl http://127.0.0.1:8080/health    # shared channel listener -> {"ok":true}
+curl http://127.0.0.1:8080/healthz   # liveness
+curl http://127.0.0.1:8080/readyz    # readiness (503 while starting or draining)
+curl http://127.0.0.1:8080/health    # the channel listener's own probe -> {"ok":true}
 ```
 
 ### Troubleshooting
