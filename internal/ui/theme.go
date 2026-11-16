@@ -428,7 +428,7 @@ func (studioTheme) Size(n fyne.ThemeSizeName) float32 {
 	case theme.SizeNameText:
 		return 13
 	case theme.SizeNameHeadingText:
-		return 21
+		return 19
 	case theme.SizeNameSubHeadingText:
 		return 15
 	case theme.SizeNameCaptionText:
@@ -728,7 +728,9 @@ func themeTint() []color.Color {
 	return []color.Color{colorAccent, colorAccent2, middle, colorAccent2, colorAccent}
 }
 
-// transStripe is the five-band accent bar used in the shell.
+// transStripe is the shell's accent hairline: the flag's five bands blended
+// into one continuous gradient (blue, pink, white, pink, blue). It is drawn as
+// four two-stop segments because a canvas gradient has only two stops.
 type transStripe struct {
 	widget.BaseWidget
 	minWidth float32
@@ -745,13 +747,14 @@ func (s *transStripe) MinSize() fyne.Size { return fyne.NewSize(s.minWidth, s.he
 
 type transStripeRenderer struct {
 	stripe *transStripe
-	bands  []*canvas.Rectangle
+	bands  []*canvas.LinearGradient
 }
 
 func (s *transStripe) CreateRenderer() fyne.WidgetRenderer {
 	r := &transStripeRenderer{stripe: s}
-	for _, c := range themeTint() {
-		r.bands = append(r.bands, canvas.NewRectangle(c))
+	tint := themeTint()
+	for i := 0; i+1 < len(tint); i++ {
+		r.bands = append(r.bands, canvas.NewHorizontalGradient(tint[i], tint[i+1]))
 	}
 	return r
 }
@@ -760,20 +763,31 @@ func (r *transStripeRenderer) Layout(size fyne.Size) {
 	if len(r.bands) == 0 {
 		return
 	}
-	w := size.Width / float32(len(r.bands))
+	// The outer segments are shorter so the white core reads as a band, not a
+	// point: the flag's proportions, softened.
+	weights := []float32{0.22, 0.28, 0.28, 0.22}
+	var x float32
 	for i, band := range r.bands {
-		band.Resize(fyne.NewSize(w, size.Height))
-		band.Move(fyne.NewPos(w*float32(i), 0))
+		w := size.Width / float32(len(r.bands))
+		if i < len(weights) && len(r.bands) == len(weights) {
+			w = size.Width * weights[i]
+		}
+		// One extra pixel hides the seam between adjacent segments.
+		band.Resize(fyne.NewSize(w+1, size.Height))
+		band.Move(fyne.NewPos(x, 0))
+		x += w
 	}
 }
 
 func (r *transStripeRenderer) MinSize() fyne.Size { return r.stripe.MinSize() }
 
 func (r *transStripeRenderer) Refresh() {
-	for i, c := range themeTint() {
-		if i < len(r.bands) {
-			r.bands[i].FillColor = c
-			r.bands[i].Refresh()
+	tint := themeTint()
+	for i, band := range r.bands {
+		if i+1 < len(tint) {
+			band.StartColor = tint[i]
+			band.EndColor = tint[i+1]
+			band.Refresh()
 		}
 	}
 }
@@ -833,8 +847,8 @@ const panelPadding = 12
 
 const (
 	pageGutter = 20
-	pageTop    = 14
-	pageBottom = 14
+	pageTop    = 12
+	pageBottom = 12
 	cardRadius = 10
 )
 
@@ -1031,6 +1045,16 @@ func panel(content fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewStack(bg, container.New(pad, content))
 }
 
+// panelFlush is a card whose content reaches its edges: lists and tables that
+// draw their own row padding and separators.
+func panelFlush(content fyne.CanvasObject) fyne.CanvasObject {
+	bg := canvas.NewRectangle(colorSurface)
+	bg.CornerRadius = cardRadius
+	bg.StrokeColor = colorBorder
+	bg.StrokeWidth = 1
+	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(1, 1, 1, 1), content))
+}
+
 func subpanel(content fyne.CanvasObject) fyne.CanvasObject {
 	bg := canvas.NewRectangle(colorSurface2)
 	bg.CornerRadius = 8
@@ -1135,18 +1159,56 @@ func mono(text string, sizeName fyne.ThemeSizeName) *widget.Label {
 	return l
 }
 
+// chip is a borderless tinted badge. The tone colors the text and the fill, so
+// a row of chips reads by color before it reads by word.
 func chip(text string, t tone) fyne.CanvasObject {
 	bg := canvas.NewRectangle(toneBackground(t))
-	bg.CornerRadius = 11
-	bg.StrokeColor = colorBorder
-	bg.StrokeWidth = 1
+	bg.CornerRadius = 6
 	txt := canvas.NewText(text, toneColor(t))
 	txt.TextSize = 10.5
 	txt.TextStyle = fyne.TextStyle{Monospace: true}
 	txt.Alignment = fyne.TextAlignCenter
 	stack := container.NewStack(bg, container.NewCenter(txt))
-	w := fyne.MeasureText(text, 10.5, txt.TextStyle).Width + 20
-	return container.NewGridWrap(fyne.NewSize(w, 22), stack)
+	w := fyne.MeasureText(text, 10.5, txt.TextStyle).Width + 16
+	return container.NewGridWrap(fyne.NewSize(w, 20), stack)
+}
+
+// statusChip is a chip led by a state dot: live, restart required, busy.
+func statusChip(text string, t tone) fyne.CanvasObject {
+	bg := canvas.NewRectangle(toneBackground(t))
+	bg.CornerRadius = 10
+	d := canvas.NewCircle(toneColor(t))
+	txt := canvas.NewText(text, toneColor(t))
+	txt.TextSize = 10.5
+	txt.TextStyle = fyne.TextStyle{Monospace: true}
+	row := container.New(layout.NewCustomPaddedHBoxLayout(5),
+		container.NewCenter(container.NewGridWrap(fyne.NewSize(6, 6), d)),
+		container.NewCenter(txt))
+	w := fyne.MeasureText(text, 10.5, txt.TextStyle).Width + 6 + 5 + 18
+	return container.NewGridWrap(fyne.NewSize(w, 20), container.NewStack(bg, container.NewCenter(row)))
+}
+
+// kbd renders a keyboard shortcut as a keycap.
+func kbd(text string) fyne.CanvasObject {
+	bg := canvas.NewRectangle(colorSurface2)
+	bg.CornerRadius = 4
+	bg.StrokeColor = colorBorder
+	bg.StrokeWidth = 1
+	txt := canvas.NewText(text, colorMuted)
+	txt.TextSize = 10
+	txt.TextStyle = fyne.TextStyle{Monospace: true}
+	txt.Alignment = fyne.TextAlignCenter
+	w := fyne.MeasureText(text, 10, txt.TextStyle).Width + 10
+	return container.NewGridWrap(fyne.NewSize(w, 18), container.NewStack(bg, container.NewCenter(txt)))
+}
+
+// monoText is single-line monospace canvas text in a palette color. Unlike a
+// Label it has no inner padding, so it packs tightly in bars and list rows.
+func monoText(text string, size float32, c color.Color) *canvas.Text {
+	t := canvas.NewText(text, c)
+	t.TextSize = size
+	t.TextStyle = fyne.TextStyle{Monospace: true}
+	return t
 }
 
 func chips(items []string, t tone) fyne.CanvasObject {
@@ -1183,6 +1245,13 @@ func logoMark(size float32) fyne.CanvasObject {
 	img.SetMinSize(fyne.NewSize(size, size))
 	img.ScaleMode = canvas.ImageScaleSmooth
 	return img
+}
+
+// accentBar is the vertical blue-to-pink marker beside an active row.
+func accentBar(width, height float32) *canvas.LinearGradient {
+	g := canvas.NewVerticalGradient(colorAccent, colorAccent2)
+	g.SetMinSize(fyne.NewSize(width, height))
+	return g
 }
 
 func gradientRule() fyne.CanvasObject {

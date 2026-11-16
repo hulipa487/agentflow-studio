@@ -13,15 +13,16 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// railRow is the sidebar's navigation item: active indicator bar, icon, label,
-// shortcut pill and a responsive hover/selected surface.
+// railRow is the sidebar's navigation item: a blue-to-pink indicator bar when
+// active, icon, label, a shortcut keycap and a hover/selected surface. Rows are
+// 30px tall so every destination fits the default window without scrolling.
 type railRow struct {
 	widget.BaseWidget
 
 	bg       *canvas.Rectangle
-	bar      *canvas.Rectangle
+	bar      *canvas.LinearGradient
 	label    *widget.Label
-	shortcut *widget.Label
+	shortcut fyne.CanvasObject
 	stack    *fyne.Container
 	action   func()
 	active   bool
@@ -31,43 +32,41 @@ type railRow struct {
 func newRailRow(label string, icon fyne.Resource, shortcut string, action func()) *railRow {
 	r := &railRow{action: action}
 	r.bg = canvas.NewRectangle(color.Transparent)
-	r.bg.CornerRadius = 8
+	r.bg.CornerRadius = 7
 
-	r.bar = canvas.NewRectangle(color.Transparent)
-	r.bar.CornerRadius = 2
-	r.bar.SetMinSize(fyne.NewSize(3, 18))
+	r.bar = accentBar(3, 16)
+	r.bar.Hide()
 
-	iconObj := widget.NewIcon(icon)
+	iconObj := container.NewGridWrap(fyne.NewSize(15, 15), widget.NewIcon(icon))
 	r.label = widget.NewLabel(label)
 	r.label.SizeName = theme.SizeNameText
-	r.shortcut = caption(shortcut)
-	r.shortcut.Alignment = fyne.TextAlignTrailing
-	r.shortcut.Wrapping = fyne.TextWrapOff
-	r.shortcut.Truncation = fyne.TextTruncateClip
+	r.label.Truncation = fyne.TextTruncateEllipsis
 
-	barWrap := container.New(layout.NewCustomPaddedLayout(6, 6, 2, 0), r.bar)
+	barWrap := container.NewCenter(container.NewGridWrap(fyne.NewSize(3, 16), r.bar))
 	left := container.NewHBox(
 		barWrap,
-		container.New(layout.NewCustomPaddedLayout(0, 0, spaceXS, 0), container.NewCenter(iconObj)),
+		container.New(layout.NewCustomPaddedLayout(0, 0, spaceS, 0), container.NewCenter(iconObj)),
 	)
 	var right fyne.CanvasObject = hSpacer(spaceS)
 	if shortcut != "" {
-		right = container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), container.NewCenter(widthBox(58, r.shortcut)))
+		r.shortcut = kbd(shortcut)
+		right = container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), container.NewCenter(r.shortcut))
 	}
-	text := container.New(layout.NewCustomPaddedLayout(0, 0, spaceXS, 0), r.label)
-	row := container.NewBorder(nil, nil, left, right, text)
-	inner := container.New(layout.NewCustomPaddedLayout(3, 3, 0, 0), row)
-	r.stack = container.NewStack(r.bg, inner)
+	text := container.New(compactLabelLayout{}, r.label)
+	row := container.NewBorder(nil, nil, left, right,
+		container.New(layout.NewCustomPaddedLayout(0, 0, 2, 0), vLeft(text)))
+	r.stack = container.NewStack(r.bg, row)
 	r.ExtendBaseWidget(r)
 	r.apply()
 	return r
 }
 
+// railRowHeight is the pitch of one destination in the rail.
+const railRowHeight = float32(30)
+
 func (r *railRow) MinSize() fyne.Size {
 	min := r.stack.MinSize()
-	if min.Height < 34 {
-		min.Height = 34
-	}
+	min.Height = railRowHeight
 	return min
 }
 
@@ -108,26 +107,24 @@ func (r *railRow) SetActive(active bool) {
 
 func (r *railRow) apply() {
 	var fill color.Color = color.Transparent
-	var barFill color.Color = color.Transparent
-	var stroke color.Color = color.Transparent
 	switch {
 	case r.active && r.hovered:
 		fill = colorPressed
-		barFill = colorAccent
-		stroke = colorBorder
 	case r.active:
 		fill = colorSurface2
-		barFill = colorAccent
-		stroke = colorBorder
 	case r.hovered:
 		fill = colorHover
 	}
 	r.bg.FillColor = fill
-	r.bg.StrokeColor = stroke
-	r.bg.StrokeWidth = 1
 	r.bg.Refresh()
 	if r.bar != nil {
-		r.bar.FillColor = barFill
+		r.bar.StartColor = colorAccent
+		r.bar.EndColor = colorAccent2
+		if r.active {
+			r.bar.Show()
+		} else {
+			r.bar.Hide()
+		}
 		r.bar.Refresh()
 	}
 	if r.label != nil {
@@ -137,7 +134,8 @@ func (r *railRow) apply() {
 }
 
 func railSection(text string) fyne.CanvasObject {
-	l := caption(strings.ToUpper(text))
-	l.TextStyle = fyne.TextStyle{Bold: true}
-	return container.New(layout.NewCustomPaddedLayout(spaceS, spaceXS, spaceS+4, 0), l)
+	t := canvas.NewText(strings.ToUpper(text), colorFaint)
+	t.TextSize = 10
+	t.TextStyle = fyne.TextStyle{Bold: true}
+	return container.New(layout.NewCustomPaddedLayout(spaceM, spaceXS, spaceM, 0), t)
 }

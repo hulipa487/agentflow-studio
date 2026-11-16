@@ -3,6 +3,7 @@ package ui
 import (
 	"image/color"
 	"sync"
+	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -46,6 +47,14 @@ var (
 	chromeButtonsMu sync.Mutex
 	chromeButtons   []*chromeButton
 )
+
+// chromeActionsWidth is how much of the command bar's right end belongs to
+// Fyne (search, connection, icon buttons, window buttons), in canvas units.
+// The native hit test treats everything left of it as the drag region. Zero
+// keeps the built-in default.
+var chromeActionsWidth atomic.Int32
+
+func setChromeActionsWidth(w float32) { chromeActionsWidth.Store(int32(w)) }
 
 // registerChromeButtons replaces the set whose positions feed the hit test.
 func registerChromeButtons(buttons ...*chromeButton) {

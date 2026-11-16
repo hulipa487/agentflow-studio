@@ -75,8 +75,15 @@ func (a *App) agentsView() fyne.CanvasObject {
 		if len(static) == 0 {
 			list.Add(centerNote("No agents match this filter."))
 		}
-		for _, row := range static {
-			list.Add(agentCard(a, row))
+		if len(static) > 0 {
+			table := vstack(0, agentListHeader(), widget.NewSeparator())
+			for i, row := range static {
+				if i > 0 {
+					table.Add(widget.NewSeparator())
+				}
+				table.Add(agentRow(a, row))
+			}
+			list.Add(panelFlush(table))
 		}
 		if len(spawn) > 0 {
 			names := make([]string, 0, len(spawn))
@@ -127,7 +134,34 @@ func (a *App) agentsView() fyne.CanvasObject {
 	)
 }
 
-func agentCard(a *App, row api.AgentRow) fyne.CanvasObject {
+// Agent list columns. The loop path takes the remaining width.
+const (
+	agentColName  = float32(210)
+	agentColCaps  = float32(250)
+	agentColState = float32(190)
+	agentColActs  = float32(104)
+)
+
+func agentListHeader() fyne.CanvasObject {
+	h := func(text string, w float32) fyne.CanvasObject {
+		t := canvas.NewText(strings.ToUpper(text), colorFaint)
+		t.TextSize = 10
+		t.TextStyle = fyne.TextStyle{Bold: true}
+		if w == 0 {
+			return vLeft(t)
+		}
+		return widthBox(w, t)
+	}
+	row := container.NewBorder(nil, nil,
+		h("agent", agentColName),
+		hstack(spaceS, h("capabilities", agentColCaps), h("state", agentColState), h("", agentColActs)),
+		h("loop", 0))
+	return container.New(layout.NewCustomPaddedLayout(spaceS, spaceS, spaceM, spaceM), row)
+}
+
+// agentRow is one line of the agents list: identity, loop path, capabilities,
+// state and actions. Double-click-free: the whole row opens the builder.
+func agentRow(a *App, row api.AgentRow) fyne.CanvasObject {
 	letter := "?"
 	if row.Name != "" {
 		letter = strings.ToUpper(row.Name[:1])
@@ -136,61 +170,62 @@ func agentCard(a *App, row api.AgentRow) fyne.CanvasObject {
 	if model == "" {
 		model = "default model"
 	}
-
-	stateTone := toneWarning
-	stateLabel := "runtime only"
-	if row.Persisted {
-		stateTone, stateLabel = toneSuccess, "persisted"
-	}
-
-	nameLabel := widget.NewLabelWithStyle(row.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	statusChips := hstack(spaceXS, vCenter(chip(stateLabel, stateTone)))
-	if row.Sessions > 0 {
-		statusChips.Add(vCenter(chip(fmt.Sprintf("%d live", row.Sessions), toneAccent)))
-	}
-	buttons := hstack(spaceXS,
-		vCenter(actionButton("Edit", theme.DocumentCreateIcon(), func() { a.showBuilder(row.Name, nil) })),
-		vCenter(actionButton("Chat", theme.MailSendIcon(), func() { a.showPlayground(row.Name) })),
-		vCenter(iconButton(theme.DeleteIcon(), "Delete", func() { a.confirmDelete(row.Name, false, "") })),
-	)
-	right := hstack(spaceS, vCenter(statusChips), hSpacer(spaceXS), vCenter(buttons))
-
-	nameBlock := vstack(1, nameLabel, oneLine("model · "+model))
-	nameRow := container.NewBorder(nil, nil,
-		vCenter(avatar(letter, 38)), vCenter(right), nameBlock)
+	name := widget.NewLabelWithStyle(row.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	name.Truncation = fyne.TextTruncateEllipsis
+	modelText := mono(model, theme.SizeNameCaptionText)
+	modelText.Importance = widget.LowImportance
+	identity := container.NewBorder(nil, nil,
+		container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), vCenter(avatar(letter, 30))), nil,
+		vLeft(vstack(0, compactLabel(name, false), compactLabel(modelText, false))))
 
 	loop := row.Loop
 	if loop == "" {
 		loop = "in-memory loop"
 	}
 	loopLabel := mono(loop, theme.SizeNameCaptionText)
-	loopLabel.Wrapping = fyne.TextWrapOff
-	loopLabel.Truncation = fyne.TextTruncateClip
-	loopBox := container.NewBorder(nil, nil,
-		container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), fieldLabel("loop")),
-		nil, loopLabel)
+	loopLabel.Importance = widget.LowImportance
 
-	caps := row.Capabilities
 	var capRow fyne.CanvasObject
-	if len(caps) == 0 {
-		capRow = caption("deployment-default capabilities")
+	if len(row.Capabilities) == 0 {
+		capRow = vLeft(monoText("deployment defaults", 10.5, colorFaint))
 	} else {
-		shown := caps
-		extra := 0
-		if len(shown) > 4 {
-			extra = len(shown) - 4
-			shown = shown[:4]
+		shown, extra := row.Capabilities, 0
+		if len(shown) > 3 {
+			extra = len(shown) - 3
+			shown = shown[:3]
 		}
 		box := chips(shown, toneAccent).(*fyne.Container)
 		if extra > 0 {
 			box.Add(vCenter(chip(fmt.Sprintf("+%d", extra), toneNeutral)))
 		}
-		capRow = box
+		capRow = container.NewHBox(box)
 	}
 
-	meta := container.NewBorder(nil, nil, nil, vCenter(capRow), loopBox)
-	body := vstack(spaceS, nameRow, widget.NewSeparator(), meta)
-	return panel(body)
+	state := hstack(spaceXS)
+	if row.Persisted {
+		state.Add(vCenter(statusChip("persisted", toneSuccess)))
+	} else {
+		state.Add(vCenter(statusChip("runtime only", toneWarning)))
+	}
+	if row.Sessions > 0 {
+		state.Add(vCenter(statusChip(fmt.Sprintf("%d live", row.Sessions), toneAccent)))
+	}
+
+	actions := hstack(0,
+		vCenter(iconButton(theme.MailSendIcon(), "Chat", func() { a.showPlayground(row.Name) })),
+		vCenter(iconButton(theme.DocumentCreateIcon(), "Edit", func() { a.showBuilder(row.Name, nil) })),
+		vCenter(iconButton(theme.DeleteIcon(), "Delete", func() { a.confirmDelete(row.Name, false, "") })),
+	)
+
+	line := container.NewBorder(nil, nil,
+		widthBox(agentColName, identity),
+		hstack(spaceS,
+			widthBox(agentColCaps, capRow),
+			widthBox(agentColState, container.NewHBox(state)),
+			widthBox(agentColActs, container.NewHBox(layout.NewSpacer(), actions))),
+		vLeft(loopLabel))
+	body := container.New(layout.NewCustomPaddedLayout(spaceS-1, spaceS-1, spaceM, spaceS), line)
+	return newTapSurface(body, 0, false, nil, func() { a.showBuilder(row.Name, nil) })
 }
 
 func emptyAgents(a *App) fyne.CanvasObject {

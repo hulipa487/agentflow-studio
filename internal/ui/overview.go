@@ -142,12 +142,14 @@ func (v *overviewView) render(d overviewData) {
 				actionButton("Open", theme.NavigateNextIcon(), v.app.showAgents), v.agents),
 			sectionAction("Channels", "Bound when the runtime started.",
 				actionButton("Open", theme.NavigateNextIcon(), v.app.showChannels), v.channels),
-			section("Instances", "Every process currently heartbeating on this runtime store. An epoch that differs means two instances run different configs.", v.instances),
 		)
+		// Instances has six fixed columns: on its own row it cannot push the
+		// two-column grid wider than the page.
 		v.s.setBody(
 			v.tiles,
 			v.counters,
 			container.NewGridWithColumns(2, left, right),
+			section("Instances", "Every process currently heartbeating on this runtime store. An epoch that differs means two instances run different configs.", v.instances),
 		)
 		v.built = true
 	}
@@ -203,16 +205,16 @@ func (v *overviewView) render(d overviewData) {
 		})
 		var cells [][]fyne.CanvasObject
 		for _, s := range rows {
-			state := chip("idle", toneNeutral)
+			state := statusChip("idle", toneNeutral)
 			if s.Busy {
-				state = chip("busy", toneAccent)
+				state = statusChip("busy", toneAccent)
 			}
 			cells = append(cells, []fyne.CanvasObject{
 				vCenter(state), cellText(s.Agent), cellMono(s.SessionID), cellMono(orDash(shortID(s.ParentID))),
 			})
 		}
 		v.sessions.Add(simpleTable([]tableColumn{
-			{title: "state", width: 64}, {title: "agent", width: 120}, {title: "session"}, {title: "parent", width: 110},
+			{title: "state", width: 70}, {title: "agent", width: 110}, {title: "session"}, {title: "parent", width: 90},
 		}, cells))
 	}
 	v.sessions.Refresh()

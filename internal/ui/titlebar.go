@@ -155,6 +155,9 @@ func (a *App) chromeStrip() fyne.CanvasObject {
 	if !borderlessSupported() {
 		return nil
 	}
+	// The welcome screen has no command bar: only the window buttons are
+	// Fyne's, so the hit test goes back to its default split.
+	setChromeActionsWidth(0)
 	return container.NewBorder(nil, nil,
 		nil,
 		container.NewPadded(a.windowControls()),

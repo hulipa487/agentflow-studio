@@ -3,6 +3,9 @@
 A native desktop client for AgentFlow: build an agent, apply it live, chat with
 it, and watch every step of the turn — without a browser and without CORS.
 
+A browser version with the same screens and shell lives in the sibling
+`agentflow-studio-web` directory.
+
 Built with [Fyne](https://fyne.io/) (Go + native widgets). It talks to the
 runtime's existing `/admin/api/studio/*` API; the runtime remains the source of
 truth for config, persistence, memory and traces.
@@ -75,17 +78,24 @@ truth for config, persistence, memory and traces.
   config-directory deployment is explained instead of edited.
 - **Go to (Ctrl+K)** — a command palette over every screen, every agent
   ("Edit echo", "Chat with assistant") and the global actions (new agent,
-  refresh, light/dark, invite, lock).
-- **Connection health** — the rail's dot follows a 15-second heartbeat and a
-  toast announces when the runtime goes away or comes back.
+  refresh, light/dark, invite, lock). It also opens from the search field in
+  the command bar.
+- **Connection health** — the connection pill in the command bar and the
+  status bar follow a 15-second heartbeat, and a toast announces when the
+  runtime goes away or comes back.
 - **Native** — the admin token is sent directly; there is no browser origin, so
   no `runtime.admin.cors_origins` entry is needed. On the same machine the
   connection can use a Unix socket or Windows named pipe instead of a TCP port.
-- **Designed for the work** — a trans-pride light/dark shell with a navigation
-  rail, breadcrumbs, a compact sidebar footer, an inspector beside the builder, state chips,
-  inline banners, loading states, a responsive chat pane and a searchable agent
-  list. Mixed-height rows (chips, dots, labels and icon buttons) are vertically
-  centred so headers and cards stay on one baseline.
+- **Designed for the work** — a trans-pride light/dark shell in three bands
+  around the content. The **command bar** holds the breadcrumb, the search
+  field that opens the palette, the connection pill (saved profiles, switch,
+  lock) and the theme toggle. The **rail** is flat and compact: every
+  destination fits the default window without scrolling, the active row
+  carries a blue-to-pink marker, and shortcuts are drawn as keycaps. The
+  **status bar** says which runtime this is on every screen: address,
+  instance, region, topology, version, uptime and busy/idle sessions. Lists
+  are dense rows rather than tall cards, state reads from dotted chips
+  (`persisted`, `runtime only`, `1 live`), and identifiers are monospace.
 - **Settings** — Appearance and connection in one place, reached from the gear
   in the sidebar footer. The Light/Dark switch and palette picker live here.
   The choice is saved in the app config; on first launch
@@ -243,13 +253,14 @@ contracts are versioned with the code there). Run `make docs-sync` (set
 
 ## Theme
 
-The palette uses the trans flag's blue, pink and white: a five-band accent line
-under the header, a flag-gradient logo, blue/pink
-selection states and tone-matched status chips. Both variants are contrast
-checked for text, inputs and buttons.
+The palette uses the trans flag's blue, pink and white: the flag as one
+continuous gradient hairline under the command bar (blue, pink, white, pink,
+blue), a flag-gradient logo, a blue-to-pink marker on the active rail row and
+tone-matched borderless chips. Both variants are contrast checked for text,
+inputs and buttons.
 
 The **Light** / **Dark** switch is in **Settings**, alongside the palette
-picker. The setting is stored as `theme` in the app config
+picker, and one click away in the command bar. The setting is stored as `theme` in the app config
 (`agentflow-studio/config.json` under the OS config directory); an empty value
 follows the OS theme. The switch updates canvas colors and widget themes in
 place rather than rebuilding the screen.
@@ -272,7 +283,7 @@ The rail groups the screens as **Home** (Overview), **Build** (Agents,
 Playground), **Connect** (Channels, Models, Credentials), **Govern** (Safety,
 Users, Tenancy), **Operate** (Usage, Logs, Config) and **Studio**
 (Documentation, Settings). Tenancy, Usage and Config have no number key; use
-the rail or `Ctrl+K`.
+the rail or `Ctrl+K`. The logo in the command bar collapses the rail.
 
 A dirty builder window marks the title with `•` and asks before discarding.
 
@@ -300,9 +311,12 @@ subclasses the window procedure:
   rounded corners and border styling. When maximized, the client area is
   clamped to the monitor work area so content cannot slide under the taskbar.
 
-The window controls are drawn in the app's top bar but behave like native
-caption buttons: minimize, maximize/restore and close sit at the right, with a
-split-pane button on the main screen that collapses the navigation rail. Hover
+The window controls are drawn in the app's command bar but behave like native
+caption buttons: minimize, maximize/restore and close sit at the right, after
+the search field, the connection pill and the icon buttons. The command bar
+reports the width of that right-hand cluster to the hit test
+(`setChromeActionsWidth`), so everything in it receives clicks and the rest of
+the bar drags the window. Hover
 surfaces and the red close treatment come from `WM_NCMOUSEMOVE`; the hit regions
 are derived from the controls' actual laid-out positions, so they stay aligned
 when Fyne's scale differs from the Windows DPI. Because GLFW suppresses the
@@ -440,7 +454,9 @@ internal/appconfig      URL/token persistence
 internal/docs           embedded documentation library (manifest, search, links)
 internal/lua            Luau analyzer and in-process language server
 internal/ui             the shell and every screen:
+  app.go                the shell: command bar, rail, heartbeat, toasts
   nav.go                destinations, rail sections, shortcuts, enter()
+  statusbar.go          the runtime identity line under every screen
   palette.go            Ctrl+K command palette
   screen.go             page scaffold, async helper, tables, tiles, sparkline
   overview.go users.go tenancy.go usage.go logs.go config.go
