@@ -78,11 +78,13 @@ A `profiles/*.yaml` file is an agent config plus a `name` and a `spawn` flag: `s
 | `topology` | string | single | The deployment tier: `single` (one process) or `regional` (several instances in one region sharing one PostgreSQL). Unset means `single`. The tier decides which other settings are valid; boot refuses one it cannot honour. See [Topology](#topology) |
 | `zone` | string | "" | Availability-zone label inside the region (letters, digits and `. _ -`, at most 32 characters). Reported in metrics and `/admin/api/state`; it is a label, never a routing decision |
 | `shutdown_grace` | duration | 5s regional · 0 single | How long a shutdown first reports unready and keeps serving before the listeners close, so a load balancer can drain and an in-flight turn can finish. `0` disables the wait |
+| `sessions.idle_unload` | duration | 30m | Unload a conversation after this long without activity. Its Lua locals are gone; `session.state.*` survives, and the next message recreates the session. The session id is not retired and its lease is released. `0` disables unloading |
 | `admin.cors_origins` | list | \[\] | Exact browser origins allowed to call `/admin/api/*` (a custom frontend or another browser client). The native Studio desktop app sends the token directly and does not need it. Empty keeps the API same-origin only; `"*"` is refused. Preflight is answered before the bearer check |
 | `admin.socket` | string | "" | Adds a local-only admin listener: a unix socket path on Unix (relative paths resolve against the config directory) or a named pipe such as `\\.\pipe\agentflow-admin` on Windows. The bearer token is still required |
 | `admin.tcp` | bool | true | Serve the admin plane on the HTTP listener (`gateway.listen`), under `/admin/` plus `/healthz`, `/readyz` and `/metrics`. `false` serves it only on `admin.socket`; at least one transport must remain. There is no `admin.listen`: the admin plane has no port of its own, and a config that sets one is refused |
 | `admin.operators` | map | {} | Named admin tokens (`name: token`), each with the same authority as `ADMIN_TOKEN`. Requests are attributed to the name in logs. Values may be `${VAR}` or `cred:<service>` references, resolved at boot; an unresolvable one is skipped with a warning |
 | `limits.sessions_per_tenant` | int | 0 | Caps live sessions per tenant at the supervisor's spawn boundary (routed first contact and `agent.spawn`). 0 disables |
+| `limits.ephemeral_per_tenant` | int | 16 | Caps concurrent one-turn sessions per tenant (the OpenAI channel's default session kind). Separate from `sessions_per_tenant`, so stateless traffic cannot consume conversation slots. 0 disables |
 | `limits.egress_per_minute` | int | 0 | Caps `http.request` and mail ops per tenant per minute (fixed window). 0 disables. Op-pool fairness between tenants is always on and not configurable |
 | `studio.enabled` | bool | true | Expose `/admin/api/studio/*` (builder, playground, trace). The API is inert without the admin token; `false` answers 503 |
 | `studio.workspace` | string | <config dir>/studio | Where a single-file deployment writes studio loops and prompts. A directory deployment writes its own `loops/`, `prompts/` and `profiles/` instead |
@@ -142,6 +144,12 @@ process; anything valid before stays valid:
 A second live process on the same store is refused at boot with the peer's id
 and last-seen time. `-force-single` starts anyway; use it only after a crash,
 or wait out the 30-second liveness window.
+
+A single instance installs no session hub: there is no second owner to hand a
+conversation to, so no `session:` lease row and no shared-inbox row are written.
+`-force-single` keeps the hub — an operator using it is saying two processes may
+share the store, and then the lease is the only thing keeping one conversation
+from running twice.
 
 #### `regional`
 
@@ -635,8 +643,9 @@ All HTTP channels (webhook, ghhook, bridge, telegram webhook/auto) mount paths o
 | `telegram` (`mode: polling`) | Default. Long-poll `getUpdates`, `allow_users` enforced. Clears any stale Telegram-side webhook first — getUpdates 409s while one is registered (e.g. reverting from webhook mode) |
 | `telegram` (`mode: webhook`) | Receives POST updates at `path` (default `/webhook/telegram/`); requires `gateway.public_url`. Every delivery must carry the `secret_token` header (401/403 otherwise, checked before parsing); configured per channel, generated per boot when absent |
 | `telegram` (`mode: auto`) | Probes `<public_url>/health` at startup: registers `setWebhook` when reachable, else `deleteWebhook` + long-poll. A `setWebhook` failure also clears the webhook before polling. Needs `gateway.public_url` |
+| `openai` | Serves the OpenAI Chat Completions API at `<path>chat/completions` and the model list at `<path>models`. `model` names one of the exposed `agents`; the default loop (`plugin:openai_passthrough`) forwards the client's messages, tools and sampling parameters to the agent's model unchanged. `auth` is `user_token` (per-user bearer, needs `runtime.identity.enabled`), `key` (a shared key from `keys`) or `none` (loopback listeners only). `journal` defaults to `metadata` for this type, so conversation text never enters the audit journal. See [the OpenAI-compatible API](openai-api.md) |
 
-Every HTTP channel `path` must end in `/` (a subtree mount). A UUID-style path segment is a recommended unguessable secret prefix. Two channels mounting the same path are a boot error. Telegram's `token` and `secret_token`, ghhook's `secret`, and bridge's `secret` and `token` are secrets (see the registry): env-interpolated on the single-file path, lazy references on the configdir path — and an unresolvable one skips the channel with a warning, never a boot failure.
+Every HTTP channel `path` must end in `/` (a subtree mount). A UUID-style path segment is a recommended unguessable secret prefix. Two channels mounting the same path are a boot error, and so is an `openai` channel whose endpoints overlap another channel's subtree. Telegram's `token` and `secret_token`, ghhook's `secret`, bridge's `secret` and `token`, and an `openai` channel's `keys` are secrets (see the registry): env-interpolated on the single-file path, lazy references on the configdir path — and an unresolvable one skips the channel with a warning, never a boot failure.
 
 **Inbound media** is opt-in per channel via a `media:` block — an allow-list of MIME patterns (`image/*`, `application/pdf`, `audio/*`, …) plus `max_bytes` (default 8 MiB). Telegram downloads the file (getFile), webhook accepts base64 `attachments`; bytes land in the content-addressed blob store (local filesystem by default, or S3/MinIO via the top-level `media:` config) and the message carries tiny part descriptors. With no media block, attachments are dropped and only the text/caption flows.
 
@@ -675,6 +684,16 @@ gateway:
       secret: ${BRIDGE_SECRET}       # HMAC key for inbound events (required)
       token: ${BRIDGE_TOKEN}         # optional bearer on outbound deliveries
 #     timeout: 10s                   # per delivery (default 10s)
+    - type: openai
+      name: api
+      path: /v1/                     # serves <path>chat/completions and <path>models
+      agents: [bot]                  # exposed as model ids
+      auth: key                      # user_token | key | none (loopback only)
+      keys: ["${COMPAT_API_KEY}"]    # auth: key
+#     timeout: 600s                  # whole-request limit (default 600s)
+#     max_request_bytes: 33554432    # POST body limit (default 32 MiB)
+#     journal: metadata              # full | metadata | off; metadata is this type's default
+#     expose_reasoning: false        # send model reasoning as reasoning_content
 ```
 
 > **Breaking change**: the per-channel `listen:` field was removed. Configs that still carry it fail to load with `field listen not found in type config.Channel`. Move each channel's port to the single `gateway.listen`, give every HTTP channel a `path` ending in `/`, and set `gateway.public_url` for telegram webhook/auto. See the README migration checklist.

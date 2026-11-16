@@ -202,6 +202,9 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 		hstack(spaceS, vCenter(title), sub), actions, nil)
 
 	agent := ch.Agent
+	if len(ch.Agents) > 0 {
+		agent = strings.Join(ch.Agents, ", ")
+	}
 	if agent == "" {
 		agent = "—"
 	}
@@ -245,6 +248,19 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 		}
 		if ch.Async {
 			cells = append(cells, row("mode", widget.NewLabel("async · job id")))
+		}
+	case "openai":
+		cells = append(cells, row("auth", widget.NewLabel(ch.Auth)))
+		if ch.Auth == "key" {
+			cells = append(cells, row("keys", channelSecretValue(ch.HasKeys, strings.Join(ch.KeyRefs, ", "))))
+		}
+		journal := ch.Journal
+		if journal == "" {
+			journal = "metadata"
+		}
+		cells = append(cells, row("journal", widget.NewLabel(journal)))
+		if ch.Timeout != "" {
+			cells = append(cells, row("timeout", widget.NewLabel(ch.Timeout)))
 		}
 	}
 	if len(ch.MediaAllow) > 0 {
@@ -336,7 +352,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 
 	name := widget.NewEntry()
 	name.SetPlaceHolder("telegram-main")
-	typ := widget.NewSelect([]string{"webhook", "telegram", "ghhook", "bridge"}, nil)
+	typ := widget.NewSelect([]string{"webhook", "telegram", "ghhook", "bridge", "openai"}, nil)
 	agent := widget.NewSelect(v.agents, nil)
 	path := widget.NewEntry()
 	path.SetPlaceHolder("optional · e.g. /webhook/")
@@ -347,6 +363,16 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 	clearToken := widget.NewCheck("Remove the stored token", nil)
 	clearSecret := widget.NewCheck("Remove the stored secret", nil)
 	clearSecretTok := widget.NewCheck("Remove the stored webhook secret", nil)
+	openaiAgents := widget.NewEntry()
+	openaiAgents.SetPlaceHolder("coder, helper")
+	openaiAuth := widget.NewSelect([]string{"key", "user_token", "none"}, nil)
+	openaiKeys := widget.NewPasswordEntry()
+	openaiKeys.SetPlaceHolder("${COMPAT_API_KEY}")
+	clearKeys := widget.NewCheck("Remove the stored keys", nil)
+	openaiJournal := widget.NewSelect([]string{"metadata", "full", "off"}, nil)
+	openaiMaxBytes := widget.NewEntry()
+	openaiMaxBytes.SetPlaceHolder("33554432")
+	exposeReasoning := widget.NewCheck("Send model reasoning as reasoning_content", nil)
 	allowUsers := widget.NewEntry()
 	allowUsers.SetPlaceHolder("123456789, 987654321")
 	timeout := widget.NewEntry()
@@ -386,12 +412,32 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 		if existing.MediaMaxBytes > 0 {
 			mediaMax.SetText(strconv.Itoa(existing.MediaMaxBytes))
 		}
+		if len(existing.Agents) > 0 {
+			openaiAgents.SetText(strings.Join(existing.Agents, ", "))
+		}
+		if existing.Auth != "" {
+			openaiAuth.SetSelected(existing.Auth)
+		}
+		if existing.Journal != "" {
+			openaiJournal.SetSelected(existing.Journal)
+		}
+		if existing.MaxRequestBytes > 0 {
+			openaiMaxBytes.SetText(strconv.Itoa(existing.MaxRequestBytes))
+		}
+		exposeReasoning.SetChecked(existing.ExposeReasoning)
+		if len(existing.KeyRefs) > 0 {
+			openaiKeys.SetPlaceHolder("stored " + strings.Join(existing.KeyRefs, ", ") + " — leave blank to keep")
+		} else if existing.HasKeys {
+			openaiKeys.SetPlaceHolder("leave blank to keep the stored keys")
+		}
 	} else {
 		typ.SetSelected("webhook")
 		if len(v.agents) > 0 {
 			agent.SetSelected(v.agents[0])
 		}
 		mode.SetSelected("polling")
+		openaiAuth.SetSelected("key")
+		openaiJournal.SetSelected("metadata")
 	}
 	if mode.Selected == "" {
 		mode.SetSelected("polling")
@@ -441,6 +487,29 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			typeBox.Add(field("Reply timeout", timeout))
 			typeBox.Add(caption("Default 55s. Raise it for pipelines that outrun a single turn."))
 			typeBox.Add(async)
+		case "openai":
+			typeBox.Add(field("Agents exposed as model ids", openaiAgents))
+			typeBox.Add(caption("Comma-separated. A client selects one by name as its model. The Agent field above is ignored for this type."))
+			typeBox.Add(field("Auth", openaiAuth))
+			switch openaiAuth.Selected {
+			case "key":
+				typeBox.Add(field("API keys", openaiKeys))
+				if existing != nil && existing.HasKeys {
+					typeBox.Add(clearKeys)
+				}
+				typeBox.Add(caption("Bearer keys clients send. ${VAR} and cred:<service> references are resolved at start."))
+			case "user_token":
+				typeBox.Add(caption("Per-user bearer tokens issued by the identity layer; runtime.identity.enabled must be on."))
+			default:
+				typeBox.Add(caption("No auth: only allowed when gateway.listen is a loopback address."))
+			}
+			typeBox.Add(field("Journal", openaiJournal))
+			typeBox.Add(caption("metadata keeps ids and sizes and never the conversation text; full keeps text; off writes nothing."))
+			typeBox.Add(field("Max request bytes", openaiMaxBytes))
+			typeBox.Add(exposeReasoning)
+			typeBox.Add(caption("Exposing reasoning leaks the model's thinking to the caller; off by default."))
+			typeBox.Add(field("Request timeout", timeout))
+			typeBox.Add(caption("Default 600s for the whole request, including tool rounds."))
 		case "bridge":
 			typeBox.Add(field("Deliver URL", deliverURL))
 			typeBox.Add(caption("The adapter receives neutral replies here as JSON. Absolute http(s) URL."))
@@ -461,6 +530,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 		typeBox.Refresh()
 	}
 	typ.OnChanged = func(string) { renderType() }
+	openaiAuth.OnChanged = func(string) { renderType() }
 	renderType()
 
 	content := container.NewVBox(
@@ -497,7 +567,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 		if d.Type == "" {
 			return d, fmt.Errorf("choose a channel type")
 		}
-		if d.Agent == "" {
+		if d.Type != "openai" && d.Agent == "" {
 			return d, fmt.Errorf("choose an agent")
 		}
 		switch d.Type {
@@ -516,6 +586,22 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 		case "bridge":
 			d.DeliverURL = strings.TrimSpace(deliverURL.Text)
 			d.Timeout = strings.TrimSpace(timeout.Text)
+		case "openai":
+			d.Agent = ""
+			d.Agents = splitList(openaiAgents.Text)
+			d.Auth = openaiAuth.Selected
+			d.Keys = splitList(openaiKeys.Text)
+			d.ClearKeys = clearKeys.Checked
+			d.Journal = openaiJournal.Selected
+			d.ExposeReasoning = exposeReasoning.Checked
+			d.Timeout = strings.TrimSpace(timeout.Text)
+			if t := strings.TrimSpace(openaiMaxBytes.Text); t != "" {
+				n, err := strconv.Atoi(t)
+				if err != nil || n < 0 {
+					return d, fmt.Errorf("max request bytes must be a positive integer")
+				}
+				d.MaxRequestBytes = n
+			}
 		}
 		if t := strings.TrimSpace(mediaMax.Text); t != "" {
 			n, err := strconv.Atoi(t)

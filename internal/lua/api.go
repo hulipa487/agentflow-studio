@@ -38,6 +38,8 @@ var preludeEntries = []APIEntry{
 	{Path: "session", Signature: "session", Summary: "The current session: inbox, replies, pushes and durable state.", Kind: SymbolTable},
 	{Path: "session.inbox", Signature: "session.inbox() -> Message", Summary: "Wait for the next inbound message. This parks the session.", Kind: SymbolFunction, Insert: "inbox()", Yields: true},
 	{Path: "session.send", Signature: "session.send(text, opts?)", Summary: "Reply to the active inbound message. Needs an active message: timer, cron and boot turns have none.", Kind: SymbolFunction, Insert: "send(${1:text})", Yields: true},
+	{Path: "session.reply", Signature: "session.reply({ text, tool_calls, finish_reason, usage, reasoning })", Summary: "Finish the turn with a structured assistant message. At most one per turn; a channel that cannot express tool calls refuses them rather than dropping them.", Kind: SymbolFunction, Insert: "reply({ text = ${1:text} })", Yields: true},
+	{Path: "session.send_delta", Signature: "session.send_delta(text)", Summary: "One fragment of a streamed answer. Held until end of turn when the safety profile can drop egress.", Kind: SymbolFunction, Insert: "send_delta(${1:text})", Yields: true},
 	{Path: "session.push", Signature: "session.push(channel, reply_to, text, opts?)", Summary: "Send proactively to a channel. reply_to may be nil.", Capability: "channel.push", Kind: SymbolFunction, Insert: "push(${1:channel}, ${2:reply_to}, ${3:text})", Yields: true},
 	{Path: "session.push_user", Signature: "session.push_user(uuid, text)", Summary: "Deliver a proactive message to a user's channel, resolved by identity.", Capability: "channel.push", Kind: SymbolFunction, Insert: "push_user(${1:uuid}, ${2:text})", Yields: true},
 	{Path: "session.exit", Signature: "session.exit()", Summary: "End the session permanently. The loop never resumes.", Kind: SymbolFunction, Insert: "exit()"},
@@ -77,8 +79,13 @@ var preludeEntries = []APIEntry{
 	{Path: "llm", Signature: "llm", Summary: "Model calls: chat, streaming, embeddings and reranking.", Kind: SymbolTable},
 	{Path: "llm.chat", Signature: "llm.chat(messages, opts?) -> { text, thinking, usage, tool_calls }", Summary: "One model call. opts: model, temperature, max_tokens, thinking, tools, tool_choice.", Capability: "llm.chat", Kind: SymbolFunction, Insert: "chat(${1:messages}, ${2:opts})", Yields: true},
 	{Path: "llm.stream", Signature: "llm.stream(messages, opts?) -> next_delta, close", Summary: "Token stream. Call next_delta() directly; a generic for fails across the bridge. Call close() on early exit.", Capability: "llm.chat", Kind: SymbolFunction, Insert: "stream(${1:messages})", Yields: true},
+	{Path: "llm.forward", Signature: "llm.forward(opts?) -> { text, tool_calls, finish_reason, usage }", Summary: "Forward the current OpenAI-channel request to a model on the metered path. opts: model, messages, prepend, append, tools, params, max_tokens_cap. Does not finish the HTTP response; session.reply does.", Capability: "llm.chat", Kind: SymbolFunction, Insert: "forward()", Yields: true},
 	{Path: "llm.embed", Signature: "llm.embed(inputs, opts?) -> { vectors, usage }", Summary: "Embed a string, an array of strings, or mixed part tables.", Capability: "llm.chat", Kind: SymbolFunction, Insert: "embed(${1:inputs})", Yields: true},
 	{Path: "llm.rerank", Signature: "llm.rerank(query, documents, opts?) -> { results }", Summary: "Rerank documents; result indexes are zero-based.", Capability: "llm.chat", Kind: SymbolFunction, Insert: "rerank(${1:query}, ${2:documents})", Yields: true},
+
+	// openai
+	{Path: "openai", Signature: "openai", Summary: "The request behind the current OpenAI-compatible turn (read-only).", Kind: SymbolTable},
+	{Path: "openai.request", Signature: "openai.request() -> { model, messages, tools, tool_choice, params, metadata, user, stream }", Summary: "The full request as data. Refused above 4 MiB of JSON — forward it with llm.forward instead.", Kind: SymbolFunction, Insert: "request()", Yields: true},
 
 	// memory / store
 	{Path: "memory", Signature: "memory", Summary: "Personal memory records, scoped by the turn's identity.", Kind: SymbolTable},

@@ -133,6 +133,14 @@ Two consequences worth internalizing:
 - **Wrap fallible work in `pcall`.** An uncaught provider error is a crash loop,
   not a single failed turn.
 
+**Lua locals are a cache, not storage (D10).** A turn may start with a fresh Lua
+state: hot reload, failover, a lost lease, or the idle unload
+(`runtime.sessions.idle_unload`, default 30m) all restart the loop from the top.
+Anything a correct loop needs to remember between turns belongs in
+`session.state.*`, memory or the store — a local that survives today's restart
+may not survive the next one. A loop that keeps its cursor in a local is correct
+only until the conversation goes 30 idle minutes without a message.
+
 ### Hot reload
 
 An edit to the loop file restarts the session's coroutine from a fresh Lua state

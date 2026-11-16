@@ -76,6 +76,9 @@ All tables below are injected only when the agent's capabilities allow them. Att
 session.inbox() -> Message            -- parks until the next mailbox message
 session.send(text)                    -- reply to the active inbound message
 session.send(text, { attachments = parts }) -- send with media (see below)
+session.reply(t)                      -- finish the turn with a structured answer:
+                                      -- { text, tool_calls, finish_reason, usage, reasoning }
+session.send_delta(text)              -- one fragment of a streamed answer
 session.push(channel, reply_to, text) -- proactive egress; cap: channel.push
 session.push(channel, reply_to, text, { attachments = parts })
 session.push_user(uuid, text)         -- proactive egress to a user UUID; cap: channel.push
@@ -89,6 +92,10 @@ session.state.list()                  -- { key = value } for this session
 
 Messages carry an `attachments` array of media part descriptors (`{type, mime, handle, name}`) when the channel ingested media. Forward them unchanged into `llm.chat` or `session.send`; the runtime resolves blob handles ("media:<sha256>") to bytes at the provider / channel boundary — raw media never enters Lua.
 
+`session.reply(t)` is the structured form of a reply: `tool_calls` (`{ id, name, args }`), `finish_reason` (`stop`, `tool_calls`, `length`, `content_filter`) and `usage` are carried to channels that can express them, and its text goes through the same safety and journal path as `session.send`. At most one reply per turn; on a channel that cannot express tool calls, a reply carrying them fails rather than silently dropping them. A reply blocked by egress safety is delivered as an empty `content_filter` answer.
+
+`session.send_delta(text)` is for streaming answers. The engine relays fragments live only when the safety profile cannot drop egress; otherwise it holds them and releases the checked whole at end of turn (decision D9). A loop that streams and also calls `session.reply` should let the reply carry the text: the channel sends only what it has not already received.
+
 `session.state` is a small durable key/value store for this session alone: a cursor, a step count, the last thing said. It survives a restart, and in a fleet it follows the session to whichever instance owns it next, because the rows live in the shared store. Keys may contain letters, digits and `. _ - :` up to 128 characters; a value is any JSON-encodable Lua value up to 64 KiB, and a session may hold 256 keys. It is opt-in — declare `session.state` in the agent's `capabilities`, because it is a persistence surface rather than something to hand out by default.
 
 #### `llm` — cap: `llm.chat`
@@ -96,13 +103,20 @@ Messages carry an `attachments` array of media part descriptors (`{type, mime, h
 ```
 llm.chat(messages, opts?) -> { text, thinking, thinking_blocks, usage, tool_calls }
 llm.stream(messages, opts?) -> iterator
+llm.forward(opts?) -> { text, tool_calls, finish_reason, usage, thinking, thinking_blocks }
 llm.embed(inputs, opts?) -> { vectors, usage }   -- strings and/or part tables
 llm.rerank(query, documents, opts?) -> { results } -- results: [{ index, score }], 0-based
 
 -- opts: { model = "default", temperature = 0.7, max_tokens = 4096,
 --         thinking = "low"|"medium"|"high"|"xhigh"|"max"|"off",
---         tools = [...], tool_choice = "auto" | "none" }
+--         tools = [...], tool_choice = "auto" | "none" | "required" | "function:<name>",
+--         parallel_tool_calls = true, top_p = 0.9, stop = {...}, seed = 1,
+--         response_format = { type = "json_schema", json_schema = {...} } }
+
+-- forward opts: { model, messages, prepend, append, tools, params, max_tokens_cap }
 ```
+
+`llm.forward` is the OpenAI channel's pass-through. With no arguments it forwards the client's own request — messages, tools, tool_choice and sampling parameters — to the agent's model, on the same metered stream path as `llm.stream` (budget, quota and the usage ledger apply). `opts.messages` replaces the client's list, `prepend`/`append` add turns around it, `tools` adds definitions, `params` overrides sampling and `max_tokens_cap` clamps the client's value. It relays text deltas live only when the client asked for a stream and the safety profile cannot veto the answer; otherwise the whole text is returned for `session.reply`. It does not finish the HTTP response. Outside an OpenAI-channel turn with no `opts.messages` it returns an error. `openai.request()` returns the full request as a table, refused above 4 MiB of JSON — forward that request instead of materialising it.
 
 Messages are arrays of `{ role, content, tool_calls?, tool_call_id?, tool_result?, thinking_blocks? }`. **Multimodal turns** use `{ role, parts = {...} }`; each part is a table:
 

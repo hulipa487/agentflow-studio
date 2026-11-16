@@ -170,25 +170,32 @@ type ValidateRequest struct {
 // write-only on the API: Has* says one is stored, and *Ref carries an env or
 // credential placeholder because it reveals nothing.
 type Channel struct {
-	Index         int      `json:"index"`
-	Name          string   `json:"name"`
-	Type          string   `json:"type"`
-	Agent         string   `json:"agent"`
-	Mode          string   `json:"mode"`
-	Path          string   `json:"path"`
-	Timeout       string   `json:"timeout"`
-	Async         bool     `json:"async"`
-	DeliverURL    string   `json:"deliver_url"`
-	AllowUsers    []int64  `json:"allow_users"`
-	MediaAllow    []string `json:"media_allow"`
-	MediaMaxBytes int      `json:"media_max_bytes"`
-	HasToken      bool     `json:"has_token"`
-	HasSecret     bool     `json:"has_secret"`
-	HasSecretTok  bool     `json:"has_secret_token"`
-	TokenRef      string   `json:"token_ref"`
-	SecretRef     string   `json:"secret_ref"`
-	SecretTokRef  string   `json:"secret_token_ref"`
-	Live          bool     `json:"live"`
+	Index           int      `json:"index"`
+	Name            string   `json:"name"`
+	Type            string   `json:"type"`
+	Agent           string   `json:"agent"`
+	Agents          []string `json:"agents,omitempty"`
+	Mode            string   `json:"mode"`
+	Path            string   `json:"path"`
+	Timeout         string   `json:"timeout"`
+	Async           bool     `json:"async"`
+	DeliverURL      string   `json:"deliver_url"`
+	Auth            string   `json:"auth,omitempty"`
+	MaxRequestBytes int      `json:"max_request_bytes,omitempty"`
+	ExposeReasoning bool     `json:"expose_reasoning,omitempty"`
+	Journal         string   `json:"journal,omitempty"`
+	AllowUsers      []int64  `json:"allow_users"`
+	MediaAllow      []string `json:"media_allow"`
+	MediaMaxBytes   int      `json:"media_max_bytes"`
+	HasToken        bool     `json:"has_token"`
+	HasSecret       bool     `json:"has_secret"`
+	HasSecretTok    bool     `json:"has_secret_token"`
+	HasKeys         bool     `json:"has_keys"`
+	TokenRef        string   `json:"token_ref"`
+	SecretRef       string   `json:"secret_ref"`
+	SecretTokRef    string   `json:"secret_token_ref"`
+	KeyRefs         []string `json:"key_refs,omitempty"`
+	Live            bool     `json:"live"`
 }
 
 // ChannelList is the persisted channel set and its source.
@@ -207,23 +214,30 @@ type ChannelList struct {
 // ChannelDraft is the editable shape of a channel. An empty secret keeps the
 // stored one; Clear* removes it.
 type ChannelDraft struct {
-	Name           string   `json:"name"`
-	Type           string   `json:"type"`
-	Agent          string   `json:"agent"`
-	Mode           string   `json:"mode,omitempty"`
-	Path           string   `json:"path,omitempty"`
-	Token          string   `json:"token,omitempty"`
-	Secret         string   `json:"secret,omitempty"`
-	SecretToken    string   `json:"secret_token,omitempty"`
-	ClearToken     bool     `json:"clear_token,omitempty"`
-	ClearSecret    bool     `json:"clear_secret,omitempty"`
-	ClearSecretTok bool     `json:"clear_secret_token,omitempty"`
-	AllowUsers     []int64  `json:"allow_users,omitempty"`
-	Timeout        string   `json:"timeout,omitempty"`
-	Async          bool     `json:"async,omitempty"`
-	DeliverURL     string   `json:"deliver_url,omitempty"`
-	MediaAllow     []string `json:"media_allow,omitempty"`
-	MediaMaxBytes  int      `json:"media_max_bytes,omitempty"`
+	Name            string   `json:"name"`
+	Type            string   `json:"type"`
+	Agent           string   `json:"agent"`
+	Agents          []string `json:"agents,omitempty"`
+	Mode            string   `json:"mode,omitempty"`
+	Path            string   `json:"path,omitempty"`
+	Token           string   `json:"token,omitempty"`
+	Secret          string   `json:"secret,omitempty"`
+	SecretToken     string   `json:"secret_token,omitempty"`
+	ClearToken      bool     `json:"clear_token,omitempty"`
+	ClearSecret     bool     `json:"clear_secret,omitempty"`
+	ClearSecretTok  bool     `json:"clear_secret_token,omitempty"`
+	Auth            string   `json:"auth,omitempty"`
+	Keys            []string `json:"keys,omitempty"`
+	ClearKeys       bool     `json:"clear_keys,omitempty"`
+	MaxRequestBytes int      `json:"max_request_bytes,omitempty"`
+	ExposeReasoning bool     `json:"expose_reasoning,omitempty"`
+	Journal         string   `json:"journal,omitempty"`
+	AllowUsers      []int64  `json:"allow_users,omitempty"`
+	Timeout         string   `json:"timeout,omitempty"`
+	Async           bool     `json:"async,omitempty"`
+	DeliverURL      string   `json:"deliver_url,omitempty"`
+	MediaAllow      []string `json:"media_allow,omitempty"`
+	MediaMaxBytes   int      `json:"media_max_bytes,omitempty"`
 }
 
 // Model is one LLM endpoint from the runtime's models: section. Secrets are

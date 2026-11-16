@@ -43,6 +43,7 @@ var manifest = []Page{
 	{Slug: "extending", File: "extending.md", Title: "Extending", Section: "Build", Order: 5},
 	{Slug: "configuration", File: "configuration.md", Title: "Configuration", Section: "Reference", Order: 6},
 	{Slug: "loops-reference", File: "loops-reference.md", Title: "Loop API reference", Section: "Reference", Order: 7},
+	{Slug: "openai-api", File: "openai-api.md", Title: "OpenAI-compatible API", Section: "Reference", Order: 8},
 }
 
 // New validates the manifest against fsys. root is the directory that holds
