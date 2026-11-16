@@ -12,6 +12,7 @@ import (
 
 func TestRenderMarkdownBlocks(t *testing.T) {
 	fyneApp := test.NewApp()
+	claimUI(t)
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("docs")
 	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})
@@ -35,6 +36,7 @@ func TestRenderMarkdownBlocks(t *testing.T) {
 
 func TestDocsSearchSidebarBuilds(t *testing.T) {
 	fyneApp := test.NewApp()
+	claimUI(t)
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("docs")
 	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})

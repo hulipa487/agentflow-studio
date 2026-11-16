@@ -11,6 +11,7 @@ import (
 
 func TestRailRowTapAndHover(t *testing.T) {
 	app := test.NewApp()
+	claimUI(t)
 	defer app.Quit()
 	win := app.NewWindow("rail")
 	clicks := 0

@@ -14,6 +14,7 @@ import (
 func newTestEditor(t *testing.T, source string) *codeEditor {
 	t.Helper()
 	app := test.NewApp()
+	claimUI(t)
 	t.Cleanup(app.Quit)
 	return newCodeEditor(source)
 }

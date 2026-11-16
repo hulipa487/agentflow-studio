@@ -110,6 +110,7 @@ func TestSettingsThemeAndPaletteSwitchingPersists(t *testing.T) {
 	t.Setenv("AGENTFLOW_STUDIO_CONFIG", cfgPath)
 
 	fyneApp := test.NewApp()
+	claimUI(t)
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("settings-test")
 

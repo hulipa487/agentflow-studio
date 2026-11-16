@@ -16,37 +16,13 @@ import (
 // mistakes that would otherwise only appear when the window opens.
 func TestViewsBuild(t *testing.T) {
 	fyneApp := test.NewApp()
+	ui := claimUI(t)
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("test")
 
-	// The headless driver has no UI goroutine: a background load that finishes
-	// would run its completion on its own goroutine, touching widgets this
-	// test is still laying out. Completions are queued instead, and settle
-	// runs them here. Every load fails at once against the unreachable runtime
-	// below, so a short quiet period means they have all arrived.
-	pending := make(chan func(), 1024)
-	run := func(fn func()) { pending <- fn }
-	uiRunner.Store(&run)
-	t.Cleanup(func() { uiRunner.Store(nil) })
-	settle := func() {
-		quiet := time.NewTimer(150 * time.Millisecond)
-		defer quiet.Stop()
-		for {
-			select {
-			case fn := <-pending:
-				fn()
-				if !quiet.Stop() {
-					select {
-					case <-quiet.C:
-					default:
-					}
-				}
-				quiet.Reset(150 * time.Millisecond)
-			case <-quiet.C:
-				return
-			}
-		}
-	}
+	// Every load fails at once against the unreachable runtime below, so a
+	// short quiet period means its completion has arrived and been run here.
+	settle := func() { ui.settle(150 * time.Millisecond) }
 
 	a := New(fyneApp, win, appconfig.Config{})
 	a.api = api.New("http://127.0.0.1:1", "tok")
@@ -142,6 +118,7 @@ func TestViewsBuild(t *testing.T) {
 
 func TestNavModel(t *testing.T) {
 	fyneApp := test.NewApp()
+	claimUI(t)
 	defer fyneApp.Quit()
 	a := New(fyneApp, fyneApp.NewWindow("nav"), appconfig.Config{})
 	a.nav = a.buildNav()

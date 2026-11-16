@@ -35,6 +35,7 @@ func TestChannelsWithoutAgentsGuideThroughChannelCreation(t *testing.T) {
 	defer srv.Close()
 
 	fyneApp := test.NewApp()
+	ui := claimUI(t)
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("channels")
 	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})
@@ -46,14 +47,10 @@ func TestChannelsWithoutAgentsGuideThroughChannelCreation(t *testing.T) {
 	// in the viewport. Wait for the content itself, not just the first object,
 	// or the assertion can run between the two Adds.
 	guidance := "Create a channel to route messages into an agent."
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
+	ui.waitFor(3*time.Second, func() bool {
 		labels, _ := collectLabelsAndButtons(v.list)
-		if v.data.Mode != "" && containsString(labels, guidance) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+		return v.data.Mode != "" && containsString(labels, guidance)
+	})
 	if v.data.Mode == "" {
 		t.Fatal("channels view did not load")
 	}

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -13,6 +14,7 @@ import (
 
 func TestBuilderShowsValidationError(t *testing.T) {
 	fyneApp := test.NewApp()
+	ui := claimUI(t)
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("builder")
 	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})
@@ -21,6 +23,9 @@ func TestBuilderShowsValidationError(t *testing.T) {
 	b := a.newBuilderView("", nil, &api.Template{Name: "echo", Loop: "-- af-prelude-version: 1\nfunction loop() end\n"})
 	a.setMain(b.root)
 	win.Resize(fyne.NewSize(1100, 760))
+	// The loop editor's language server reports its first diagnostics from its
+	// own goroutine; run them here before driving the form.
+	ui.settle(50 * time.Millisecond)
 	b.nameEntry.SetText("")
 	b.validate()
 	if len(b.messages.Objects) == 0 {

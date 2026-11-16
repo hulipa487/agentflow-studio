@@ -121,25 +121,39 @@ func featureOff(err error) (string, bool) {
 	return msg, true
 }
 
-// onUI runs fn on the UI goroutine. Every background completion in this
-// package goes through it rather than calling fyne.Do directly, for one reason:
-// Fyne's headless test driver has no UI goroutine and runs a fyne.Do callback
-// on whichever goroutine called it. A test that builds views on its own
-// goroutine would then have a finished background load touching widgets while
-// the test is still laying them out. Such a test installs a runner that queues
-// the callbacks and runs them itself (see uiRunner).
+// onUI runs fn on the UI goroutine and does not wait for it: by the time onUI
+// returns, fn has usually not run yet. Every background completion in this
+// package goes through it (or onUIWait) rather than calling Fyne directly, for
+// one reason: Fyne's headless test driver has no UI goroutine and runs such a
+// callback on whichever goroutine called it. A test that builds views on its
+// own goroutine would then have a finished background load touching widgets
+// while the test is still laying them out. The package's tests install a
+// runner (harness_test.go) that makes the running test the UI goroutine
+// instead.
 func onUI(fn func()) {
 	if run := uiRunner.Load(); run != nil {
-		(*run)(fn)
+		(*run)(fn, false)
 		return
 	}
 	fyne.Do(fn)
 }
 
-// uiRunner, when set, receives every onUI callback instead of fyne.Do. Only
-// tests set it. It is atomic because background goroutines read it while a
-// test installs or removes it.
-var uiRunner atomic.Pointer[func(func())]
+// onUIWait runs fn on the UI goroutine and returns once it has run. It is for
+// a background goroutine that needs something back — the editor's text, say —
+// before it can continue. It must not be called on the UI goroutine itself.
+func onUIWait(fn func()) {
+	if run := uiRunner.Load(); run != nil {
+		(*run)(fn, true)
+		return
+	}
+	fyne.DoAndWait(fn)
+}
+
+// uiRunner, when set, receives every onUI and onUIWait callback instead of
+// Fyne; wait says whether the caller needs fn to have run before the runner
+// returns. Only tests set it. It is atomic because background goroutines read
+// it while a test installs it.
+var uiRunner atomic.Pointer[func(fn func(), wait bool)]
 
 // async runs call off the UI goroutine and delivers its result on it.
 func async[T any](timeout time.Duration, call func(context.Context) (T, error), done func(T, error)) {

@@ -27,6 +27,7 @@ func TestEmptyModelsScreenHidesHeaderAction(t *testing.T) {
 	defer srv.Close()
 
 	fyneApp := test.NewApp()
+	ui := claimUI(t)
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("models")
 	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})
@@ -34,14 +35,10 @@ func TestEmptyModelsScreenHidesHeaderAction(t *testing.T) {
 	a.content = container.NewStack()
 
 	v := a.newModelsView()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
+	ui.waitFor(3*time.Second, func() bool {
 		labels, _ := collectLabelsAndButtons(v.list)
-		if v.meta.Text != "loading…" && !v.newBtn.Visible() && containsString(labels, "No models yet") {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+		return v.meta.Text != "loading…" && !v.newBtn.Visible() && containsString(labels, "No models yet")
+	})
 	if v.meta.Text != "all changes saved to config" {
 		t.Fatalf("meta = %q", v.meta.Text)
 	}

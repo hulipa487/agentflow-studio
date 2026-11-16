@@ -177,7 +177,12 @@ func (e *luaEditor) scheduleLint() {
 		var src string
 		var version int
 		changed := false
-		onUI(func() {
+		// The text is read on the UI goroutine and sent from this one, so this
+		// has to wait for the read. With onUI it did not: the lines below ran
+		// before the callback, saw changed == false, and the edit was sent to
+		// the language server only when the completion path happened to push
+		// the document first.
+		onUIWait(func() {
 			if e.closed {
 				return
 			}
