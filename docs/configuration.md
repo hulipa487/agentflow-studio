@@ -350,7 +350,7 @@ Enter the instance URL (`http://127.0.0.1:8080`, the `gateway.listen` address) a
 | `POST /admin/api/studio/agents/validate` | Side-effect-free validation of a posted definition and loop. |
 | `PUT /admin/api/studio/agents/{name}` | Validate, install live (`apply`), optionally persist (`persist`); returns what applied and any persist error. |
 | `DELETE /admin/api/studio/agents/{name}` | Stop its sessions, remove it, and remove only Studio-managed files. `force` overrides live sessions and hand-written profiles. |
-| `POST /admin/api/studio/chat` | One playground turn. Streams SSE (`trace`, `reply`, `done`, `error`) or returns JSON with `stream: false`. |
+| `POST /admin/api/studio/chat` | One playground turn. Streams SSE (`trace`, `reply`, then `done` or `error`) or returns JSON with `stream: false`. A turn ends with `done` (finished, timed out, or refused by safety); a message that could not be delivered or a loop that failed mid-turn ends with `error` instead, and `stream: false` then answers `ok: false` with the trace. A request that can never start a turn (unknown agent, an `act_as_user` that is not a profile) is refused with 4xx before any stream. |
 | `GET /admin/api/studio/threads` · `POST /threads/{thread}/stop` | Observed threads and a stop request for one live session. |
 | `GET /admin/api/studio/trace/{agent}/{thread}` | The buffered trace; add `?stream=true` for live SSE. |
 | `GET/POST /admin/api/studio/channels` · `PUT/DELETE /{index}` | The persisted channel set; validate a draft, create, replace or remove one. Saves are restart-required. |
