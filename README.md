@@ -62,6 +62,11 @@ Secrets are write-only everywhere: a field left blank keeps the stored value, an
 - **Logs** - the live log tail with a level floor, a text filter and pause.
 - **Config** - the raw config file for everything without its own screen, with validate, an atomic save that keeps a `.bak`, and a masked view of what the runtime parsed.
 
+**🪟 The shell**
+- **Command bar** - the breadcrumb, a search field that opens the go-to palette, the connection pill (saved profiles, switch, lock) and the theme toggle.
+- **Rail** - flat and compact, so every screen fits the default window without scrolling. The logo collapses it.
+- **Status bar** - which runtime this is, on every screen: address, instance, region, topology, version, uptime and busy or idle sessions.
+
 **📚 Documentation**
 - The complete AgentFlow guide set - getting started, architecture, the configuration reference, the Luau API reference, deployment and the OpenAI-compatible API - is embedded in the binary and rendered natively. Search and links work offline.
 

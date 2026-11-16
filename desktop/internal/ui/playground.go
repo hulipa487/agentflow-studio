@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"strconv"
 	"strings"
 	"time"
@@ -189,8 +190,9 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 	p.avatarBox = container.NewStack(avatar(strings.ToUpper(agent[:1]), 34))
 
 	p.stopBtn = iconButton(theme.MediaStopIcon(), "Stop session", p.stop)
-	titleStack := vstack(0, p.headerName, p.headerThread)
-	headLeft := container.NewBorder(nil, nil, vCenter(p.avatarBox), nil, vCenter(titleStack))
+	titleStack := vstack(0, compactLabel(p.headerName, false), compactLabel(p.headerThread, false))
+	headLeft := container.NewBorder(nil, nil,
+		container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), vCenter(p.avatarBox)), nil, vLeft(titleStack))
 	headRight := hstack(spaceXS,
 		vCenter(p.activity),
 		vCenter(dotBox(p.statusDot)),
@@ -212,9 +214,10 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 	})
 	p.filter.SetSelected("All events")
 	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh trace", p.refreshTrace)
+	p.tokens.Wrapping = fyne.TextWrapOff
 	traceHead := container.NewBorder(nil, nil,
-		vstack(1, insetLeading(titleText("Trace", theme.SizeNameSubHeadingText)), p.tokens),
-		hstack(spaceXS, vCenter(controlFrame(p.filter)), vCenter(refresh)),
+		hstack(spaceS, vCenter(insetLeading(titleText("Trace", theme.SizeNameSubHeadingText))), vCenter(compactLabel(p.tokens, false))),
+		hstack(spaceXS, vCenter(widthBox(124, controlFrame(p.filter))), vCenter(refresh)),
 	)
 	trace := panel(container.NewBorder(
 		vstack(spaceS, traceHead, widget.NewSeparator()),
@@ -520,25 +523,63 @@ func (p *playgroundView) renderTrace() {
 	p.tokens.SetText(fmt.Sprintf("%d tok", traceTokens(p.events)))
 }
 
+// traceRow is one event as a two-line entry: sequence and kind on the first
+// line with the cost on the right, the op/tool/model (or the error) beneath.
+// The whole row opens the raw event.
 func (p *playgroundView) traceRow(ev api.TraceEvent) fyne.CanvasObject {
-	l := mono(traceLine(ev), theme.SizeNameCaptionText)
-	l.Wrapping = fyne.TextWrapWord
-	l.Truncation = fyne.TextTruncateClip
 	rowTone := toneAccent
 	switch {
 	case !ev.OK && ev.Err != "":
-		l.Importance = widget.DangerImportance
 		rowTone = toneDanger
 	case ev.Kind == "turn.start" || ev.Kind == "turn.end":
-		l.Importance = widget.LowImportance
 		rowTone = toneNeutral
 	case ev.Kind == "reply":
 		rowTone = toneSuccess
 	}
-	details := iconButton(theme.InfoIcon(), "Event details", func() { p.showEvent(ev) })
-	leftDot := vCenter(dotBox(dot(rowTone)))
-	row := container.NewBorder(nil, nil, leftDot, vCenter(details), l)
-	return subpanel(row)
+	seq := monoText(fmt.Sprintf("#%d", ev.Seq), 10.5, colorFaint)
+	kind := monoText(ev.Kind, 11.5, colorText)
+	kind.TextStyle.Bold = true
+	if rowTone == toneNeutral {
+		kind.Color = colorMuted
+	}
+	if rowTone == toneDanger {
+		kind.Color = colorDanger
+	}
+	var cost []string
+	if ev.DurationMS > 0 {
+		cost = append(cost, strconv.FormatInt(ev.DurationMS, 10)+"ms")
+	}
+	if ev.TokensIn+ev.TokensOut > 0 {
+		cost = append(cost, fmt.Sprintf("%d→%d tok", ev.TokensIn, ev.TokensOut))
+	}
+	top := container.NewBorder(nil, nil,
+		hstack(spaceS, container.NewCenter(dotBox(dot(rowTone))), container.NewCenter(seq), container.NewCenter(kind)),
+		container.NewCenter(monoText(strings.Join(cost, " · "), 10.5, colorMuted)), nil)
+
+	var detail []string
+	for _, v := range []string{ev.Op, ev.Tool, ev.Model} {
+		if v != "" {
+			detail = append(detail, v)
+		}
+	}
+	if ev.ToolCalls > 0 {
+		detail = append(detail, fmt.Sprintf("%d call(s)", ev.ToolCalls))
+	}
+	body := vstack(3, top)
+	if len(detail) > 0 {
+		d := mono(strings.Join(detail, "  "), theme.SizeNameCaptionText)
+		d.Importance = widget.LowImportance
+		body.Add(container.New(layout.NewCustomPaddedLayout(0, 0, 16, 0), compactLabel(d, true)))
+	}
+	if ev.Err != "" {
+		e := mono(ev.Err, theme.SizeNameCaptionText)
+		e.Importance = widget.DangerImportance
+		e.Wrapping = fyne.TextWrapWord
+		e.Truncation = fyne.TextTruncateOff
+		body.Add(container.New(layout.NewCustomPaddedLayout(0, 0, 16, 0), compactLabel(e, true)))
+	}
+	return newTapSurface(container.New(layout.NewCustomPaddedLayout(6, 6, spaceS, spaceS), body), 7, false,
+		func() color.Color { return colorSurface2 }, func() { p.showEvent(ev) })
 }
 
 func (p *playgroundView) showEvent(ev api.TraceEvent) {

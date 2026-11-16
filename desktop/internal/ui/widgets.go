@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -34,6 +35,29 @@ func hstack(gap float32, objects ...fyne.CanvasObject) *fyne.Container {
 
 func vCenter(o fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewCenter(o)
+}
+
+// vLeft centers an object vertically and pins it to the leading edge, taking
+// the full width so a truncating label can use it.
+type vLeftLayout struct{}
+
+func (vLeftLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	if len(objs) == 0 {
+		return fyne.Size{}
+	}
+	return objs[0].MinSize()
+}
+
+func (vLeftLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objs {
+		h := o.MinSize().Height
+		o.Resize(fyne.NewSize(size.Width, h))
+		o.Move(fyne.NewPos(0, (size.Height-h)/2))
+	}
+}
+
+func vLeft(o fyne.CanvasObject) fyne.CanvasObject {
+	return container.New(vLeftLayout{}, o)
 }
 
 func hSpacer(width float32) fyne.CanvasObject {
@@ -94,6 +118,85 @@ func (l widthLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 
 func widthBox(width float32, obj fyne.CanvasObject) fyne.CanvasObject {
 	return container.New(widthLayout{width: width}, obj)
+}
+
+// tapSurface is a hoverable, tappable rounded surface: the command bar's
+// pills and the dense list rows are built on it. fill is the resting color
+// (nil for transparent); stroke draws a hairline border when true.
+type tapSurface struct {
+	widget.BaseWidget
+	bg      *canvas.Rectangle
+	content fyne.CanvasObject
+	stack   *fyne.Container
+	onTap   func()
+	fill    func() color.Color
+	stroke  bool
+	hovered bool
+	height  float32
+}
+
+func newTapSurface(content fyne.CanvasObject, radius float32, stroke bool, fill func() color.Color, onTap func()) *tapSurface {
+	t := &tapSurface{content: content, onTap: onTap, fill: fill, stroke: stroke}
+	t.bg = canvas.NewRectangle(color.Transparent)
+	t.bg.CornerRadius = radius
+	t.stack = container.NewStack(t.bg, content)
+	t.ExtendBaseWidget(t)
+	t.apply()
+	return t
+}
+
+func (t *tapSurface) CreateRenderer() fyne.WidgetRenderer { return widget.NewSimpleRenderer(t.stack) }
+
+func (t *tapSurface) MinSize() fyne.Size {
+	min := t.stack.MinSize()
+	if t.height > 0 {
+		min.Height = t.height
+	}
+	return min
+}
+
+func (t *tapSurface) Refresh() {
+	t.apply()
+	t.BaseWidget.Refresh()
+}
+
+func (t *tapSurface) Tapped(*fyne.PointEvent) {
+	if t.onTap != nil {
+		t.onTap()
+	}
+}
+
+func (t *tapSurface) MouseIn(*desktop.MouseEvent) {
+	t.hovered = true
+	t.apply()
+}
+func (t *tapSurface) MouseMoved(*desktop.MouseEvent) {}
+func (t *tapSurface) MouseOut() {
+	t.hovered = false
+	t.apply()
+}
+
+func (t *tapSurface) Cursor() desktop.Cursor {
+	if t.onTap != nil {
+		return desktop.PointerCursor
+	}
+	return desktop.DefaultCursor
+}
+
+func (t *tapSurface) apply() {
+	var fill color.Color = color.Transparent
+	if t.fill != nil {
+		fill = t.fill()
+	}
+	if t.hovered && t.onTap != nil {
+		fill = colorHover
+	}
+	t.bg.FillColor = fill
+	if t.stroke {
+		t.bg.StrokeColor = colorBorder
+		t.bg.StrokeWidth = 1
+	}
+	t.bg.Refresh()
 }
 
 // searchBox is a modern, minimalist search field with a leading magnifier

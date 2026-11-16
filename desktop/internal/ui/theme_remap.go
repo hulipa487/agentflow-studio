@@ -66,6 +66,11 @@ func remapObject(o fyne.CanvasObject, m map[color.NRGBA]color.NRGBA) {
 		v.Refresh()
 		return
 	case *railRow:
+		remapObject(v.stack, m)
+		v.Refresh()
+		return
+	case *tapSurface:
+		remapObject(v.content, m)
 		v.Refresh()
 		return
 	case *transStripe:

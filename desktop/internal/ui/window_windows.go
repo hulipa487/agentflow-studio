@@ -591,6 +591,9 @@ func hitTestAt(hwnd uintptr, screenX, screenY int32) (int, bool) {
 		if sidebarRegion.Load() {
 			actions = int32(420 * scale)
 		}
+		if cw := chromeActionsWidth.Load(); cw > 0 {
+			actions = int32(float64(cw) * scale)
+		}
 		if x >= w-actions {
 			return htClient, true
 		}

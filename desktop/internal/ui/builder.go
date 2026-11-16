@@ -365,30 +365,29 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	// in the title line (state) and the deployment config.
 	inspector := b.luaDocsPane()
 
-	// Balanced two-row header: title & state with Test/Delete on top, and the
-	// save/validate/apply toolbar strip underneath.
+	// One toolbar: the agent and its state on the left, the actions on the
+	// right. "Save to config" sits at the end of the tab strip, where it costs
+	// no header height and still fits the minimum window width.
 	status := hstack(spaceXS, vCenter(dotBox(b.stateDot)), vCenter(compactLabel(b.subtitle, true)))
-	titleLeft := hstack(spaceXS, vCenter(b.backBtn), vCenter(b.title), hSpacer(spaceXS), vCenter(status))
-	titleRight := hstack(spaceXS, vCenter(widthBox(84, b.testBtn)), vCenter(b.deleteBtn))
-	titleRow := container.NewBorder(nil, nil, titleLeft, titleRight, nil)
-
-	actionsRight := hstack(spaceXS,
+	titleLeft := hstack(spaceS, vCenter(b.backBtn), vCenter(vstack(0, b.title, status)))
+	titleRight := hstack(spaceXS,
 		vCenter(b.activity),
-		vCenter(widthBox(100, b.validateBtn)),
+		vCenter(widthBox(96, b.validateBtn)),
 		vCenter(widthBox(124, b.applyBtn)),
+		vCenter(widthBox(76, b.testBtn)),
+		vCenter(b.deleteBtn),
 	)
-	toolbarRow := container.NewBorder(nil, nil,
-		vCenter(compactCheck(b.persist)),
-		actionsRight,
-		nil,
-	)
+	titleRow := container.NewBorder(nil, nil, titleLeft, titleRight, nil)
 	head := vstack(spaceXS,
-		container.New(layout.NewCustomPaddedLayout(spaceS, 2, pageGutter, pageGutter), vstack(2, titleRow, toolbarRow)),
+		container.New(layout.NewCustomPaddedLayout(spaceS, spaceXS, pageGutter, pageGutter), titleRow),
 		hInset(b.messages),
 		widget.NewSeparator(),
 	)
 
-	tabsPane := container.New(layout.NewCustomPaddedLayout(spaceXS, 0, spaceM, spaceM), tabs)
+	persistCorner := container.NewVBox(container.NewHBox(layout.NewSpacer(),
+		container.New(layout.NewCustomPaddedLayout(spaceXS, 0, 0, spaceXS), compactCheck(b.persist))))
+	tabsPane := container.New(layout.NewCustomPaddedLayout(spaceXS, 0, spaceM, spaceM),
+		container.NewStack(tabs, persistCorner))
 	inspectorPane := container.New(layout.NewCustomPaddedLayout(pageTop, pageBottom, spaceM, pageGutter), inspector)
 	split := container.NewHSplit(container.NewBorder(head, nil, nil, nil, tabsPane), inspectorPane)
 	split.SetOffset(0.68)
