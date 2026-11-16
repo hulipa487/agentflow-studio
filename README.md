@@ -391,8 +391,8 @@ runtime:
 The socket is owner-only (0600 on Unix; the named pipe's DACL grants the owner,
 Administrators and SYSTEM) and the bearer token is still required. The browser
 console is served on the HTTP listener, so keep `tcp: true` if you use it; the
-documentation is bundled in Studio and works on every transport (the runtime
-answers `/docs` with 410). A relative socket path is resolved against the config
+documentation is bundled in Studio and works on every transport. A relative
+socket path is resolved against the config
 directory. `-no-console` only drops the
 console's static files: the admin and Studio APIs stay up, so Studio keeps
 working with the console off.
