@@ -1,0 +1,46 @@
+// A bundled contract file (the OpenAPI document, the Luau type definitions)
+// shown read-only. The desktop app hands these to the OS's handler for the
+// file type; a browser copies or downloads them instead.
+import { Download, X } from 'lucide-react'
+import { readAsset, type DocAsset } from '@/docs/library'
+import { Button, Chip, CopyButton, EmptyState, IconButton } from '@/components/ui'
+import { CodeEditor } from '@/components/ui/CodeEditor'
+import { downloadText } from '@/lib/format'
+import { toast } from '@/state/ui'
+
+const MIME: Record<DocAsset['language'], string> = {
+  yaml: 'application/yaml',
+  json: 'application/json',
+  lua: 'text/plain',
+  text: 'text/plain',
+}
+
+export function AssetViewer({ asset, path, onClose }: { asset: DocAsset | undefined; path: string; onClose: () => void }) {
+  const text = asset ? readAsset(asset.path) : undefined
+  const name = path.slice(path.lastIndexOf('/') + 1)
+  if (!asset || text === undefined) {
+    return <EmptyState title={'could not read ' + path} guidance="This file is not bundled in this build." actionLabel="Back to the page" onAction={onClose} />
+  }
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2 px-5 pb-4 pt-3">
+      <div className="flex shrink-0 items-center gap-2">
+        <h2 className="min-w-0 truncate text-[16px] font-semibold leading-tight">{asset.title}</h2>
+        <Chip>{asset.path}</Chip>
+        <span className="font-mono text-[11px] text-faint">{text.split('\n').length} lines · read-only</span>
+        <span className="flex-1" />
+        <CopyButton text={text} what={name} size="md" />
+        <Button
+          icon={Download}
+          onClick={() => {
+            downloadText(name, text, MIME[asset.language])
+            toast('downloaded ' + name, 'success')
+          }}
+        >
+          Download
+        </Button>
+        <IconButton icon={X} label="Close (Esc)" onClick={onClose} />
+      </div>
+      <CodeEditor value={text} language={asset.language} readOnly className="min-h-0 flex-1" />
+    </div>
+  )
+}

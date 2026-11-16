@@ -1,0 +1,191 @@
+// Documentation: the bundled guides, readable offline and on every
+// transport. Pages live at /docs/<slug>; hash routing has no fragment left
+// to spend on a heading, so one is addressed as ?h=<heading-id>.
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { DOC_ASSETS, docOutline, docPages, readDoc, type DocPage } from '@/docs/library'
+import { Chip, EmptyState } from '@/components/ui'
+import { Markdown } from '@/components/ui/Markdown'
+import { useScreenActions } from '@/lib/hooks'
+import { AssetViewer } from './docs/AssetViewer'
+import { Outline } from './docs/Outline'
+import { Sidebar } from './docs/Sidebar'
+import { docPath, findHeading, offsetIn, outlineElements } from './docs/helpers'
+
+/** How far below the top of the reading column a heading comes to rest. */
+const TOP_GAP = 16
+
+function PagerLink({ page, dir }: { page: DocPage; dir: 'prev' | 'next' }) {
+  const next = dir === 'next'
+  return (
+    <Link
+      to={docPath(page.slug)}
+      className={
+        'flex min-w-0 flex-col gap-0.5 rounded-card border border-line bg-surface px-3 py-2 transition-colors duration-100 hover:border-accent/50 hover:bg-hover ' +
+        (next ? 'items-end text-right' : 'items-start')
+      }
+    >
+      <span className="inline-flex items-center gap-1 text-[11px] text-faint">
+        {!next && <ArrowLeft className="size-3" />}
+        {next ? 'Next' : 'Previous'}
+        {next && <ArrowRight className="size-3" />}
+      </span>
+      <span className="max-w-full truncate text-[13px] font-semibold text-text">{page.title}</span>
+    </Link>
+  )
+}
+
+function Viewer({ pages }: { pages: DocPage[] }) {
+  const params = useParams()
+  const [search, setSearch] = useSearchParams()
+  const navigate = useNavigate()
+  const [query, setQuery] = useState('')
+  const [active, setActive] = useState(-1)
+  const scroller = useRef<HTMLDivElement>(null)
+  // Set when the outline has already scrolled to the heading it is about to
+  // put in the URL, so the URL change does not jump there a second time.
+  const skipScroll = useRef(false)
+
+  // An unknown slug shows the first page, as the desktop app does.
+  const index = Math.max(0, pages.findIndex((p) => p.slug === params.slug))
+  const page = pages[index]
+  const anchor = search.get('h') ?? ''
+  const assetPath = search.get('asset') ?? ''
+  const source = useMemo(() => readDoc(page.slug), [page.slug])
+  const outline = useMemo(() => (source ? docOutline(source) : []), [source])
+
+  // A new page starts at the top, or at the heading the link named.
+  useLayoutEffect(() => {
+    const el = scroller.current
+    if (!el) return
+    if (skipScroll.current) {
+      skipScroll.current = false
+      return
+    }
+    const target = findHeading(el, anchor)
+    el.scrollTop = target ? Math.max(0, offsetIn(target, el) - TOP_GAP) : 0
+    // Hand the keyboard to the page (Space, PageDown) unless a field has it.
+    const focused = document.activeElement
+    if (!(focused instanceof HTMLInputElement)) el.focus({ preventScroll: true })
+  }, [page.slug, anchor])
+
+  // Mark the section being read: the last heading at or above the top edge.
+  useEffect(() => {
+    const el = scroller.current
+    if (!el) return
+    const heads = outlineElements(el, outline)
+    let frame = 0
+    const update = () => {
+      frame = 0
+      const line = el.scrollTop + TOP_GAP + 8
+      let current = -1
+      for (let i = 0; i < heads.length; i++) {
+        const h = heads[i]
+        if (!h) continue
+        if (offsetIn(h, el) > line) break
+        current = i
+      }
+      // The last sections of a page can never reach the top edge.
+      if (el.scrollTop > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2) {
+        for (let i = heads.length - 1; i > current; i--) {
+          if (heads[i]) {
+            current = i
+            break
+          }
+        }
+      }
+      setActive(current)
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+    update()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(frame)
+    }
+  }, [outline, page.slug])
+
+  const pickHeading = (i: number) => {
+    const el = scroller.current
+    const target = el ? outlineElements(el, outline)[i] : null
+    if (!el || !target) return
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollTo({ top: Math.max(0, offsetIn(target, el) - TOP_GAP), behavior: calm ? 'auto' : 'smooth' })
+    const id = outline[i].id
+    if (id !== anchor) {
+      skipScroll.current = true
+      const next = new URLSearchParams(search)
+      next.set('h', id)
+      setSearch(next, { replace: true })
+    }
+  }
+
+  const openAsset = (path: string) => {
+    const next = new URLSearchParams(search)
+    next.set('asset', path)
+    setSearch(next)
+  }
+  const closeAsset = () => {
+    const next = new URLSearchParams(search)
+    next.delete('asset')
+    setSearch(next, { replace: true })
+  }
+
+  useScreenActions({
+    back: () => {
+      if (assetPath !== '') closeAsset()
+      // Esc returns to the previous view; a page opened by its link has none.
+      else if (((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0) navigate(-1)
+    },
+  })
+
+  const prev = index > 0 ? pages[index - 1] : undefined
+  const next = index < pages.length - 1 ? pages[index + 1] : undefined
+
+  return (
+    <div className="flex h-full min-h-0">
+      <Sidebar current={page} asset={assetPath} query={query} onQuery={setQuery} onAsset={openAsset} />
+      <div className="relative flex min-w-0 flex-1">
+        {/* The page stays mounted under a contract file so closing it returns to the same place. */}
+        <div className="flex min-w-0 flex-1" inert={assetPath !== ''}>
+          <div ref={scroller} tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
+            <article className="mx-auto w-full max-w-[860px] px-8 pb-16 pt-5">
+              <div className="mb-4 flex items-center gap-2">
+                <Chip tone="accent">{page.section}</Chip>
+                <span className="min-w-0 truncate text-xs text-muted">{page.title}</span>
+              </div>
+              {source === undefined ? (
+                <p className="text-[12.5px] text-muted">This page could not be read.</p>
+              ) : (
+                <Markdown source={source} onNavigate={(slug, a) => navigate(docPath(slug, a))} onAsset={openAsset} />
+              )}
+              {(prev || next) && (
+                <nav className="mt-10 grid grid-cols-2 gap-3 border-t border-line pt-4" aria-label="Previous and next page">
+                  {prev ? <PagerLink page={prev} dir="prev" /> : <span />}
+                  {next ? <PagerLink page={next} dir="next" /> : <span />}
+                </nav>
+              )}
+            </article>
+          </div>
+          <Outline outline={outline} active={active} onPick={pickHeading} />
+        </div>
+        {assetPath !== '' && (
+          <div className="absolute inset-0 z-10 flex animate-fade-in flex-col bg-bg">
+            <AssetViewer asset={DOC_ASSETS.find((a) => a.path === assetPath)} path={assetPath} onClose={closeAsset} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function Docs() {
+  const pages = docPages()
+  if (pages.length === 0) {
+    return <EmptyState title="Documentation is not bundled in this build" guidance="No documentation pages found." className="h-full" />
+  }
+  return <Viewer pages={pages} />
+}
