@@ -170,7 +170,7 @@ func (v *logsView) start(ctx context.Context) {
 		for ctx.Err() == nil {
 			// Every (re)connect replays the runtime's ring, so start from it
 			// rather than appending a second copy of the history.
-			fyne.Do(func() {
+			onUI(func() {
 				if ctx.Err() == nil {
 					v.lines = nil
 					v.apply()
@@ -178,7 +178,7 @@ func (v *logsView) start(ctx context.Context) {
 				}
 			})
 			err := c.Logs(ctx, func(line string) {
-				fyne.Do(func() {
+				onUI(func() {
 					if ctx.Err() == nil {
 						v.push(line)
 					}
@@ -191,7 +191,7 @@ func (v *logsView) start(ctx context.Context) {
 			if err != nil {
 				msg = err.Error()
 			}
-			fyne.Do(func() { v.status.SetText(msg + " · reconnecting in " + backoff.String()) })
+			onUI(func() { v.status.SetText(msg + " · reconnecting in " + backoff.String()) })
 			select {
 			case <-ctx.Done():
 				return

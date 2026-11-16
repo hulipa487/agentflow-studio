@@ -92,7 +92,7 @@ func (v *channelsView) load() {
 				}
 			}
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			if err != nil {
 				msg := err.Error()
 				if ae, ok := err.(*api.Error); ok && ae.Status == 404 {
@@ -320,7 +320,7 @@ func (a *App) confirmChannelDelete(v *channelsView, ch api.Channel) {
 				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 				defer cancel()
 				list, err := a.api.DeleteChannel(ctx, ch.Index, v.data.MTime)
-				fyne.Do(func() {
+				onUI(func() {
 					if err != nil {
 						v.setBanner(err.Error(), toneDanger)
 						return
@@ -671,7 +671,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			errs, err := a.api.ValidateChannel(ctx, idx, draft)
-			fyne.Do(func() {
+			onUI(func() {
 				setBusy(false)
 				switch {
 				case err != nil:
@@ -702,7 +702,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			list, err := a.api.SaveChannel(ctx, idx, draft, v.data.MTime)
-			fyne.Do(func() {
+			onUI(func() {
 				setBusy(false)
 				if err != nil {
 					errBanner.Set(err.Error(), toneDanger)

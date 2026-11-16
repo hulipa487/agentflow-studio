@@ -122,17 +122,17 @@ func (e *luaEditor) startClient() {
 		if uri != e.uri {
 			return
 		}
-		fyne.Do(func() { e.applyDiagnostics(diags) })
+		onUI(func() { e.applyDiagnostics(diags) })
 	})
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := client.Initialize(ctx, e.prelude, e.capabilities()); err != nil {
-			fyne.Do(func() { e.setStatus("language service error: "+err.Error(), toneDanger) })
+			onUI(func() { e.setStatus("language service error: "+err.Error(), toneDanger) })
 			return
 		}
 		if err := client.Open(e.uri, e.Text(), e.version); err != nil {
-			fyne.Do(func() { e.setStatus("language service error: "+err.Error(), toneDanger) })
+			onUI(func() { e.setStatus("language service error: "+err.Error(), toneDanger) })
 		}
 	}()
 }
@@ -177,7 +177,7 @@ func (e *luaEditor) scheduleLint() {
 		var src string
 		var version int
 		changed := false
-		fyne.Do(func() {
+		onUI(func() {
 			if e.closed {
 				return
 			}
@@ -199,7 +199,7 @@ func (e *luaEditor) scheduleCompletion() {
 		e.completion.Stop()
 	}
 	e.completion = time.AfterFunc(150*time.Millisecond, func() {
-		fyne.Do(func() {
+		onUI(func() {
 			if !e.closed {
 				e.editor.RequestCompletion(false)
 			}
@@ -320,7 +320,7 @@ func (e *luaEditor) hoverAt(row, col int, overDiag bool) {
 		if err != nil {
 			return
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			if e.closed || seq != e.hoverSeq {
 				return
 			}
@@ -369,7 +369,7 @@ func (e *luaEditor) requestCompletion(prefix string, row, start int) {
 		for _, it := range items {
 			conv = append(conv, completionItem{Label: it.Label, Detail: it.Detail, Insert: it.Insert})
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			if e.closed || seq != e.completionSeq {
 				return
 			}

@@ -174,7 +174,7 @@ func (a *App) reloadCatalog() {
 		if err != nil {
 			return
 		}
-		fyne.Do(func() { a.catalog = catalog })
+		onUI(func() { a.catalog = catalog })
 	}()
 }
 
@@ -492,7 +492,7 @@ func (a *App) startHeartbeat() {
 		if ctx.Err() != nil {
 			return false
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			a.setOnline(err)
 			if err == nil {
 				a.setRuntimeFacts(st)
@@ -585,7 +585,7 @@ func (a *App) setStatus(text string, t tone) {
 		a.toastTimer.Stop()
 	}
 	a.toastTimer = time.AfterFunc(2200*time.Millisecond, func() {
-		fyne.Do(func() {
+		onUI(func() {
 			if a.toast != nil {
 				a.toast.Hide()
 			}

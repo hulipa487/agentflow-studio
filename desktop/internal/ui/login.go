@@ -495,9 +495,9 @@ func (v *loginView) connect() {
 	go func() {
 		defer cancel()
 		c := api.New(rawURL, token)
-		step := func(s string) { fyne.Do(func() { v.progress.SetText(s) }) }
+		step := func(s string) { onUI(func() { v.progress.SetText(s) }) }
 		done := func(err error) {
-			fyne.Do(func() {
+			onUI(func() {
 				v.cancel = nil
 				v.setBusy(false, "")
 				switch {
@@ -524,7 +524,7 @@ func (v *loginView) connect() {
 			done(err)
 			return
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			v.cancel = nil
 			a.api = c
 			a.catalog = cat

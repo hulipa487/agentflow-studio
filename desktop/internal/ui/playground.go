@@ -57,7 +57,7 @@ func (a *App) showPlayground(agent string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		rows, err := a.api.Agents(ctx)
-		fyne.Do(func() {
+		onUI(func() {
 			if err != nil {
 				a.showError(err)
 				retry := widthBox(120, primaryButton("Retry", nil, func() { a.showPlayground("") }))
@@ -290,7 +290,7 @@ func (p *playgroundView) loadThreads() {
 		if err != nil {
 			return
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			if p.agent != agent {
 				return
 			}
@@ -326,10 +326,10 @@ func (p *playgroundView) openThread(thread string) {
 		defer cancel()
 		events, err := p.app.api.Trace(ctx, agent, thread)
 		if err != nil {
-			fyne.Do(func() { p.app.showError(err) })
+			onUI(func() { p.app.showError(err) })
 			return
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			p.events = events
 			p.renderTrace()
 		})
@@ -344,10 +344,10 @@ func (p *playgroundView) refreshTrace() {
 		defer cancel()
 		events, err := p.app.api.Trace(ctx, agent, thread)
 		if err != nil {
-			fyne.Do(func() { p.app.showError(err) })
+			onUI(func() { p.app.showError(err) })
 			return
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			p.events = events
 			p.renderTrace()
 		})
@@ -364,7 +364,7 @@ func (p *playgroundView) stop() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		err := p.app.api.StopThread(ctx, agent, thread)
-		fyne.Do(func() {
+		onUI(func() {
 			if err != nil {
 				p.app.showError(err)
 				p.setStatus("error", toneDanger)
@@ -401,7 +401,7 @@ func (p *playgroundView) send() {
 			Text:   text,
 			ActAs:  actAs,
 		}, func(ev api.ChatEvent) {
-			fyne.Do(func() {
+			onUI(func() {
 				switch ev.Type {
 				case "trace":
 					if ev.Trace != nil {
@@ -422,7 +422,7 @@ func (p *playgroundView) send() {
 			})
 		})
 		canceled := ctx.Err() != nil
-		fyne.Do(func() {
+		onUI(func() {
 			p.sending = false
 			p.sendBtn.Enable()
 			switch {

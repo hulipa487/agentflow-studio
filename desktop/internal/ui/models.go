@@ -81,7 +81,7 @@ func (v *modelsView) load() {
 		defer cancel()
 		models, fileErr, err := v.app.api.Models(ctx)
 		state, _ := v.app.api.State(ctx)
-		fyne.Do(func() {
+		onUI(func() {
 			if err != nil {
 				v.meta.SetText("")
 				v.banner.Set(err.Error(), toneDanger)
@@ -218,7 +218,7 @@ func (v *modelsView) test(name string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 		defer cancel()
 		res, err := v.app.api.TestModel(ctx, name)
-		fyne.Do(func() {
+		onUI(func() {
 			if err != nil {
 				v.app.showError(err)
 				return
@@ -254,10 +254,10 @@ func (v *modelsView) confirmDelete(m api.Model) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			if err := v.app.api.DeleteModel(ctx, m.Name); err != nil {
-				fyne.Do(func() { v.app.showError(err) })
+				onUI(func() { v.app.showError(err) })
 				return
 			}
-			fyne.Do(func() {
+			onUI(func() {
 				v.app.setStatus("model removed · live", toneWarning)
 				v.load()
 				v.app.reloadCatalog()
@@ -271,10 +271,10 @@ func (v *modelsView) persist() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		if err := v.app.api.PersistModels(ctx); err != nil {
-			fyne.Do(func() { v.app.showError(err) })
+			onUI(func() { v.app.showError(err) })
 			return
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			v.app.setStatus("models saved to config", toneSuccess)
 			v.load()
 		})
@@ -293,10 +293,10 @@ func (v *modelsView) revert() {
 				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 				defer cancel()
 				if err := v.app.api.RevertModels(ctx); err != nil {
-					fyne.Do(func() { v.app.showError(err) })
+					onUI(func() { v.app.showError(err) })
 					return
 				}
-				fyne.Do(func() {
+				onUI(func() {
 					v.app.setStatus("models reverted to config", toneSuccess)
 					v.load()
 					v.app.reloadCatalog()
@@ -435,7 +435,7 @@ func (v *modelsView) showEditor(existing *api.Model) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			err := v.app.api.PutModel(ctx, strings.TrimSpace(name.Text), draft)
-			fyne.Do(func() {
+			onUI(func() {
 				saveBtn.Enable()
 				saveBtn.SetText("Save")
 				if err != nil {

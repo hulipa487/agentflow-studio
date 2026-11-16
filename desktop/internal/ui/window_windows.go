@@ -331,13 +331,13 @@ func studioWndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 			fn := zoomObserver
 			zoomMu.Unlock()
 			if fn != nil {
-				fyne.Do(func() { fn(zoomed) })
+				onUI(func() { fn(zoomed) })
 			}
 		}
 		// The new layout may shift the controls' parent containers without
 		// moving the buttons, so re-read their positions once it has settled.
 		if chromeRefreshPending.CompareAndSwap(false, true) {
-			fyne.Do(func() {
+			onUI(func() {
 				chromeRefreshPending.Store(false)
 				refreshChromeGeometry()
 			})
@@ -667,7 +667,7 @@ func notifyChromeControl(c chromeControl) {
 	fn := chromeHoverObserver
 	chromeMu.Unlock()
 	if fn != nil {
-		fyne.Do(func() { fn(c) })
+		onUI(func() { fn(c) })
 	}
 }
 

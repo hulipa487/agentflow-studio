@@ -49,7 +49,7 @@ func (a *App) showOverview() {
 			case <-ctx.Done():
 				return
 			case <-tick.C:
-				fyne.Do(func() {
+				onUI(func() {
 					if ctx.Err() == nil {
 						v.load(false)
 					}

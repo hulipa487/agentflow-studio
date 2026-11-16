@@ -76,7 +76,7 @@ func (v *safetyView) load() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		list, err := v.app.api.Safety(ctx)
-		fyne.Do(func() {
+		onUI(func() {
 			if seq != v.loadSeq {
 				return
 			}
@@ -419,7 +419,7 @@ func (v *safetyView) editProfile(existing *api.SafetyProfile) {
 			errs, err := v.app.api.ValidateSafety(ctx, api.SafetyValidateRequest{
 				Kind: "profile", Creating: creating, Profile: &d,
 			})
-			fyne.Do(func() {
+			onUI(func() {
 				setBusy(false)
 				switch {
 				case err != nil:
@@ -446,7 +446,7 @@ func (v *safetyView) editProfile(existing *api.SafetyProfile) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			list, err := v.app.api.SaveSafetyProfile(ctx, d.Name, creating, d, v.data.MTime)
-			fyne.Do(func() {
+			onUI(func() {
 				setBusy(false)
 				if err != nil {
 					errBanner.Set(err.Error(), toneDanger)
@@ -492,7 +492,7 @@ func (v *safetyView) confirmDeleteProfile(p api.SafetyProfile) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			list, err := v.app.api.DeleteSafetyProfile(ctx, p.Name, v.data.MTime)
-			fyne.Do(func() {
+			onUI(func() {
 				if err != nil {
 					v.setBanner(err.Error(), toneDanger)
 					return
@@ -783,7 +783,7 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 			errs, err := v.app.api.ValidateSafety(ctx, api.SafetyValidateRequest{
 				Kind: "classifier", Creating: creating, Classifier: &d,
 			})
-			fyne.Do(func() {
+			onUI(func() {
 				setBusy(false)
 				switch {
 				case err != nil:
@@ -810,7 +810,7 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			list, err := v.app.api.SaveSafetyClassifier(ctx, d.Name, creating, d, v.data.MTime)
-			fyne.Do(func() {
+			onUI(func() {
 				setBusy(false)
 				if err != nil {
 					errBanner.Set(err.Error(), toneDanger)
@@ -856,7 +856,7 @@ func (v *safetyView) confirmDeleteClassifier(c api.SafetyClassifier) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			list, err := v.app.api.DeleteSafetyClassifier(ctx, c.Name, v.data.MTime)
-			fyne.Do(func() {
+			onUI(func() {
 				if err != nil {
 					v.setBanner(err.Error(), toneDanger)
 					return

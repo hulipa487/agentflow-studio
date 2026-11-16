@@ -217,7 +217,7 @@ func (a *App) showCommandPalette() {
 		if err != nil {
 			return
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			if popup == nil {
 				return
 			}

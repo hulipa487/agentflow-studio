@@ -106,7 +106,7 @@ func (a *App) agentsView() fyne.CanvasObject {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			got, err := a.api.Agents(ctx)
-			fyne.Do(func() {
+			onUI(func() {
 				loading.Stop()
 				if err != nil {
 					a.showError(err)
@@ -325,13 +325,13 @@ func (a *App) deleteAgent(name string, force bool) {
 		err := a.api.DeleteAgent(ctx, name, true, force)
 		if err != nil {
 			if ae, isAPI := err.(*api.Error); isAPI && ae.Status == 409 && !force {
-				fyne.Do(func() { a.confirmDelete(name, true, ae.Message) })
+				onUI(func() { a.confirmDelete(name, true, ae.Message) })
 				return
 			}
-			fyne.Do(func() { a.showError(err) })
+			onUI(func() { a.showError(err) })
 			return
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			a.setStatus("deleted "+name, toneSuccess)
 			a.showAgents()
 		})

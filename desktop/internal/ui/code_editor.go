@@ -975,7 +975,7 @@ func (e *codeEditor) touchCaret() {
 }
 
 func (e *codeEditor) blinkCaret(gen int) {
-	fyne.Do(func() {
+	onUI(func() {
 		if e.destroyed || !e.focused || gen != e.caretGen {
 			return
 		}

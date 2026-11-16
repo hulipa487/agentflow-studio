@@ -89,7 +89,7 @@ func (a *App) showBuilder(name string, tpl *api.Template) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		d, err := a.api.Agent(ctx, name)
-		fyne.Do(func() {
+		onUI(func() {
 			if err != nil {
 				a.showError(err)
 				a.showAgents()
@@ -560,7 +560,7 @@ func (b *builderView) validate() {
 			Loop:         b.loop.Text(),
 			Instructions: b.instructions.Text,
 		})
-		fyne.Do(func() {
+		onUI(func() {
 			b.setBusy(false, "")
 			if err != nil {
 				b.setError(err.Error())
@@ -616,7 +616,7 @@ func (b *builderView) apply() {
 			ExpectMtime:  b.mtime,
 		})
 		if err != nil {
-			fyne.Do(func() {
+			onUI(func() {
 				b.setBusy(false, "")
 				b.setError(err.Error())
 			})
@@ -626,7 +626,7 @@ func (b *builderView) apply() {
 		if d, derr := b.app.api.Agent(ctx, name); derr == nil {
 			detail = &d
 		}
-		fyne.Do(func() {
+		onUI(func() {
 			b.setBusy(false, "")
 			b.dirty = false
 			if b.isNew {

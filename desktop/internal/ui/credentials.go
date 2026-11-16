@@ -148,7 +148,7 @@ func (v *credentialsView) load() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		list, err := v.app.api.Credentials(ctx, user)
-		fyne.Do(func() {
+		onUI(func() {
 			if seq != v.loadSeq {
 				return
 			}
@@ -359,7 +359,7 @@ func (v *credentialsView) editCredential(existing *api.Credential) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			list, err := v.app.api.PutCredential(ctx, d)
-			fyne.Do(func() {
+			onUI(func() {
 				save.Enable()
 				save.SetText("Save")
 				if err != nil {
@@ -396,7 +396,7 @@ func (v *credentialsView) confirmDelete(c api.Credential) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			list, err := v.app.api.DeleteCredential(ctx, v.selectedBucket(), c.Service)
-			fyne.Do(func() {
+			onUI(func() {
 				if err != nil {
 					v.setBanner(err.Error(), toneDanger)
 					return

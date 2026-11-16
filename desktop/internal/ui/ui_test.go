@@ -19,6 +19,35 @@ func TestViewsBuild(t *testing.T) {
 	defer fyneApp.Quit()
 	win := fyneApp.NewWindow("test")
 
+	// The headless driver has no UI goroutine: a background load that finishes
+	// would run its completion on its own goroutine, touching widgets this
+	// test is still laying out. Completions are queued instead, and settle
+	// runs them here. Every load fails at once against the unreachable runtime
+	// below, so a short quiet period means they have all arrived.
+	pending := make(chan func(), 1024)
+	run := func(fn func()) { pending <- fn }
+	uiRunner.Store(&run)
+	t.Cleanup(func() { uiRunner.Store(nil) })
+	settle := func() {
+		quiet := time.NewTimer(150 * time.Millisecond)
+		defer quiet.Stop()
+		for {
+			select {
+			case fn := <-pending:
+				fn()
+				if !quiet.Stop() {
+					select {
+					case <-quiet.C:
+					default:
+					}
+				}
+				quiet.Reset(150 * time.Millisecond)
+			case <-quiet.C:
+				return
+			}
+		}
+	}
+
 	a := New(fyneApp, win, appconfig.Config{})
 	a.api = api.New("http://127.0.0.1:1", "tok")
 	a.catalog = api.Catalog{
@@ -41,6 +70,7 @@ func TestViewsBuild(t *testing.T) {
 	if a.content == nil {
 		t.Fatal("main content not initialized")
 	}
+	settle()
 	agents := a.agentsView()
 	if agents == nil {
 		t.Fatal("agents view is nil")
@@ -71,9 +101,7 @@ func TestViewsBuild(t *testing.T) {
 		t.Fatal("credentials view is nil")
 	}
 
-	// The headless driver runs fyne.Do callbacks on the calling goroutine, so
-	// let each screen's first (failing) load land before building the next.
-	settle := func() { time.Sleep(300 * time.Millisecond) }
+	// Let each screen's first (failing) load land before building the next.
 	settle()
 
 	// The operator screens: each must build (and survive its first failed
@@ -95,6 +123,7 @@ func TestViewsBuild(t *testing.T) {
 	// its rail row lights up alone, and the breadcrumb names it.
 	for _, it := range a.nav {
 		a.enter(it.id)
+		settle()
 		if a.view != it.id {
 			t.Fatalf("enter %s left view %q", it.id, a.view)
 		}
@@ -108,6 +137,7 @@ func TestViewsBuild(t *testing.T) {
 		}
 	}
 	a.cancelView()
+	settle()
 }
 
 func TestNavModel(t *testing.T) {
