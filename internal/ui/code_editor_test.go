@@ -177,6 +177,50 @@ func TestEditorDoubleClickSelectsWhitespaceRun(t *testing.T) {
 	}
 }
 
+func TestEditorDoubleClickPastLineEndSelectsLine(t *testing.T) {
+	e := newTestEditor(t, "local value = 3\nreturn value")
+	x := e.textX() + e.charWidth()*20
+	e.DoubleTapped(&fyne.PointEvent{Position: fyne.NewPos(x, 4)})
+	if got, want := e.selectionText(), "local value = 3\n"; got != want {
+		t.Fatalf("selected %q, want the whole first line %q", got, want)
+	}
+}
+
+func TestEditorDoubleClickPastLastLineEndSelectsLineText(t *testing.T) {
+	e := newTestEditor(t, "local value = 3\nreturn value")
+	x := e.textX() + e.charWidth()*20
+	y := 4 + e.lineHeight() + 1
+	e.DoubleTapped(&fyne.PointEvent{Position: fyne.NewPos(x, y)})
+	if got, want := e.selectionText(), "return value"; got != want {
+		t.Fatalf("selected %q, want the whole last line %q", got, want)
+	}
+	if r, c := e.CursorPosition(); r != 1 || c != len([]rune("return value")) {
+		t.Fatalf("caret = %d:%d, want 1:%d", r, c, len([]rune("return value")))
+	}
+}
+
+func TestEditorDoubleClickBlankLineSelectsLine(t *testing.T) {
+	e := newTestEditor(t, "local x = 1\n\nreturn x")
+	x := e.textX() + e.charWidth()*5
+	y := 4 + e.lineHeight() + 1
+	e.DoubleTapped(&fyne.PointEvent{Position: fyne.NewPos(x, y)})
+	if got, want := e.selectionText(), "\n"; got != want {
+		t.Fatalf("selected %q, want the blank line's break %q", got, want)
+	}
+	if r, c := e.CursorPosition(); r != 2 || c != 0 {
+		t.Fatalf("caret = %d:%d, want 2:0", r, c)
+	}
+}
+
+func TestEditorDoubleClickOnLastGlyphStillSelectsWord(t *testing.T) {
+	e := newTestEditor(t, "local value")
+	x := e.textX() + measureRunes("local value", len([]rune("local value")), e.textSize()) - e.charWidth()/5
+	e.DoubleTapped(&fyne.PointEvent{Position: fyne.NewPos(x, 4)})
+	if got := e.selectionText(); got != "value" {
+		t.Fatalf("selected %q, want the word under the pointer", got)
+	}
+}
+
 func TestEditorClipboardShortcuts(t *testing.T) {
 	e := newTestEditor(t, "alpha beta")
 	e.TypedShortcut(&fyne.ShortcutSelectAll{})

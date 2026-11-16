@@ -1270,6 +1270,8 @@ func (e *codeEditor) MouseOut() {
 
 // DoubleTapped selects the identifier (or punctuation/whitespace run) under
 // the pointer, matching the behaviour of the old Entry and of a desktop IDE.
+// A click past the end of the line's text selects the whole line instead,
+// because there is no word out there to take.
 func (e *codeEditor) DoubleTapped(p *fyne.PointEvent) {
 	if p == nil {
 		return
@@ -1278,7 +1280,47 @@ func (e *codeEditor) DoubleTapped(p *fyne.PointEvent) {
 		c.Focus(e)
 	}
 	row, col := e.posToCursor(p.Position)
+	if e.pastLineEnd(row, p.Position.X) {
+		e.selectLine(row)
+		return
+	}
 	e.selectWord(row, col)
+}
+
+// pastLineEnd reports whether x lies beyond the row's last glyph, where the
+// only thing a double-click can select is the line itself.
+func (e *codeEditor) pastLineEnd(row int, x float32) bool {
+	if row < 0 || row >= len(e.lines) {
+		return false
+	}
+	end := e.textX() + measureRunes(e.lines[row], len([]rune(e.lines[row])), e.textSize())
+	return x >= end
+}
+
+// selectLine selects row in full, including its line break when there is a
+// following line, so that typing or pasting replaces exactly that line.
+func (e *codeEditor) selectLine(row int) {
+	if row < 0 {
+		row = 0
+	}
+	if row >= len(e.lines) {
+		row = len(e.lines) - 1
+	}
+	e.touchCaret()
+	e.anchorR, e.anchorC = row, 0
+	if row+1 < len(e.lines) {
+		e.row, e.col = row+1, 0
+	} else {
+		e.row, e.col = row, len([]rune(e.lines[row]))
+	}
+	e.sel = true
+	e.comp.visible = false
+	e.hoverVisible = false
+	e.ensureCursorVisible()
+	if e.onCursor != nil {
+		e.onCursor()
+	}
+	e.Refresh()
 }
 
 func (e *codeEditor) selectWord(row, col int) {
