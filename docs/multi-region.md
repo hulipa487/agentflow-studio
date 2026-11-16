@@ -104,9 +104,9 @@ not expose).
 The CLI wraps both ends:
 
 ```
-agentflow user keygen -out eu-move
-agentflow user export -url https://eu-west.internal:9090 -id u_abc -pubkey eu-move.pub -out u_abc.zip
-agentflow user import -url https://us-east.internal:9090 -key eu-move.key u_abc.zip
+agentflow user keygen eu-move
+agentflow user export u_abc -url https://eu-west.internal:9090 -pubkey eu-move.pub -out u_abc.zip
+agentflow user import u_abc.zip -url https://us-east.internal:9090 -key eu-move.key
 ```
 
 Move a user while they are idle: their sessions belong to the old cell until

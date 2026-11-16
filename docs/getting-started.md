@@ -131,7 +131,7 @@ gateway:
 Run it and hit the webhook with curl:
 
 ```
-./agentflow -config agentflow.yaml
+./agentflow run -config agentflow.yaml
 # in another terminal:
 curl -X POST localhost:8080/webhook/ -d '{"from":"alice","text":"hello"}'
 ```
@@ -179,7 +179,7 @@ make test   # go test with the cgo/zig toolchain
 The fastest path needs no model — a file-based echo loop replies out of the box. Point the binary at your config:
 
 ```
-./agentflow -config agentflow.yaml
+./agentflow run -config agentflow.yaml
 curl -X POST localhost:8080/webhook/ -d '{"from":"alice","text":"hello"}'   # note trailing /
 ```
 

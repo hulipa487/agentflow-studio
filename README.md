@@ -393,7 +393,7 @@ Administrators and SYSTEM) and the bearer token is still required. The browser
 console is served on the HTTP listener, so keep `tcp: true` if you use it; the
 documentation is bundled in Studio and works on every transport (the runtime
 answers `/docs` with 410). A relative socket path is resolved against the config
-directory. `-no-console` (and its deprecated alias `-no-webui`) only drops the
+directory. `-no-console` only drops the
 console's static files: the admin and Studio APIs stay up, so Studio keeps
 working with the console off.
 
@@ -415,7 +415,7 @@ shell history secret: it can install agent logic and invoke their tools.
 
 ## Persistence and playground notes
 
-Persistence is the runtime's: a `-configdir` deployment writes
+Persistence is the runtime's: a config-directory deployment writes
 `profiles/<name>.yaml`, `loops/<name>.lua` and `prompts/<name>.md`; a
 single-file deployment writes the `agents.<name>` key plus a studio workspace
 for loops/prompts. **Apply** is live immediately; the persisted definition loads

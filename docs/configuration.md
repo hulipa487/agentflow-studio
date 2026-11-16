@@ -52,7 +52,7 @@ YAML defines *topology* — what exists and how it's wired. Behavior lives in Lu
 
 ### Config directories (`-config <dir>`)
 
-As an alternative to the single file, pass a directory to `agentflow -config <dir>` to load the directory layout. `-configdir <dir>` is a deprecated alias. Every fragment decodes under the same strict validation, and validation runs *after* the merge, so cross-file references check exactly as they do in the single file. The config source — the file's directory or the directory itself — is the resolution base for every relative path (loops, instructions, prompt `file:` paths, the router route, persistence, sqlite backend paths, shell `key_file`, `plugins.dir`, `media.dir`). This is true for a single file too: `agentflow -config deploy/agentflow.yaml` resolves `./loops/x.lua` beside that file, regardless of the shell's working directory.
+As an alternative to the single file, pass a directory to `-config <dir>` to load the directory layout; a directory that holds only an `agentflow.yaml` (what `agentflow init DIR` writes) loads that file. Every fragment decodes under the same strict validation, and validation runs *after* the merge, so cross-file references check exactly as they do in the single file. The config source — the file's directory or the directory itself — is the resolution base for every relative path (loops, instructions, prompt `file:` paths, the router route, persistence, sqlite backend paths, shell `key_file`, `plugins.dir`, `media.dir`). This is true for a single file too: `agentflow run -config deploy/agentflow.yaml` resolves `./loops/x.lua` beside that file, regardless of the shell's working directory.
 
 ```
 <dir>/
@@ -72,7 +72,7 @@ A `profiles/*.yaml` file is an agent config plus a `name` and a `spawn` flag: `s
 | --- | --- | --- | --- |
 | `vm.memory_limit` | string | — | Caps each Luau state’s total allocation (`b`/`kb`/`mb`/`gb`; empty = uncapped). Stamped onto every new session; over-allocation surfaces as a Luau out-of-memory error. With `limits.sessions_per_tenant` it bounds a tenant’s VM footprint |
 | `vm.instruction_budget` | string | — | **Deprecated — no effect.** The per-resume budget is fixed at 5,000,000. Warns when set |
-| `scheduler.workers` | int | 8 | Op-pool size. The `-workers` flag overrides this when given; otherwise this value is used |
+| `scheduler.workers` | int | 8 | Op-pool size. This is the only place it is set |
 | `reload.watch` | bool | — | **Deprecated — no effect.** The reload watcher always runs. Warns when set |
 | `persistence` | string | sqlite://./data/agentflow.db | Where the message journal, the token ledger and its per-call detail, and the engine’s key/value rows (file trees, session state, route state, shell handles) live. Scheduler timers are *not* here: the timer service is in memory, so a restart forgets every timer until its loop re-registers it |
 | `topology` | string | single | The deployment tier: `single` (one process) or `regional` (several instances in one region sharing one PostgreSQL). Unset means `single`. The tier decides which other settings are valid; boot refuses one it cannot honour. See [Topology](#topology) |
@@ -187,9 +187,48 @@ side: it opens the runtime store, confirms the `vector` extension on every
 pgvector backend, puts/gets/deletes a probe object in each S3 bucket, and pings
 Redis and Qdrant. Each line is PASS/FAIL with the fix.
 
+### Command line
+
+`agentflow help` lists the commands, and `agentflow help <command>` (or
+`<command> -h`) prints a command's flags. That help is generated from the
+binary's own flag definitions, so it is the reference that is always current.
+
+`agentflow run [flags]`, or `agentflow [flags]` with no command, runs the engine:
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `-config PATH` | `agentflow.yaml`, then `config.yaml` | A file, a config directory, or a directory holding an `agentflow.yaml` |
+| `-log-level` | `info` | `dev`, `debug`, `info`, `warn` or `error` |
+| `-log-format` | `text` | `text` or `json` |
+| `-log-file PATH` | | Also append logs to this file |
+| `-no-tui` | off | No terminal dashboard; plain logs on stderr |
+| `-no-console` | off | Serve the admin API without the web console |
+| `-force-single` | off | Start even if another instance looks live on the store (`single` only; after a crash) |
+
+Every command follows the same conventions:
+
+- Flags may come after positional arguments (`agentflow cred set NAME -user u_1`),
+  and `-config` may come before the command (`agentflow -config deploy/ validate`).
+- The thing a command acts on is a positional argument: `init [DIR]`,
+  `user export USER`, `user import BUNDLE.zip`, `user keygen [PREFIX]`,
+  `migrate blobs DIR`, `cred set NAME`.
+- `-out FILE` writes to a file; without it the output goes to stdout. The one
+  exception is `support-bundle`, which writes a timestamped zip by default.
+- `-json` prints machine-readable output on `doctor`, `config show`, `cred get`
+  and `cred list`.
+- A flag that does not apply to a command is an error, never silently ignored.
+- `user export` and `user import` find the admin API from `-url`, then
+  `$AGENTFLOW_URL`, then the config's `runtime.admin.listen`, then
+  `http://127.0.0.1:9090`; the token is `-token` or `$ADMIN_TOKEN`.
+
+The worker pool size is `runtime.scheduler.workers` (there is no flag for it).
+Removed flags (`-configdir`, `-workers`, `-log-json`, `-no-webui`, `init -dir`,
+`user export -id`, `user keygen -out`, `migrate blobs -from`, `cred -format`)
+are refused with a message that names the replacement.
+
 ### Credential CLI
 
-`agentflow cred set|get|list|delete <name>` manages engine-wide credentials in the store named by the loaded config (configdir or `-config`). `set` reads the value from an interactive prompt or stdin — never argv (pipe it: `printf %s "$TOKEN" | agentflow cred set github_token`). The master key comes from the env var named by `credentials.master_key_env` (default `CREDENTIALS_MASTER_KEY`); an unset key is a clear error. `list` prints names only, never values. These are the same records `credential.get()` and `cred:<service>` config references resolve against.
+`agentflow cred set|get|list|delete <name>` manages engine-wide credentials in the store named by the loaded config (`-config`). `set` reads the value from an interactive prompt or stdin — never argv (pipe it: `printf %s "$TOKEN" | agentflow cred set github_token`). The master key comes from the env var named by `credentials.master_key_env` (default `CREDENTIALS_MASTER_KEY`); an unset key is a clear error. `list` prints names only, never values. These are the same records `credential.get()` and `cred:<service>` config references resolve against.
 
 ### Migrating a deployment
 
@@ -200,7 +239,7 @@ SQL dialect and blobs are content-addressed.
 ```
 agentflow migrate store -from sqlite://./data/agentflow.db -to postgres://...
 agentflow migrate store -from <src> -to <dst> -tables files_meta -append
-agentflow migrate blobs -from fs:./data/media -kind media -config agentflow.yaml
+agentflow migrate blobs ./data/media -kind media -config agentflow.yaml
 ```
 
 `migrate store` copies the runtime planes, the identity registry and the
@@ -228,7 +267,7 @@ The engine ships **no user interface**. Instead it exposes a JSON-only profile A
 
 ### Web console
 
-The admin server also hosts an embedded **web console** (on by default; `-no-console` to disable the static files, or the deprecated `-no-webui` alias) at `http://<admin.listen>/` — a single-page UI for the operator, no build step or separate port. It has four tabs:
+The admin server also hosts an embedded **web console** (on by default; `-no-console` disables the static files) at `http://<admin.listen>/` — a single-page UI for the operator, no build step or separate port. It has four tabs:
 
 - **Dashboard** — instance info, live sessions, agents/channels, an API-key manager over the credential store (per-user create/revoke, write-only secrets), and a streaming log tail.
 - **Models** — list every named model (key masked to a last-4 fingerprint), edit/add/remove, and a *test* button that makes a 1-token call through the live manager and classifies the result (auth / not\_found / unreachable / …). Edits **hot-apply to the running process** immediately, then an explicit *Persist to config* writes them into the file (backup kept as `.bak`) and *Revert* reloads from the file. A drift badge shows whenever runtime and file disagree — on this instance: the comparison is between this process's model set and the file, so in a fleet each console sees its own drift. An edit here applies to **this instance** immediately; the others keep their current models until they restart, so the path to a fleet-wide change is *Persist to config* and a rolling restart.

@@ -54,7 +54,7 @@ Run the runtime and send it a message (the example config has a webhook
 channel):
 
 ```bash
-./agentflow -config agentflow.yaml
+./agentflow run -config agentflow.yaml
 curl -X POST localhost:8080/webhook/local/ \
      -H 'Content-Type: application/json' \
      -d '{"from":"alice","text":"hello"}'
@@ -980,7 +980,7 @@ local reply = llm.chat(messages, { model = info.model })
 ### From a terminal
 
 ```bash
-./agentflow -config agentflow.yaml -log-level debug -no-tui
+./agentflow run -config agentflow.yaml -log-level debug -no-tui
 ```
 
 `debug` logs every op dispatch, LLM request, memory operation and tool call.
