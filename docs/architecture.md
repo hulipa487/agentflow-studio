@@ -18,7 +18,7 @@ A request moves down through a short stack. A channel driver turns platform byte
 │  audit journal (inbound) ──► gateway.route handler (default plugin:per_chat)  │
 │  computes the session key, may propose a group; router.state.* is durable     │
 └───────────┬──────────────────────────────────────────────────────────────────┘
-            │ deliver{agent, key, message, identity_group?}
+            │ deliver{agent, key, message, identity_group?, kind?}
             ▼
 ┌─ Supervisor (session authority) ────────────────────────────────────────────┐
 │  one actor per (agent, key), spawned on first message · provenance stamped    │

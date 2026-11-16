@@ -263,6 +263,11 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 			cells = append(cells, row("timeout", widget.NewLabel(ch.Timeout)))
 		}
 	}
+	// The audit mode applies to every channel type. The openai card always
+	// shows it (above); any other type shows it when it is not the default.
+	if ch.Type != "openai" && ch.Journal != "" && ch.Journal != "full" {
+		cells = append(cells, row("journal", widget.NewLabel(ch.Journal)))
+	}
 	if len(ch.MediaAllow) > 0 {
 		cells = append(cells, row("media", monoInline(strings.Join(ch.MediaAllow, ", "))))
 	}
@@ -414,6 +419,11 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 		}
 		if len(existing.Agents) > 0 {
 			openaiAgents.SetText(strings.Join(existing.Agents, ", "))
+		} else if existing.Type == "openai" && existing.Agent != "" {
+			// The file used the agent: shorthand for a single agent. Without
+			// this the list would open empty and saving the form unchanged
+			// would be refused for having no agents.
+			openaiAgents.SetText(existing.Agent)
 		}
 		if existing.Auth != "" {
 			openaiAuth.SetSelected(existing.Auth)
@@ -484,10 +494,12 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			}
 			typeBox.Add(caption("Required. The HMAC signature is the only thing authenticating a delivery."))
 		case "webhook":
+			timeout.SetPlaceHolder("55s")
 			typeBox.Add(field("Reply timeout", timeout))
 			typeBox.Add(caption("Default 55s. Raise it for pipelines that outrun a single turn."))
 			typeBox.Add(async)
 		case "openai":
+			timeout.SetPlaceHolder("600s")
 			typeBox.Add(field("Agents exposed as model ids", openaiAgents))
 			typeBox.Add(caption("Comma-separated. A client selects one by name as its model. The Agent field above is ignored for this type."))
 			typeBox.Add(field("Auth", openaiAuth))
@@ -497,20 +509,22 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 				if existing != nil && existing.HasKeys {
 					typeBox.Add(clearKeys)
 				}
-				typeBox.Add(caption("Bearer keys clients send. ${VAR} and cred:<service> references are resolved at start."))
+				typeBox.Add(caption("Bearer keys clients send, comma-separated. ${VAR} and cred:<service> references are resolved at start."))
 			case "user_token":
-				typeBox.Add(caption("Per-user bearer tokens issued by the identity layer; runtime.identity.enabled must be on."))
+				typeBox.Add(caption("Per-user bearer tokens issued by the identity layer; runtime.identity.enabled must be on. Stored shared keys are removed on save."))
 			default:
-				typeBox.Add(caption("No auth: only allowed when gateway.listen is a loopback address."))
+				typeBox.Add(caption("No auth: only allowed when gateway.listen is a loopback address. Stored shared keys are removed on save."))
 			}
 			typeBox.Add(field("Journal", openaiJournal))
 			typeBox.Add(caption("metadata keeps ids and sizes and never the conversation text; full keeps text; off writes nothing."))
 			typeBox.Add(field("Max request bytes", openaiMaxBytes))
+			typeBox.Add(caption("Empty or 0 uses the default, 32 MiB."))
 			typeBox.Add(exposeReasoning)
-			typeBox.Add(caption("Exposing reasoning leaks the model's thinking to the caller; off by default."))
+			typeBox.Add(caption("Exposing reasoning shows the model's thinking to the caller; off by default."))
 			typeBox.Add(field("Request timeout", timeout))
 			typeBox.Add(caption("Default 600s for the whole request, including tool rounds."))
 		case "bridge":
+			timeout.SetPlaceHolder("55s")
 			typeBox.Add(field("Deliver URL", deliverURL))
 			typeBox.Add(caption("The adapter receives neutral replies here as JSON. Absolute http(s) URL."))
 			typeBox.Add(field("Inbound HMAC secret", secret))
@@ -598,7 +612,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			if t := strings.TrimSpace(openaiMaxBytes.Text); t != "" {
 				n, err := strconv.Atoi(t)
 				if err != nil || n < 0 {
-					return d, fmt.Errorf("max request bytes must be a positive integer")
+					return d, fmt.Errorf("max request bytes must be a whole number, 0 or more")
 				}
 				d.MaxRequestBytes = n
 			}

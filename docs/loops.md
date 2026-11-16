@@ -133,7 +133,7 @@ Two consequences worth internalizing:
 - **Wrap fallible work in `pcall`.** An uncaught provider error is a crash loop,
   not a single failed turn.
 
-**Lua locals are a cache, not storage (D10).** A turn may start with a fresh Lua
+**Lua locals are a cache, not storage.** A turn may start with a fresh Lua
 state: hot reload, failover, a lost lease, or the idle unload
 (`runtime.sessions.idle_unload`, default 30m) all restart the loop from the top.
 Anything a correct loop needs to remember between turns belongs in
@@ -1125,6 +1125,35 @@ function loop()
   end
 end
 ```
+
+`deliver` takes `{ agent, key, message, identity_group?, kind? }`. With no
+`kind`, the message goes to the conversation session for `key`, created on the
+first message and kept. `kind = "ephemeral"` gives the message a session of its
+own that serves exactly one turn and is gone: it takes no lease, writes no inbox
+row and its id is never retired, so it is the right choice for stateless
+traffic. Give it a key that is unique per request; the built-in handler does
+this for the [OpenAI-compatible channel](openai-api.md):
+
+```lua
+if msg.payload and msg.payload.api == "openai.chat" then
+  local conv = msg.payload.conversation_id
+  if conv ~= nil and conv ~= "" then
+    af.op({ type = "deliver", agent = item.agent, message = msg,
+            key = "conv:" .. msg.channel .. ":" .. tostring(conv) })
+  else
+    af.op({ type = "deliver", agent = item.agent, message = msg, kind = "ephemeral",
+            key = "req:" .. tostring(msg.payload.request_id) })
+  end
+end
+```
+
+An unknown `kind` is refused and the message is not delivered, and an ephemeral
+delivery cannot carry `identity_group`. Keying such a request by `msg.from`, as
+the example above does for chat channels, would be a mistake on a channel with a
+shared key: every caller has the same sender, so they would all share one
+session. A handler that takes a message and does not deliver it before asking
+for the next one has dropped it; a channel that is waiting on the request (the
+OpenAI-compatible channel) answers 503 at once.
 
 A route handler may call only `inbox`, `deliver`, `router.state.*`,
 `runtime.triggers` and `log`; everything else is refused by name. It cannot
