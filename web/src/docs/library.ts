@@ -1,8 +1,17 @@
-// The bundled documentation set: the same Markdown guides the desktop Studio
-// embeds (synced with `npm run docs:sync`). Pages are compiled into the app,
-// so the viewer works offline and on every transport.
-const pages = import.meta.glob('./content/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const assets = import.meta.glob('./content/**/*.{yaml,yml,luau,json}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+// The bundled documentation set: the repository's docs/ directory, the same
+// files the desktop Studio embeds. There is no copy to keep in step. Pages are
+// compiled into the app, so the viewer works offline and on every transport.
+const pages = import.meta.glob('../../../docs/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const assets = import.meta.glob('../../../docs/**/*.{yaml,yml,luau,json}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+
+/** The glob keys' prefix: this file's path to the shared docs directory. */
+const ROOT = '../../../docs/'
+
+/** Every Markdown file in docs/, by file name. A page needs a manifest entry
+ *  to be reachable; the tests compare the two. */
+export function bundledDocFiles(): string[] {
+  return Object.keys(pages).map((k) => k.slice(ROOT.length)).sort()
+}
 
 export interface DocPage {
   slug: string
@@ -32,6 +41,7 @@ const MANIFEST: DocPage[] = [
   { slug: 'extending', file: 'extending.md', title: 'Extending', section: 'Build', order: 5 },
   { slug: 'configuration', file: 'configuration.md', title: 'Configuration', section: 'Reference', order: 6 },
   { slug: 'loops-reference', file: 'loops-reference.md', title: 'Loop API reference', section: 'Reference', order: 7 },
+  { slug: 'openai-api', file: 'openai-api.md', title: 'OpenAI-compatible API', section: 'Reference', order: 8 },
 ]
 
 export const DOC_SECTIONS = ['Start here', 'Build', 'Reference']
@@ -42,7 +52,7 @@ export const DOC_ASSETS: DocAsset[] = [
   { path: 'luau/af.d.luau', title: 'Luau type definitions', language: 'lua' },
 ]
 
-const available = MANIFEST.filter((p) => typeof pages['./content/' + p.file] === 'string' && pages['./content/' + p.file] !== '')
+const available = MANIFEST.filter((p) => typeof pages[ROOT + p.file] === 'string' && pages[ROOT + p.file] !== '')
 const bySlug = new Map(available.map((p) => [p.slug, p]))
 
 /** The manifest in reading order (only pages actually bundled). */
@@ -56,11 +66,11 @@ export function docPage(slug: string): DocPage | undefined {
 
 export function readDoc(slug: string): string | undefined {
   const p = bySlug.get(slug)
-  return p ? pages['./content/' + p.file] : undefined
+  return p ? pages[ROOT + p.file] : undefined
 }
 
 export function readAsset(path: string): string | undefined {
-  return assets['./content/' + path.replace(/^\/+/, '')]
+  return assets[ROOT + path.replace(/^\/+/, '')]
 }
 
 /**

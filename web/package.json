@@ -10,8 +10,7 @@
     "preview": "vite preview",
     "start": "node server/serve.mjs",
     "typecheck": "tsc -b",
-    "test": "vitest run",
-    "docs:sync": "node scripts/sync-docs.mjs"
+    "test": "vitest run"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.4",

@@ -25,7 +25,9 @@ export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   // The app and its proxy are same-origin, so the dev server sends no CORS
   // headers at all: another site cannot read the proxy through this origin.
-  server: { host: '127.0.0.1', port: 5173, strictPort: false, cors: false },
+  // fs.allow reaches one level up for the shared ../docs directory, which the
+  // app bundles (src/docs/library.ts).
+  server: { host: '127.0.0.1', port: 5173, strictPort: false, cors: false, fs: { allow: ['..'] } },
   preview: { host: '127.0.0.1', port: 4173, cors: false },
   build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
 })

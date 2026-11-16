@@ -2,7 +2,7 @@
 
 AgentFlow Studio in a browser tab: build an agent, apply it live, chat with it
 and watch every step of the turn. It is the web counterpart of the
-[desktop Studio](../agentflow-studio) — same screens, same shell, same theme —
+[desktop Studio](../desktop) — same screens, same shell, same theme —
 and talks to the same `/admin/api/*` surface of the runtime. The runtime stays
 the source of truth for config, persistence, memory and traces; this app keeps
 nothing on a server.
@@ -116,7 +116,7 @@ Everything the desktop app has:
 ### Loop editor
 
 The Luau editor's diagnostics, completion and hover come from a TypeScript port
-of the desktop app's in-process analyzer (`src/lua`, from `internal/lua`): the
+of the desktop app's in-process analyzer (`src/lua`, from `../desktop/internal/lua`): the
 chunk contract (`-- af-prelude-version`, a global `loop()`), unknown prelude
 names with "did you mean", capability checks against the agent's effective
 capabilities, and AgentFlow-specific hazards. It knows the documented prelude;
@@ -159,13 +159,12 @@ first visit follows the OS.
 ```
 server/proxy.mjs        the local proxy (shared by Vite and the static server)
 server/serve.mjs        serves dist/ + the proxy: `npm start`
-scripts/sync-docs.mjs   copies ../agentflow-studio/docs into src/docs/content
 src/api                 typed admin API client, SSE reader, wire types
 src/state               connections (saved profiles), session, appearance, UI
 src/components/ui       the component kit, CodeMirror editor, Markdown
 src/components/shell    command bar, rail, status bar, command palette, shortcuts
 src/lua                 the Luau analyzer and its CodeMirror extension
-src/docs                the bundled documentation and its library
+src/docs                the library over ../docs, the guides shared with the desktop app
 src/screens             one file per screen (+ a folder for its parts)
 src/nav.ts              destinations: rail, breadcrumb, shortcuts and palette
 ```
@@ -178,11 +177,12 @@ component built on `Page` from the kit.
 ```bash
 npm run typecheck    # tsc -b
 npm test             # vitest: API client, proxy, Luau analyzer, screen logic
-npm run docs:sync    # refresh the bundled guides from ../agentflow-studio/docs
 ```
 
-`STUDIO_DIR=/path/to/agentflow-studio npm run docs:sync` when the desktop
-checkout is not a sibling directory.
+The documentation is not copied into this app: `src/docs/library.ts` bundles
+the repository's [`docs/`](../docs) directory, the same files the desktop app
+embeds. A new page there needs an entry in the manifest in that file, and a
+test fails if one is missing.
 
 Two things worth knowing when changing the client (`src/api/client.ts`):
 

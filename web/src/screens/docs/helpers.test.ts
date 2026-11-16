@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { docOutline, docPages, readDoc, searchDocs } from '@/docs/library'
+import { bundledDocFiles, docOutline, docPages, readDoc, searchDocs } from '@/docs/library'
 import { docPath, sectionForMatch, splitMatch } from './helpers'
 
 describe('docPath', () => {
@@ -43,6 +43,17 @@ describe('splitMatch', () => {
 })
 
 describe('the bundled set', () => {
+  // The guides are the repository's docs/ directory, shared with the desktop
+  // app. A file added there without a manifest entry here would be bundled but
+  // unreachable, and every link to it would render as plain text. The desktop
+  // app has the same check against its own manifest.
+  it('has a manifest entry for every guide in docs/', () => {
+    const files = bundledDocFiles()
+    expect(files.length).toBeGreaterThan(0)
+    const listed = new Set(docPages().map((p) => p.file))
+    for (const f of files) expect(listed.has(f), `${f} is in docs/ but not in the manifest`).toBe(true)
+  })
+
   it('has pages in reading order and search hits with snippets', () => {
     const pages = docPages()
     expect(pages.length).toBeGreaterThan(0)

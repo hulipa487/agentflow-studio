@@ -9,11 +9,18 @@
 
 ## What is AgentFlow Studio
 
-> TL;DR - The desktop app for [AgentFlow](https://github.com/hulipa487/agentflow): build agents, run them, operate the deployment
+> TL;DR - The workbench for [AgentFlow](https://github.com/hulipa487/agentflow): build agents, run them, operate the deployment
 
-AgentFlow Studio is a native desktop client for an AgentFlow runtime. Connect to any deployment and you get the whole thing in one window: write a loop, apply it to the running engine, chat with it, and read the trace of what it did - then manage the models, channels, users and credentials it runs on.
+AgentFlow Studio is the client for an AgentFlow runtime. Connect to any deployment and you get the whole thing in one window: write a loop, apply it to the running engine, chat with it, and read the trace of what it did - then manage the models, channels, users and credentials it runs on.
 
-It is a real desktop app (Go + [Fyne](https://fyne.io/)), not a browser tab. No web server to host, no CORS to configure, and on the same machine it can skip TCP entirely and talk over a Unix socket or a Windows named pipe.
+It comes two ways, with the same screens:
+
+| | Where it runs | Built with |
+|---|---|---|
+| [**Desktop**](desktop) | A native app on Windows, macOS and Linux | Go + [Fyne](https://fyne.io/) |
+| [**Web**](web) | A browser tab, served from your own machine | React + TypeScript |
+
+The desktop app is the one this page describes: no web server to host, no CORS to configure, and on the same machine it can skip TCP entirely and talk over a Unix socket or a Windows named pipe. The web app reaches the same runtime through a small local proxy; [its README](web/README.md) covers how.
 
 - [x] A Luau editor with completion, diagnostics and hover docs?
 - [x] Apply a loop to a live engine without restarting it?
@@ -65,11 +72,19 @@ You need a running AgentFlow instance (see [its README](https://github.com/hulip
 Build from source. You need Go 1.27+ and a C/C++ toolchain, because Fyne uses cgo: gcc on Linux, Xcode's clang on macOS, [zig](https://ziglang.org) on Windows.
 
 ```bash
-make build
-./agentflow-studio
+make desktop
+./desktop/agentflow-studio
 ```
 
-`make run` does both. On Windows the Makefile also sets the GUI subsystem, so no console window opens beside the app; a plain `go build` there would open one.
+`make -C desktop run` does both. On Windows the Makefile also sets the GUI subsystem, so no console window opens beside the app; a plain `go build` there would open one.
+
+For the browser instead, you need Node.js:
+
+```bash
+cd web
+npm install
+npm run dev          # http://127.0.0.1:5173
+```
 
 ## Connecting
 
@@ -124,40 +139,43 @@ The config file is `agentflow-studio/config.json` under the OS config directory 
 
 | Path | What's there |
 |---|---|
-| `main.go` | App bootstrap, single-instance guard |
-| `internal/ui` | The shell and every screen |
-| `internal/api` | The admin API client and stream parsers, with no UI dependency |
-| `internal/lua` | The Luau analyzer and the in-process language server |
-| `internal/docs` | The embedded documentation library: manifest, search, links |
-| `internal/appconfig` | Saved connections and preferences |
-| `docs/` | The Markdown guides, the users OpenAPI spec and the Luau type stubs |
+| `desktop/` | The desktop app, a Go module of its own |
+| `desktop/main.go` | App bootstrap, single-instance guard |
+| `desktop/internal/ui` | The shell and every screen |
+| `desktop/internal/api` | The admin API client and stream parsers, with no UI dependency |
+| `desktop/internal/lua` | The Luau analyzer and the in-process language server |
+| `desktop/internal/docs` | The documentation library: manifest, search, links |
+| `desktop/internal/appconfig` | Saved connections and preferences |
+| `web/` | The web app: `src/screens`, `src/api`, `src/lua`, and the local proxy in `server/` |
+| `docs/` | The Markdown guides, the users OpenAPI spec and the Luau type stubs. One copy, shipped by both apps |
 
 ```bash
-make test        # go test ./..., including a headless build of every screen
+make test        # both apps: go test in desktop/, vitest in web/
 make docs-sync   # refresh the OpenAPI spec and Luau stubs from the runtime repo
 ```
 
-`docs/openapi/users.yaml` and `docs/luau/af.d.luau` are copies: the originals are versioned with the runtime. `make docs-sync` expects that checkout next to this one, or at `AGENTFLOW_DIR`. A new page under `docs/` also needs an entry in `internal/docs/docs.go`, and a test fails if it is missing.
+**The two apps are kept in step by hand.** They share no code, only facts: the admin API types (`desktop/internal/api` and `web/src/api`), the Lua API table behind editor completion (`desktop/internal/lua/api.go` and `web/src/lua/api.ts`), and the screens themselves. A change to one belongs in the same commit as the change to the other.
 
-To see every screen without clicking through them, render them to PNGs in both themes:
+**The docs are shared for real.** The desktop app embeds `docs/` (it is a small Go module so the embed can reach it) and the web app bundles the same files at build time. A new page needs a manifest entry in both `desktop/internal/docs/docs.go` and `web/src/docs/library.ts`, and each app has a test that fails if its entry is missing. `docs/openapi/users.yaml` and `docs/luau/af.d.luau` are copies of files versioned with the runtime; `make docs-sync` expects that checkout next to this one, or at `AGENTFLOW_DIR`.
+
+To see every desktop screen without clicking through them, render them to PNGs in both themes:
 
 ```bash
+cd desktop
 STUDIO_SNAPSHOT_DIR=./snapshots go test ./internal/ui -run TestSnapshots
 ```
 
-Packaging is optional; the binary runs as it is. For an installable app:
+Packaging the desktop app is optional; the binary runs as it is. For an installable app, from `desktop/`:
 
 ```bash
 go install fyne.io/tools/cmd/fyne@latest
 fyne package -name "AgentFlow Studio"
 ```
 
-## Why a desktop app?
-- **No Hosting**: Nothing to deploy next to the runtime, and nothing to expose.
-- **No Browser Origin**: The token goes straight to the runtime; no CORS entry needed.
-- **Local Transports**: A Unix socket or named pipe keeps the admin API off the network.
-- **Works Offline**: The editor, its language server and the docs are all in the binary.
-- **Cross Platform**: Windows, MacOS, Linux, same app.
+## Desktop or web?
+- **Desktop** when you want nothing to host: the token goes straight to the runtime with no CORS entry, a Unix socket or named pipe keeps the admin API off the network, and the editor, its language server and the docs are all in one binary.
+- **Web** when installing an app is the obstacle: it runs from `npm start` on your own machine, and its local proxy reaches sockets and pipes too.
+- Both work offline once built, in light and dark, on Windows, MacOS and Linux.
 
 **LICENSE**: MIT
 
