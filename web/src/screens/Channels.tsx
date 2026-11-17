@@ -1,5 +1,5 @@
 // Channels: the gateway's entry points (webhook, Telegram, GitHub webhook,
-// bridge). Saves go to the deployment config and bind at the next runtime
+// bridge, OpenAI-compatible API). Saves go to the deployment config and bind at the next runtime
 // start, so every row says whether it is live or waiting for a restart.
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -12,7 +12,7 @@ import { plural } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { confirm, info, toast } from '@/state/ui'
 import { ChannelEditor } from './channels/ChannelEditor'
-import { channelTitle, humanBytes } from './channels/model'
+import { channelAgents, channelTitle, humanBytes } from './channels/model'
 import { useAlive } from './channels/useAlive'
 
 interface ChannelsData {
@@ -117,6 +117,37 @@ function ChannelFacts({ ch }: { ch: Channel }) {
         )
       }
       break
+    case 'openai': {
+      const refs = (ch.key_refs ?? []).join(', ')
+      facts.push(
+        <Fact key="auth" label="auth">
+          <Value>{ch.auth || '—'}</Value>
+        </Fact>,
+      )
+      if (ch.auth === 'key') {
+        facts.push(
+          <Fact key="keys" label="keys">
+            <SecretChip set={ch.has_keys ?? false} secretRef={refs} />
+          </Fact>,
+        )
+      }
+      facts.push(
+        <Fact key="journal" label="journal">
+          <Value>{ch.journal || 'metadata'}</Value>
+        </Fact>,
+        timeout,
+      )
+      break
+    }
+  }
+  // The audit mode applies to every channel type. An openai row always shows
+  // it (above); any other type shows it when it is not the default.
+  if (ch.type !== 'openai' && ch.journal && ch.journal !== 'full') {
+    facts.push(
+      <Fact key="journal" label="journal">
+        <Value>{ch.journal}</Value>
+      </Fact>,
+    )
   }
   if (media.length > 0) {
     facts.push(
@@ -329,6 +360,7 @@ export default function Channels() {
               </div>
               {channels.map((ch) => {
                 const title = channelTitle(ch)
+                const routed = channelAgents(ch)
                 return (
                   <div key={ch.index} className="border-b border-line/70 px-3 py-2 last:border-b-0">
                     <div className={GRID}>
@@ -339,8 +371,8 @@ export default function Channels() {
                         <Chip tone="accent">{ch.type}</Chip>
                         {(ch.media_allow ?? []).length > 0 && <Chip>media</Chip>}
                       </div>
-                      <div className="truncate font-mono text-xs" title={ch.agent}>
-                        {ch.agent || '—'}
+                      <div className="truncate font-mono text-xs" title={routed}>
+                        {routed || '—'}
                       </div>
                       <div className="truncate font-mono text-[11.5px] text-muted" title={ch.path}>
                         {ch.path || <span className="text-faint">driver default</span>}

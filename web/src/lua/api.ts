@@ -28,6 +28,8 @@ export const preludeEntries: readonly ApiEntry[] = [
   { path: "session", signature: "session", summary: "The current session: inbox, replies, pushes and durable state.", kind: 'table' },
   { path: "session.inbox", signature: "session.inbox() -> Message", summary: "Wait for the next inbound message. This parks the session.", kind: 'function', insert: "inbox()", yields: true },
   { path: "session.send", signature: "session.send(text, opts?)", summary: "Reply to the active inbound message. Needs an active message: timer, cron and boot turns have none.", kind: 'function', insert: "send(${1:text})", yields: true },
+  { path: "session.reply", signature: "session.reply({ text, tool_calls, finish_reason, usage, reasoning })", summary: "Finish the turn with a structured assistant message; an llm.forward result can be passed as it is. At most one per turn; a channel that cannot express tool calls refuses them rather than dropping them.", kind: 'function', insert: "reply({ text = ${1:text} })", yields: true },
+  { path: "session.send_delta", signature: "session.send_delta(text)", summary: "One fragment of a streamed answer. Held until end of turn when the agent's safety profile has filters.", kind: 'function', insert: "send_delta(${1:text})", yields: true },
   { path: "session.push", signature: "session.push(channel, reply_to, text, opts?)", summary: "Send proactively to a channel. reply_to may be nil.", capability: "channel.push", kind: 'function', insert: "push(${1:channel}, ${2:reply_to}, ${3:text})", yields: true },
   { path: "session.push_user", signature: "session.push_user(uuid, text)", summary: "Deliver a proactive message to a user's channel, resolved by identity.", capability: "channel.push", kind: 'function', insert: "push_user(${1:uuid}, ${2:text})", yields: true },
   { path: "session.exit", signature: "session.exit()", summary: "End the session permanently. The loop never resumes.", kind: 'function', insert: "exit()" },
@@ -67,8 +69,13 @@ export const preludeEntries: readonly ApiEntry[] = [
   { path: "llm", signature: "llm", summary: "Model calls: chat, streaming, embeddings and reranking.", kind: 'table' },
   { path: "llm.chat", signature: "llm.chat(messages, opts?) -> { text, thinking, usage, tool_calls }", summary: "One model call. opts: model, temperature, max_tokens, thinking, tools, tool_choice.", capability: "llm.chat", kind: 'function', insert: "chat(${1:messages}, ${2:opts})", yields: true },
   { path: "llm.stream", signature: "llm.stream(messages, opts?) -> next_delta, close", summary: "Token stream. Call next_delta() directly; a generic for fails across the bridge. Call close() on early exit.", capability: "llm.chat", kind: 'function', insert: "stream(${1:messages})", yields: true },
+  { path: "llm.forward", signature: "llm.forward(opts?) -> { text, tool_calls, finish_reason, usage, thinking, thinking_blocks }", summary: "Forward the current OpenAI-channel request to a model on the metered path. opts: model, messages, prepend, append, tools, params, max_tokens_cap. Does not finish the HTTP response; session.reply does.", capability: "llm.chat", kind: 'function', insert: "forward()", yields: true },
   { path: "llm.embed", signature: "llm.embed(inputs, opts?) -> { vectors, usage }", summary: "Embed a string, an array of strings, or mixed part tables.", capability: "llm.chat", kind: 'function', insert: "embed(${1:inputs})", yields: true },
   { path: "llm.rerank", signature: "llm.rerank(query, documents, opts?) -> { results }", summary: "Rerank documents; result indexes are zero-based.", capability: "llm.chat", kind: 'function', insert: "rerank(${1:query}, ${2:documents})", yields: true },
+
+  // openai
+  { path: "openai", signature: "openai", summary: "The request behind the current OpenAI-compatible turn (read-only).", kind: 'table' },
+  { path: "openai.request", signature: "openai.request() -> { model, messages, tools, tool_choice, params, metadata, user, stream }", summary: "The full request as data. Refused above 4 MiB of JSON — forward it with llm.forward instead.", capability: "llm.chat", kind: 'function', insert: "request()", yields: true },
 
   // memory / store
   { path: "memory", signature: "memory", summary: "Personal memory records, scoped by the turn's identity.", kind: 'table' },

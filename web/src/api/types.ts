@@ -184,20 +184,31 @@ export interface Channel {
   name: string
   type: string
   agent: string
+  /** The agents an openai channel exposes as model ids. */
+  agents?: string[]
   mode: string
   path: string
   timeout: string
   async: boolean
   deliver_url: string
+  /** openai: how callers authenticate (key, user_token or none). */
+  auth?: string
+  max_request_bytes?: number
+  expose_reasoning?: boolean
+  /** What the audit journal keeps (full, metadata or off); empty is the type's default. */
+  journal?: string
   allow_users: number[] | null
   media_allow: string[] | null
   media_max_bytes: number
   has_token: boolean
   has_secret: boolean
   has_secret_token: boolean
+  has_keys?: boolean
   token_ref: string
   secret_ref: string
   secret_token_ref: string
+  /** The ${ENV} / cred: references among an openai channel's keys. */
+  key_refs?: string[]
   live: boolean
 }
 
@@ -218,6 +229,7 @@ export interface ChannelDraft {
   name: string
   type: string
   agent: string
+  agents?: string[]
   mode?: string
   path?: string
   token?: string
@@ -226,6 +238,13 @@ export interface ChannelDraft {
   clear_token?: boolean
   clear_secret?: boolean
   clear_secret_token?: boolean
+  auth?: string
+  /** openai shared keys. Empty keeps the stored ones; clear_keys removes them. */
+  keys?: string[]
+  clear_keys?: boolean
+  max_request_bytes?: number
+  expose_reasoning?: boolean
+  journal?: string
   allow_users?: number[]
   timeout?: string
   async?: boolean

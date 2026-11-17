@@ -7,7 +7,18 @@ import { ApiError, errorMessage } from '@/api/client'
 import type { Channel, ChannelList } from '@/api/types'
 import { Banner, Button, Checkbox, Field, Input, Modal, Select, type Tone } from '@/components/ui'
 import { useClient } from '@/state/session'
-import { CHANNEL_TYPES, TELEGRAM_MODES, buildDraft, channelTitle, formFor, secretPlaceholder, type ChannelForm } from './model'
+import {
+  CHANNEL_TYPES,
+  JOURNAL_MODES,
+  OPENAI_AUTH_MODES,
+  TELEGRAM_MODES,
+  buildDraft,
+  channelTitle,
+  formFor,
+  keysPlaceholder,
+  secretPlaceholder,
+  type ChannelForm,
+} from './model'
 import { useAlive } from './useAlive'
 
 function SecretField({
@@ -70,7 +81,7 @@ export function ChannelEditor({
   const [busy, setBusy] = useState<'validate' | 'save' | null>(null)
 
   const set = <K extends keyof ChannelForm>(key: K, value: ChannelForm[K]) => setForm((f) => ({ ...f, [key]: value }))
-  const text = (key: 'name' | 'path' | 'allowUsers' | 'timeout' | 'deliverURL' | 'mediaAllow' | 'mediaMax') => ({
+  const text = (key: 'name' | 'path' | 'allowUsers' | 'timeout' | 'deliverURL' | 'mediaAllow' | 'mediaMax' | 'agents' | 'maxRequestBytes') => ({
     value: form[key],
     onChange: (e: { target: { value: string } }) => set(key, e.target.value),
   })
@@ -79,6 +90,7 @@ export function ChannelEditor({
   const hasToken = existing?.has_token ?? false
   const hasSecret = existing?.has_secret ?? false
   const hasSecretToken = existing?.has_secret_token ?? false
+  const hasKeys = existing?.has_keys ?? false
   const staleAgent = existing && existing.agent && !agents.includes(existing.agent) ? existing.agent : ''
 
   const draftOrReport = () => {
@@ -159,6 +171,7 @@ export function ChannelEditor({
   )
 
   const bridge = form.type === 'bridge'
+  const openai = form.type === 'openai'
 
   return (
     <Modal
@@ -204,9 +217,15 @@ export function ChannelEditor({
           <Field label="Type">
             <Select value={form.type} onChange={(v) => set('type', v)} options={CHANNEL_TYPES} placeholder={form.type === '' ? 'choose a channel type' : undefined} />
           </Field>
-          <Field label="Agent" hint={staleAgent && form.agent === '' ? `Agent "${staleAgent}" no longer exists. Choose the agent this channel routes to.` : undefined}>
-            <Select value={form.agent} onChange={(v) => set('agent', v)} options={agents} mono placeholder={form.agent === '' ? 'choose an agent' : undefined} />
-          </Field>
+          {openai ? (
+            <Field label="Agents exposed as model ids" hint="Comma-separated. A client selects one by name as its model.">
+              <Input mono placeholder="coder, helper" {...text('agents')} />
+            </Field>
+          ) : (
+            <Field label="Agent" hint={staleAgent && form.agent === '' ? `Agent "${staleAgent}" no longer exists. Choose the agent this channel routes to.` : undefined}>
+              <Select value={form.agent} onChange={(v) => set('agent', v)} options={agents} mono placeholder={form.agent === '' ? 'choose an agent' : undefined} />
+            </Field>
+          )}
           <Field label="Path" hint={bridge ? 'Path is required for a bridge and must end with /.' : 'Optional route on the shared listener. An explicit path must end with /.'}>
             <Input mono placeholder={bridge ? 'e.g. /bridge/' : 'optional · e.g. /webhook/'} {...text('path')} />
           </Field>
@@ -256,6 +275,54 @@ export function ChannelEditor({
             </Field>
             {secretField('Inbound HMAC secret', 'inbound HMAC secret', 'Required. The adapter signs each inbound body with X-Agentflow-Signature.')}
             {tokenField('Outbound bearer token', 'bearer token (optional)', 'Optional. Sent as Authorization: Bearer when delivering to the adapter.')}
+          </div>
+        )}
+
+        {openai && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field
+              label="Auth"
+              hint={
+                form.auth === 'user_token'
+                  ? 'Per-user bearer tokens issued by the identity layer; runtime.identity.enabled must be on. Stored shared keys are removed on save.'
+                  : form.auth === 'none'
+                    ? 'No auth: only allowed when gateway.listen is a loopback address. Stored shared keys are removed on save.'
+                    : undefined
+              }
+            >
+              <Select value={form.auth} onChange={(v) => set('auth', v)} options={OPENAI_AUTH_MODES} placeholder={form.auth === '' ? 'choose an auth mode' : undefined} />
+            </Field>
+            {form.auth === 'key' ? (
+              <SecretField
+                label="API keys"
+                hint="Bearer keys clients send, comma-separated. ${VAR} and cred:<service> references are resolved at start."
+                value={form.keys}
+                onChange={(v) => set('keys', v)}
+                placeholder={keysPlaceholder(existing)}
+                stored={hasKeys}
+                clear={form.clearKeys}
+                onClear={(v) => set('clearKeys', v)}
+                clearLabel="Remove the stored keys"
+              />
+            ) : (
+              <div className="hidden sm:block" />
+            )}
+            <Field label="Journal" hint="metadata keeps ids and sizes and never the conversation text; full keeps text; off writes nothing.">
+              <Select value={form.journal} onChange={(v) => set('journal', v)} options={JOURNAL_MODES} placeholder={form.journal === '' ? 'default · metadata' : undefined} />
+            </Field>
+            <Field label="Request timeout" hint="Default 600s for the whole request, including tool rounds.">
+              <Input mono placeholder="600s" {...text('timeout')} />
+            </Field>
+            <Field label="Max request bytes" hint="Empty or 0 uses the default, 32 MiB.">
+              <Input mono inputMode="numeric" placeholder="33554432" {...text('maxRequestBytes')} />
+            </Field>
+            <Checkbox
+              className="sm:col-span-2"
+              checked={form.exposeReasoning}
+              onChange={(v) => set('exposeReasoning', v)}
+              label="Send model reasoning as reasoning_content"
+              hint="Exposing reasoning shows the model's thinking to the caller; off by default."
+            />
           </div>
         )}
 

@@ -91,7 +91,7 @@ describe('completion and hover by offset', () => {
     const at = src.indexOf('session.') + 'session.'.length
     const all = completionsAt(src, at, opts)
     expect(all.path).toBe('session')
-    expect(all.items.map((it) => it.label)).toEqual(['exit', 'inbox', 'push', 'push_user', 'send', 'state'])
+    expect(all.items.map((it) => it.label)).toEqual(['exit', 'inbox', 'push', 'push_user', 'reply', 'send', 'send_delta', 'state'])
     expect(all.from).toBe(at)
 
     const typed = src.replace('session.', 'session.pu')
@@ -104,7 +104,7 @@ describe('completion and hover by offset', () => {
     const nested = src.replace('session.', 'session.state.')
     expect(completionsAt(nested, at + 6, opts).items.map((it) => it.label)).toEqual(['delete', 'get', 'list', 'set'])
     const llm = src.replace('session.', 'llm.')
-    expect(completionsAt(llm, at - 4, opts).items.map((it) => it.label)).toEqual(['chat', 'embed', 'rerank', 'stream'])
+    expect(completionsAt(llm, at - 4, opts).items.map((it) => it.label)).toEqual(['chat', 'embed', 'forward', 'rerank', 'stream'])
   })
 
   it('offers locals in scope, prelude globals, the stdlib and chunk functions at the root', () => {
@@ -145,16 +145,16 @@ describe('completion and hover by offset', () => {
 
 describe('catalog', () => {
   it('carries the whole prelude', () => {
-    expect(preludeEntries).toHaveLength(99)
-    expect(new Set(preludeEntries.map((e) => e.path)).size).toBe(99)
+    expect(preludeEntries).toHaveLength(104)
+    expect(new Set(preludeEntries.map((e) => e.path)).size).toBe(104)
     expect(children('').map((e) => e.path)).toEqual([
       'af', 'agent', 'credential', 'fact_extractor_turn', 'files', 'http', 'json', 'llm', 'log', 'mail', 'memory',
-      'memory_recall_handler', 'memory_routing_table', 'memory_semantic_recall_handler', 'os', 'runtime', 'scheduler',
+      'memory_recall_handler', 'memory_routing_table', 'memory_semantic_recall_handler', 'openai', 'os', 'runtime', 'scheduler',
       'session', 'shell', 'store', 'time', 'token_budget', 'tool', 'tools', 'user',
     ])
     expect(preludeEntries.filter((e) => e.maintenance).map((e) => e.path)).toEqual(['store.scopes', 'user.get', 'user.list'])
-    expect(preludeEntries.filter((e) => e.yields)).toHaveLength(57)
-    expect(preludeEntries.filter((e) => e.capability)).toHaveLength(48)
+    expect(preludeEntries.filter((e) => e.yields)).toHaveLength(61)
+    expect(preludeEntries.filter((e) => e.capability)).toHaveLength(50)
     expect(lookup('llm.stream')).toMatchObject({ capability: 'llm.chat', yields: true, kind: 'function' })
     // Every field hangs off a documented parent.
     for (const e of preludeEntries) {
@@ -213,7 +213,7 @@ describe('editor sources', () => {
 
   it('completes automatically after an identifier or a field access', () => {
     const fields = complete('function loop()\n  llm.|\nend')
-    expect(fields?.options.map((o) => o.label)).toEqual(['chat', 'embed', 'rerank', 'stream'])
+    expect(fields?.options.map((o) => o.label)).toEqual(['chat', 'embed', 'forward', 'rerank', 'stream'])
     expect(fields?.options[0]).toMatchObject({
       type: 'function',
       detail: 'llm.chat(messages, opts?) -> { text, thinking, usage, tool_calls }',
@@ -222,11 +222,11 @@ describe('editor sources', () => {
     expect(fields?.filter).toBe(false)
 
     const typed = complete('function loop()\n  session.se|\nend')
-    expect(typed?.options.map((o) => o.label)).toEqual(['send'])
+    expect(typed?.options.map((o) => o.label)).toEqual(['send', 'send_delta'])
     expect((typed?.to ?? 0) - (typed?.from ?? 0)).toBe(2)
 
     expect(complete('function loop()\n  sess|\nend')?.options.map((o) => o.label)).toEqual(['session'])
-    expect(complete('function loop()\n  session:|\nend')?.options).toHaveLength(6)
+    expect(complete('function loop()\n  session:|\nend')?.options).toHaveLength(8)
   })
 
   it('stays quiet where nothing was typed, and in comments and strings', () => {
@@ -240,8 +240,8 @@ describe('editor sources', () => {
     expect(complete('local n = 12|')).toBeNull()
     expect(complete('local n = zzz|')).toBeNull()
     // Ctrl+Space always asks.
-    // 25 prelude globals, 31 stdlib names and loop itself.
-    expect(complete('function loop()\n  |\nend', true)?.options.length).toBe(57)
+    // 26 prelude globals, 31 stdlib names and loop itself.
+    expect(complete('function loop()\n  |\nend', true)?.options.length).toBe(58)
     expect(complete('-- wait for the next|\n', true)?.options.map((o) => o.label)).toEqual(['next'])
   })
 
