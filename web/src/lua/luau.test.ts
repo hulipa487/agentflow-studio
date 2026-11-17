@@ -145,16 +145,16 @@ describe('completion and hover by offset', () => {
 
 describe('catalog', () => {
   it('carries the whole prelude', () => {
-    expect(preludeEntries).toHaveLength(104)
-    expect(new Set(preludeEntries.map((e) => e.path)).size).toBe(104)
+    expect(preludeEntries).toHaveLength(108)
+    expect(new Set(preludeEntries.map((e) => e.path)).size).toBe(108)
     expect(children('').map((e) => e.path)).toEqual([
       'af', 'agent', 'credential', 'fact_extractor_turn', 'files', 'http', 'json', 'llm', 'log', 'mail', 'memory',
       'memory_recall_handler', 'memory_routing_table', 'memory_semantic_recall_handler', 'openai', 'os', 'runtime', 'scheduler',
       'session', 'shell', 'store', 'time', 'token_budget', 'tool', 'tools', 'user',
     ])
     expect(preludeEntries.filter((e) => e.maintenance).map((e) => e.path)).toEqual(['store.scopes', 'user.get', 'user.list'])
-    expect(preludeEntries.filter((e) => e.yields)).toHaveLength(61)
-    expect(preludeEntries.filter((e) => e.capability)).toHaveLength(50)
+    expect(preludeEntries.filter((e) => e.yields)).toHaveLength(65)
+    expect(preludeEntries.filter((e) => e.capability)).toHaveLength(54)
     expect(lookup('llm.stream')).toMatchObject({ capability: 'llm.chat', yields: true, kind: 'function' })
     // Every field hangs off a documented parent.
     for (const e of preludeEntries) {
@@ -166,7 +166,7 @@ describe('catalog', () => {
   it('reduces snippets to their default text', () => {
     expect(stripSnippet('send(${1:text})')).toBe('send(text)')
     expect(stripSnippet('push(${1:channel}, ${2:reply_to}, ${3:text})')).toBe('push(channel, reply_to, text)')
-    expect(stripSnippet('spawn({ ${1:provider = "docker"} })')).toBe('spawn({ provider = "docker" })')
+    expect(stripSnippet('spawn({ ${1:provider = "ssh"} })')).toBe('spawn({ provider = "ssh" })')
     expect(stripSnippet(lookup('tool.def')!.insert!)).toBe(
       'def({\n\tname = "lua:tool",\n\tdescription = "...",\n\tparams = { type = "object", properties = {} },\n\thandler = function(args)\n\t\t\n\tend,\n})',
     )

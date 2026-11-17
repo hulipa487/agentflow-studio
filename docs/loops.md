@@ -197,11 +197,12 @@ crosses the bridge belongs in the main loop.
 | `user` | a channel or the Studio playground | channel-specific (`chat_id`, `text`, ...) |
 | `agent` | `agent.send` / `agent.request` / `agent.spawn` traffic | the sender's payload table |
 | `timer` | `scheduler.every/after/cron` | `{ timer_id = "..." }` |
+| `shell.result` | a `shell.start` job ending | the job: `{ id, state, exit_code, stdout, stderr, changed, ... }` |
 | `cron` | an engine `every:` / `cron:` trigger | the trigger's `payload:` copied verbatim |
 | `boot` | the supervisor, for `persistent: true` agents | none |
 | `system` | engine lifecycle messages (e.g. `agent.died`) | event-specific |
 
-`timer`, `cron` and `boot` turns have **no channel**. `session.send` replies
+`timer`, `shell.result`, `cron` and `boot` turns have **no channel**. `session.send` replies
 only to an active inbound message and fails with `no active message to reply
 to`; use `session.push(channel, reply_to, text)` (cap `channel.push`) or
 `session.push_user(uuid, text)` when there is a real recipient, or record state
@@ -599,21 +600,22 @@ bounded (ten minutes).
 ### 6.8 `shell`
 
 ```lua
-shell.spawn(opts) -> { id, provider, state }
-shell.exec(id, command) -> { stdout, stderr, exit_code, duration_ms }
-shell.write(id, path, content)
-shell.destroy(id)
+shell.run(command, opts?)   -> { ok, exit_code, stdout, stderr, duration_ms, timed_out,
+                                 truncated, changed, deleted, conflicts, skipped }
+shell.start(command, opts?) -> { id, state = "running" }   -- result arrives in the inbox
+shell.status(job_id) / shell.cancel(job_id)
 
--- opts:
--- { provider = "docker"|"ssh", image, workdir, env, network,
---   mem_limit, cpu_limit, volumes = { "/host:/work" },
---   project = "notes", ref = "main", scratch_mount = "/scratch",
---   host, user, password, key_file }
+-- opts: { project, environment, workdir, env, timeout }   -- timeout in seconds
 ```
 
-A handle is persistent within the session and recoverable across a failover;
-`project` + `ref` checks out a files snapshot into the container before the
-handle reports ready. Needs `shell.exec`.
+Each call is one command in one sandbox on one project from the files store.
+What the command writes in the project is stored when it ends; nothing else
+survives to the next call, and the next call can run on any instance. A non-zero
+exit code is a result; a job that could not run raises. `shell.spawn`,
+`shell.exec`, `shell.write` and `shell.destroy` still exist: for an SSH
+connection to a remote machine (`provider = "ssh"`), and as a compatibility
+shim for older loops. Needs `shell.exec`. The full rules are in the Loop API
+reference.
 
 ### 6.9 `http` and `os`
 
@@ -849,8 +851,7 @@ opted out with `inherit_user: false`.
 
 [`files.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/files.lua) writes a note, lists the project,
 and commits a snapshot. Use `files.checkout` to restore a tree, or
-`shell.spawn({ project = "...", ref = "main" })` to materialize it into a
-container.
+`shell.run("make", { project = "..." })` to run a command on the working tree.
 
 ### 7.10 HTTP with a stored credential
 
@@ -1073,7 +1074,7 @@ copy.
 | `llm.chat` / `stream` / `embed` / `rerank` | `llm.chat` | yes | metered/budgeted |
 | `memory.*` / `store.*` | `memory` | yes | scoped |
 | `tools.list` / `run` | `tools` | yes | confirm interception |
-| `shell.*` | `shell.exec` | yes | persistent handle |
+| `shell.*` | `shell.exec` | yes | one-off sandbox jobs; SSH handles |
 | `http.*` / `os.env` | `net.http` | yes | address guard |
 | `mail.*` | `net.mail` | yes | no address guard |
 | `files.*` | `files` | yes | user-scoped |

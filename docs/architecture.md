@@ -38,7 +38,7 @@ A request moves down through a short stack. A channel driver turns platform byte
 │  llm:    anthropic · openai · openai-responses · gemini · rerank (base_url)   │
 │  memory: sqlite · redis · postgres · volatile · pgvector · qdrant · redisvector│
 │  tools:  builtin:* · tools.http (declarative) · MCP (stdio | Streamable HTTP) │
-│  shell:  docker · ssh    mail: imap + smtp    files: fs | s3    net: netguard │
+│  shell:  gVisor jobs · ssh   mail: imap + smtp   files: fs | s3   net: netguard│
 └───────────┬──────────────────────────────────────────────────────────────────┘
             │ session.send / session.push / session.push_user
             ▼
@@ -246,9 +246,9 @@ validator refuses a log-plane directory there. Retention stays per plane:
 | Every message reaches its session | The shared inbox, drained by the owner, ordered by enqueue time | At-least-once: a crash between delivery and acknowledgement redelivers. A repost of the same message id from the same instance is one row |
 | A takeover carries the backlog | Undelivered rows stay claimable; the new owner drains them. Delivered rows are swept after an hour, so the inbox does not grow forever | An in-flight turn is lost and re-delivered, so a loop may see a message twice |
 | A daemon survives its instance | A failover pass every half session TTL asks the lease table whether each persistent agent's `boot` session is owned; when nobody owns it, an instance claims and boots it | The boot turn runs once on the new owner. A daemon's conversation lives in the shared memory backend, so it resumes rather than starting empty |
-| A session keeps its shell across a failover | Every handle is recorded with the container it names; the instance that takes the session over adopts it by id | Docker containers are adopted; an SSH handle is dialled again from the session's shell profile, because a record never carries a password or key. A handle whose session is alive nowhere, and unused for 24h, is reclaimed |
+| A session keeps its shell across a failover | There is nothing to keep: a shell command is a one-off sandbox job on a project in the shared files store, so the next command runs on whichever instance owns the session | A job running on an instance that dies is lost, with whatever it had not yet written back; a background job is then reported as failed rather than run again. An SSH handle does not move: the loop spawns a new one |
 | A scheduled trigger fires once | A `trigger:<name>` lease, claimed for the trigger's own interval | A killed holder stalls its trigger until the claim expires (one interval plus a margin) |
-| Housekeeping runs once per cell | `files-gc`, `files-scratch`, `journal-prune`, `usage-prune`, `shell-reclaim`, `rows-sweep` leases, each held for the job's own interval plus slack | A sweep that outlives its lease can still overlap another instance's |
+| Housekeeping runs once per cell | `files-gc`, `files-scratch`, `journal-prune`, `usage-prune`, `rows-sweep` leases, each held for the job's own interval plus slack | A sweep that outlives its lease can still overlap another instance's |
 | A graceful shutdown drains | Readiness turns false, then `runtime.shutdown_grace` (5s regional, 0 single) passes before listeners close; the hub releases its sessions as it exits | A crash skips the drain; peers recover at the lease TTL instead |
 | Budgets hold in aggregate | A daily agent budget reads the ledger rather than its own counter (refreshed at most every 15s) | Overshoot is bounded by what the fleet spends in one refresh interval, not by the instance count. Rolling-window budgets stay per-instance |
 | Per-user quotas hold | The shared ledger, plus in-flight holds that are shared in a regional cell and process-local in `single` | A regional hold costs one transaction per model call; the per-user advisory lock is what makes two instances' reservations one decision |
@@ -282,11 +282,12 @@ validator refuses a log-plane directory there. Retention stays per plane:
   because they have to: a lease in one place with the inbox in another routes a
   session to an owner that never sees its messages. `runtime.cluster.persistence`
   is deprecated for that reason.
-- **Every instance runs the same shell providers.** A record names its provider
-  (`docker`, `ssh`), and the adopting instance looks it up by that name: an
-  instance that does not have it cannot reach the handle, and reports that
-  rather than quietly spawning a second container for the same session.
-- **Reclaiming another instance's containers needs the same Docker host.** A
-  container id is addressable from anywhere that can reach the daemon. An
-  instance that cannot reach it logs the failure and leaves the record for the
-  next pass, rather than forgetting a container that is still running.
+- **Every instance needs the sandbox to run shell jobs.** A job runs on the
+  instance that owns the session, so each one needs `runsc` and unprivileged
+  user namespaces, and pulls an environment's image the first time it uses it.
+  Projects and background-job records are in the shared stores; the workspace
+  directory on an instance is only a cache of them.
+- **One job per project per instance, not per cell.** Two instances can run
+  commands on the same project at once when two sessions of one user land on
+  different instances. Neither overwrites the other: a path both changed keeps
+  the version stored first, and the later job reports it as a conflict.

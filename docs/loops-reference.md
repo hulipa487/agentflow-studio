@@ -30,7 +30,7 @@ Blocking ops include `send`, `llm.chat`, `tools.run`, all `store.*`, all `shell.
 ```
 {
   id = "msg-...",
-  type = "user",           -- "user" | "system" | "timer" | "cron" | "agent" | ...
+  type = "user",           -- "user" | "system" | "timer" | "cron" | "agent" | "shell.result" | ...
   from = "webhook:alice",  -- core-stamped sender
   text = "hello",
   channel = "webhook",
@@ -266,27 +266,52 @@ If a tool declares `needs_confirm: true`, the first call returns a `needs_confir
 #### `shell` — cap: `shell.exec`
 
 ```
+shell.run(cmd, opts?)   -> { ok, exit_code, stdout, stderr, duration_ms, timed_out, truncated,
+                             project, environment, changed, deleted, conflicts, skipped }
+shell.start(cmd, opts?) -> { id, state = "running", ... }     -- result arrives in the inbox
+shell.status(job_id)    -> job
+shell.cancel(job_id)    -> job
+
+-- opts: { project = "site", environment = "python", workdir = "app",
+--         env = { KEY = "val" }, timeout = 120 }             -- timeout in seconds
+
+-- Handles: a real connection for SSH, a compatibility shim for the sandbox.
 shell.spawn(opts) -> { id, provider, state }
-shell.exec(id, cmd) -> { stdout, stderr, exit_code, duration_ms }
+shell.exec(id, cmd, opts?) -> the same result as shell.run
 shell.write(id, path, content)
 shell.destroy(id)
-
--- spawn opts:
--- { provider = "docker", image = "alpine:3.20", workdir = "/work",
---   network = "none", mem_limit = "512m", cpu_limit = 1.0,
---   env = { KEY = "val" },
---   volumes = { "/host/dir:/work" },        -- docker -v bind mounts
---   project = "myapp", ref = "main",        -- check out a files snapshot into /work
---   scratch_mount = "/scratch",             -- copy this session's scratch there
---   -- SSH only:
---   host = "1.2.3.4:22", user = "root", password = "...", key_file = "/path" }
 ```
 
-Docker handles are persistent: files written in one `shell.exec` are visible in the next. Handles are owned by the session and reaped automatically when the session dies. A spawn may carry a **checkout** (`project` + `ref`): the engine resolves the snapshot and writes every file into the container directory of the first `volumes` mount *before the handle reports ready* — a caller that gets a handle back can `exec` immediately and see the whole tree. A spawn may also request `scratch_mount`, which copies the calling session's scratch files into that container directory the same way. Both require the `files` store to be enabled at boot; a checkout without a volume mount fails with a clear error rather than silently doing nothing, and a failure mid-copy destroys the half-prepared container.
+**A sandbox shell is not a thing that exists.** `shell.run` is one command in one [gVisor](https://gvisor.dev) sandbox, started for that command and destroyed after it. The sandbox gets two things: a declared **environment** as its read-only root filesystem, and one **project** from the files store mounted read-write at `/workspace`, where the command starts. `/tmp` and the home directory are memory-backed and discarded. There is no network. When the command ends, the engine compares the project directory with what it put there and writes the difference back to the project's working tree — the same tree `files.*` reads and writes. The loop decides when to `files.commit`.
 
-**A handle outlives the process that created it.** Every handle is recorded where the whole deployment can see it — the provider, the container it names, and the session that owns it — so a session that moves to another instance (a failover, a restart, a rolling deploy) finds the shell it was using rather than an empty one: the adopting instance reaches the container by id, and its files, environment and processes are all still there. That is Docker's shape — a container is an address. An SSH handle is a live connection instead, and a record never carries a password or a key, so a takeover dials a fresh connection from the session's shell profile. A handle whose session is alive nowhere, and which no live session has used for a day, is reclaimed: that sweep is the only thing that ever removes the containers of an instance that was killed. Handles are owned by the session and reaped when it dies, wherever they were created.
+So the rules for a loop are short:
 
-Agents with a bound shell profile (`agents.<name>.shell`) also get registry tools that resolve the profile implicitly — no `shell.spawn` glue in the loop: `builtin:shell.exec` (`{ command }` → `{ ok, stdout, stderr, exit_code, duration_ms, handle_id }`), `builtin:shell.write` (`{ path, content }`), and `builtin:shell.destroy`. The first call lazily spawns a handle from the profile; later calls reuse it — including on another instance, after a failover; destroy tears it down (a later call spawns a fresh one). An agent without a bound profile gets honest-unavailable, and agents without the `shell.exec` capability do not see these tools at all, even under `tools.policy.default: all`. All three default to `needs_confirm: true` — relax per deployment via `tools.policy.overrides`.
+- **What a command writes in the project is kept; nothing else is.** No background process, shell variable, installed package or file outside `/workspace` survives to the next call.
+- **A non-zero `exit_code` and `timed_out` are results**, like an HTTP 500 from `http.request`. A job that could not run at all — no sandbox on this host, an unknown environment, a queue timeout, a sandbox killed for exceeding its memory limit — raises, so wrap the call in `pcall`. What the command wrote before it was killed is still stored.
+- **One job per project at a time** on an instance; a second call on the same project waits for the first (up to `runtime.sandbox.queue_timeout`).
+- **Write-back never overwrites a newer file.** A path the job changed that someone else changed while it ran keeps the store's version and is listed in `conflicts`. Paths that could not be stored (larger than the per-file limit, over the job's write-back limits, a symbolic link) are listed in `skipped` with the reason, and removed from the directory so it never holds something the store does not.
+- **Any instance can run the next command.** The project directory on an instance is only a cache of the files store.
+
+Settings layer: the call's `opts` override the project's `.agentflow/shell.yaml`, which overrides the agent's shell profile. The environment must be one the deployment declares; the time limit is capped by `runtime.sandbox.max_timeout`. A project's manifest may set `environment`, `env`, `workdir`, `timeout` and `ignore`, and nothing else:
+
+```
+# .agentflow/shell.yaml, in the project's working tree
+environment: node
+env: { NODE_ENV: test }
+workdir: app
+timeout: 120s
+ignore: ["node_modules/", "dist/"]
+```
+
+Paths matched by `ignore` (from the profile or the manifest) are neither stored nor cleaned up: they stay on the instance that made them as a best-effort cache — a dependency directory, a build cache — and are simply absent on another.
+
+**Background jobs.** `shell.start` queues the same job and returns at once, with a longer time limit (`runtime.sandbox.background_max_timeout`). Its result arrives in the session's inbox as a message with `type = "shell.result"` and the job in `msg.payload` (`state` is `finished`, `failed` or `cancelled`; `stdout` and `stderr` are the last 16 KiB). The result turn runs as the user who started the job. `shell.status` reads a job while it runs — from any instance — and `shell.cancel` stops it on the instance that runs it. A job whose instance died is reported as `failed`; it is not run again. A session's background jobs are cancelled when the session ends.
+
+**Handles.** `shell.spawn` with `provider = "ssh"` opens a connection to a real remote machine (`host`, `user`, `password` or `key_file`); `exec`, `write` and `destroy` act on it, it lives in the instance that dialled it, and it is closed when the session ends. An SSH spawn may carry `project` + `ref` and a `volumes = { "x:/dir" }` entry to copy a files snapshot into `/dir` on the remote machine before the handle reports ready, or `scratch_mount` to copy the session's scratch files.
+
+`shell.spawn` without a provider returns a *sandbox handle*, which exists so that loops written for the old container shell keep working: it is only the options it was given, encoded into the id. `shell.exec` on it runs a job, `shell.write` writes into the project, `shell.destroy` does nothing. It needs no storage and works on any instance. Three options changed meaning: `image` names a declared environment, the container path of `volumes[1]` is where the project is mounted (instead of `/workspace`), and `network` other than `"none"`, a `ref` other than `"main"`, and `scratch_mount` are refused with a message saying why.
+
+Agents with a bound shell profile (`agents.<name>.shell`) also get registry tools that resolve the profile implicitly, so a model never handles a handle: `builtin:shell.exec` (`{ command }` → the `shell.run` result), `builtin:shell.write` (`{ path, content }`), `builtin:fs.read` (`{ path }` → `{ ok, content, path, truncated }`), `builtin:fs.write` (`{ path, content }`) and `builtin:shell.destroy`. With a sandbox profile the file tools read and write the project directly — no sandbox is started for them — and paths may be given relative to the project or under `/workspace`. With an SSH profile the tools keep one connection per session, opened on first use. An agent without a bound profile gets honest-unavailable, as does a host where the sandbox cannot run; agents without the `shell.exec` capability do not see these tools at all, even under `tools.policy.default: all`. All but `fs.read` default to `needs_confirm: true` — relax per deployment via `tools.policy.overrides`.
 
 `builtin:fetch` is the general-purpose HTTP client for APIs and plain pages, and needs no account or credential — so unlike `web_search` and `browser` it is never honest-unavailable. Options: `url` (required), `method`, `headers`, `body` (raw) or `json` (marshalled; sets `Content-Type` unless a header already does), `query`, `timeout_ms`, `follow` / `max_redirects`, `user_agent`, `max_bytes`, `insecure`, and `save_to` (the response body also lands in this session's files scratch space, readable via `files.scratch.read`). It returns `{ok, status, status_text, headers, body, final_url, redirects?, content_type?, content_length?, size, truncated?, tls_verified, time_cost_ms}` — for *any* HTTP status, since a 404 is an answer the model should read rather than a tool failure; `ok` describes whether the request completed, `status` describes what the server said.
 
@@ -433,10 +458,12 @@ function loop()
   while true do
     local msg = session.inbox()
     if msg.type == "user" and msg.text then
-      local h = shell.spawn({ provider = "docker", image = "alpine:3.20" })
-      local r = shell.exec(h.id, "echo hello from " .. msg.text)
-      shell.destroy(h.id)
-      session.send("exit=" .. r.exit_code .. " stdout=" .. r.stdout)
+      local ok, r = pcall(shell.run, "echo hello from " .. msg.text)
+      if ok then
+        session.send("exit=" .. r.exit_code .. " stdout=" .. r.stdout)
+      else
+        session.send("the shell is not available: " .. tostring(r))
+      end
     end
   end
 end

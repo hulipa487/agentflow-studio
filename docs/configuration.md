@@ -583,18 +583,85 @@ An ingress block skips the turn: the loop never sees the message, and `refusal` 
 
 #### Shell profile
 
+A shell profile says what an agent's shell is. Bind one with `agents.<name>.shell` (the agent also needs the `shell.exec` capability).
+
 ```
 profiles:
-  shell/sandboxed:
-    provider: docker
-    image: python:3.12-slim
-    workdir: /work
-    network: none
-    mem_limit: 512m
-    cpu_limit: 1.0
-    env: { PATH: /usr/local/bin:/usr/bin }    # docker only
-    # SSH fields: host, user, password, key_file
+  shell:
+    code:
+      provider: sandbox          # sandbox (default) | ssh
+      environment: python        # an entry of environments (required)
+      project: workspace         # the files-store project jobs run in (default workspace)
+      workdir: app               # where a command starts, relative to the project
+      timeout: 90s               # a job's time limit, capped by runtime.sandbox.max_timeout
+      mem_limit: 512MiB          # may lower runtime.sandbox.memory, never raise it
+      cpu_limit: 1.0
+      env: { CI: "1" }
+      ignore: ["node_modules/", "__pycache__/"]   # created by jobs, never stored
+      network: none              # the only value: sandbox jobs have no network
+    box:
+      provider: ssh              # a connection to a real remote machine
+      host: build.example.com:22
+      user: dev
+      key_file: /etc/agentflow/id_ed25519      # or password: (a secret reference)
+      workdir: /srv/work
 ```
+
+**`provider: sandbox`** runs each command as a one-off [gVisor](https://gvisor.dev) job: the environment is the read-only root, the project is mounted read-write at `/workspace`, and what the command wrote into the project is stored when it ends. Nothing else survives a command, so there is nothing to keep track of and any instance can run the next one. `ignore` uses a small subset of `.gitignore`: `node_modules/` (a directory with that name anywhere), `*.pyc` (a name anywhere), `build/out` (a path from the project root); a trailing slash restricts a pattern to directories. Ignored paths are neither stored nor cleaned up — they stay on the instance as a best-effort cache.
+
+A project can customise its agent's profile with a `.agentflow/shell.yaml` file in its working tree. It may set `environment` (one the deployment declares), `env`, `workdir`, `timeout` and `ignore`. It has no field for an image, a network policy or a resource limit, and an unknown field is an error rather than a silent no-op.
+
+**`provider: ssh`** keeps a connection per session to a machine that already exists; nothing here provisions it. The connection lives in the instance that dialled it and closes with the session.
+
+`provider: docker` was removed. A config that still uses it fails at load with a message naming the replacement.
+
+#### `environments` — declared toolchains
+
+An environment is the root filesystem and variables a sandbox job starts with. Environments are declared by the operator; a shell profile picks one, and a project may pick another.
+
+```
+environments:
+  python:
+    image: docker.io/library/python:3.12-slim@sha256:<64 hex digits>
+    env: { PYTHONUNBUFFERED: "1" }
+  tools:
+    rootfs: /srv/agentflow/envs/tools
+```
+
+Set exactly one of:
+
+- **`image`** — an OCI image **pinned by digest**. A tag alone is refused: a tag can be moved to different content, and then two instances would run different toolchains under one name. The image is pulled the first time the environment is used on an instance (that first job waits for the download) and kept under `<runtime.sandbox.data_dir>/images/<digest>`, so changing the pin is all it takes to move to a new image. Only public images, or ones a registry serves to anonymous pulls, are supported. Layers must be gzip-compressed. The image's own `Env` is applied, with `env` here on top.
+- **`rootfs`** — a directory on the host that already holds a root filesystem (for example an exported container, or a `debootstrap` tree). It needs a `/bin/sh`.
+
+Because jobs have no network, everything a command needs must already be in the environment: packages are part of the image, not something a command installs.
+
+#### `runtime.sandbox` — how shell jobs run
+
+Every setting has a default; a deployment that declares an environment and a shell profile needs none of this.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `runsc` | `runsc` on `PATH` | The gVisor runtime binary. Keep the release's `gvisor-bin/` directory beside it |
+| `data_dir` | `<data dir>/sandbox` | Workspaces, unpacked images and runsc's own state. A cache: everything in it is rebuilt from the files store and the registry |
+| `concurrency` | 4 | Jobs running at once on this instance |
+| `per_user` | 2 | How many of those one user may hold |
+| `queue_timeout` | 30s | How long a job waits for its turn before failing |
+| `timeout` | 60s | A job's time limit when nothing else sets one |
+| `max_timeout` | 10m | The most a call, a project or a profile may ask for |
+| `background_max_timeout` | 2h | The limit for `shell.start` jobs |
+| `output_limit` | 256KiB | Cap on each of stdout and stderr; the rest is dropped and `truncated` is set |
+| `tmp_limit` | 256MiB | Size of a job's `/tmp` and home directory |
+| `memory` | 1GiB | Memory limit for a whole sandbox. A job that exceeds it is killed and the call raises |
+| `cpus` | none | CPU limit in cores |
+| `pids` | 512 | Processes inside a sandbox |
+| `write_back.max_files` | 10000 | Changed files one job may store |
+| `write_back.max_bytes` | 1GiB | Total size of the files one job may store |
+
+**Requirements.** gVisor runs on Linux only (x86_64 and ARM64, kernel 5.6 or newer). No root is needed: the sandbox runs in a user namespace, so unprivileged user namespaces must be enabled. On Windows, macOS, or a Linux host without `runsc`, the engine still starts and every shell call fails with one sentence saying what is missing.
+
+**Memory and CPU limits** are enforced by the kernel through a systemd scope when the host has a systemd manager that will create one — the normal case for a service or a login session. Where it does not (a container without systemd, for example), jobs run without those two limits and should be bounded from outside; the process count, tmpfs sizes, time limit and output cap apply everywhere. `agentflow doctor` reports which case a host is in, whether `runsc` works, and whether each environment is usable.
+
+**One host, one data directory.** Two engines sharing a `data_dir` would clear each other's job state at start.
 
 #### Agent profile (spawnable)
 
