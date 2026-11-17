@@ -41,9 +41,6 @@ export default function Login() {
     const text = useSession.getState().restoreError
     return text ? { text, tone: 'danger' } : null
   })
-  useEffect(() => {
-    useSession.setState({ restoreError: '' })
-  }, [])
   const [step, setStep] = useState('')
   const abort = useRef<AbortController | null>(null)
   const urlInput = useRef<HTMLInputElement>(null)
@@ -85,7 +82,8 @@ export default function Login() {
     urlInput.current?.focus()
   }
 
-  const fail = (err: unknown) => {
+  /** Marks the field a failure points at and returns the message to show. */
+  const explain = (err: unknown): string => {
     let text = errorMessage(err)
     if (err instanceof ApiError) {
       if (err.status === 401) {
@@ -108,8 +106,20 @@ export default function Login() {
         text += '\n\nThe Studio API is off on this runtime: set runtime.studio.enabled: true and restart AgentFlow.'
       }
     }
-    setMessage({ text, tone: 'danger' })
+    return text
   }
+
+  const fail = (err: unknown) => setMessage({ text: explain(err), tone: 'danger' })
+
+  // A failed automatic reconnect gets the same field hints as a failed
+  // Connect; its own message, which names the connection, is already shown.
+  // Declared after the focus effect above so the hinted field keeps focus.
+  useEffect(() => {
+    const cause = useSession.getState().restoreCause
+    if (cause !== undefined) explain(cause)
+    useSession.setState({ restoreError: '', restoreCause: undefined })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const submit = async () => {
     if (busy) {
@@ -249,6 +259,13 @@ export default function Login() {
                 setURL(e.target.value)
                 setURLError('')
                 setMessage(null)
+              }}
+              onKeyDown={(e) => {
+                // Enter moves on to the token while there is none to submit.
+                if (e.key === 'Enter' && token.trim() === '') {
+                  e.preventDefault()
+                  tokenInput.current?.focus()
+                }
               }}
             />
           </Field>

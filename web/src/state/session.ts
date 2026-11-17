@@ -2,7 +2,7 @@
 // heartbeat's view of the runtime. Nothing here is persisted; see
 // connections.ts for what is saved.
 import { create } from 'zustand'
-import { Client, errorMessage } from '@/api/client'
+import { ApiError, Client, errorMessage } from '@/api/client'
 import type { Catalog, State } from '@/api/types'
 import { activeProfile, tokenFor, useConnections } from './connections'
 import { toast } from './ui'
@@ -32,16 +32,22 @@ interface SessionState {
   runtime: State | null
   /** True while a remembered connection is being restored on load. */
   restoring: boolean
+  /** What the reconnect in progress is doing, for the waiting screen. */
+  restoreStep: string
   /** Why the last automatic reconnect failed; the welcome screen shows it once. */
   restoreError: string
+  /** The failure itself, so the welcome screen can point at the field to fix. */
+  restoreCause: unknown
 
   connect: (
     url: string,
     token: string,
     opts: { remember: boolean; viaProxy: boolean; signal?: AbortSignal; onStep?: ConnectStep },
   ) => Promise<void>
-  /** Reconnects with the active saved profile, if it has a token. */
+  /** Reconnects with the active saved profile, if it has a token. Gives up after 20 seconds. */
   restore: () => Promise<boolean>
+  /** Stops the reconnect in progress and opens the welcome screen. */
+  cancelRestore: () => void
   /** Forgets the token and returns to the welcome screen. */
   lock: () => void
   /** Returns to the welcome screen keeping every saved profile. */
@@ -49,7 +55,11 @@ interface SessionState {
   reloadCatalog: () => Promise<void>
 }
 
+/** How long a connection attempt may take, as on the welcome screen. */
+export const CONNECT_TIMEOUT_MS = 20000
+
 let heartbeat: ReturnType<typeof setInterval> | null = null
+let restoreCtl: AbortController | null = null
 
 function stopHeartbeat() {
   if (heartbeat) clearInterval(heartbeat)
@@ -85,15 +95,22 @@ export const useSession = create<SessionState>((set, get) => ({
   online: false,
   runtime: null,
   restoring: false,
+  restoreStep: '',
   restoreError: '',
+  restoreCause: undefined,
 
   connect: async (url, token, { remember, viaProxy, signal, onStep }) => {
     const client = new Client({ url, token, viaProxy })
     onStep?.(`Contacting ${client.displayURL}…`)
     // The state call is the ping: it proves the address and the token.
     const runtime = await client.state(signal)
-    onStep?.('Loading the catalog…')
-    const catalog = await client.catalog(signal)
+    onStep?.('token accepted · loading the Studio catalog…')
+    const catalog = await client.catalog(signal).catch((err: unknown) => {
+      if (signal?.aborted) throw err
+      // The address and token were right; say which half failed.
+      const text = 'connected, but the Studio API is unavailable: ' + errorMessage(err)
+      throw err instanceof ApiError ? new ApiError(err.status, text, err.network) : new Error(text)
+    })
     // Only a connection that worked is saved, so a wrong URL or token never
     // becomes next launch's default.
     useConnections.getState().remember(client.displayURL, client.token, remember, client.viaProxy)
@@ -105,18 +122,44 @@ export const useSession = create<SessionState>((set, get) => ({
     const p = activeProfile()
     const token = tokenFor(p)
     if (!p || !token) return false
-    set({ restoring: true, restoreError: '' })
+    restoreCtl?.abort()
+    const ctl = new AbortController()
+    restoreCtl = ctl
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      ctl.abort()
+    }, CONNECT_TIMEOUT_MS)
+    set({ restoring: true, restoreStep: `Contacting ${p.url}…`, restoreError: '', restoreCause: undefined })
     try {
-      await get().connect(p.url, token, { remember: !p.forgetToken, viaProxy: p.viaProxy })
+      await get().connect(p.url, token, {
+        remember: !p.forgetToken,
+        viaProxy: p.viaProxy,
+        signal: ctl.signal,
+        onStep: (text) => {
+          if (restoreCtl === ctl) set({ restoreStep: text })
+        },
+      })
       return true
     } catch (err) {
+      // A newer attempt, or Cancel, owns the screen now: nothing to report.
+      if (restoreCtl !== ctl || (ctl.signal.aborted && !timedOut)) return false
       // Falling back to the welcome screen without a word would look like the
       // saved connection had been lost.
-      set({ restoreError: `Could not reconnect to ${p.name}: ${errorMessage(err)}` })
+      const cause = timedOut ? new ApiError(0, 'no answer within 20 seconds', true) : err
+      set({ restoreError: `Could not reconnect to ${p.name}: ${errorMessage(cause)}`, restoreCause: cause })
       return false
     } finally {
-      set({ restoring: false })
+      clearTimeout(timer)
+      if (restoreCtl === ctl) {
+        restoreCtl = null
+        set({ restoring: false, restoreStep: '' })
+      }
     }
+  },
+
+  cancelRestore: () => {
+    restoreCtl?.abort()
   },
 
   lock: () => {

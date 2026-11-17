@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { Loading, Logo } from '@/components/ui'
+import { Button, Loading, Logo } from '@/components/ui'
 import { Overlays } from '@/components/ui/Overlays'
 import { Shell } from '@/components/shell/Shell'
 import { CommandPalette } from '@/components/shell/CommandPalette'
@@ -29,16 +29,21 @@ const Docs = lazy(() => import('@/screens/Docs'))
 const Settings = lazy(() => import('@/screens/Settings'))
 
 function Restoring() {
+  const step = useSession((s) => s.restoreStep)
+  const active = useSession((s) => s.restoring)
   return (
     <div className="flag-glow flex h-full flex-col items-center justify-center gap-4">
       <Logo size={56} />
-      <Loading text="Reconnecting to the runtime…" className="py-0" />
+      <Loading text={step || 'Reconnecting to the runtime…'} className="py-0" />
+      {/* Cancel opens the welcome screen, prefilled with this connection. */}
+      {active && <Button onClick={() => useSession.getState().cancelRestore()}>Cancel</Button>}
     </div>
   )
 }
 
 export default function App() {
   const client = useSession((s) => s.client)
+  const restoring = useSession((s) => s.restoring)
   const [booted, setBooted] = useState(false)
   // Subscribing keeps the document's theme attributes in step with the store.
   useAppearance((s) => s.mode)
@@ -57,7 +62,9 @@ export default function App() {
     }
   }, [])
 
-  if (!booted) {
+  // Also while switching to another saved connection: the welcome screen
+  // mounts once the attempt is over, so it can say why one failed.
+  if (!booted || (restoring && !client)) {
     return <Restoring />
   }
   if (!client) {
