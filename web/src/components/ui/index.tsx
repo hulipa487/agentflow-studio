@@ -657,6 +657,7 @@ export function AsyncView({
   hasData,
   retry,
   loadingText,
+  offTitle,
   children,
 }: {
   loading: boolean
@@ -664,12 +665,14 @@ export function AsyncView({
   hasData: boolean
   retry?: () => void
   loadingText?: string
+  /** The empty state's title when the screen's subsystem is switched off. */
+  offTitle?: string
   children: ReactNode
 }) {
   if (loading && !hasData) return <Loading text={loadingText} />
   if (error && !hasData) {
     const off = featureOff(error)
-    if (off) return <EmptyState title="Not enabled on this runtime" guidance={off} />
+    if (off) return <EmptyState title={offTitle ?? 'Not enabled on this runtime'} guidance={off} />
     return (
       <div className="flex flex-col items-center gap-3 py-6">
         <Banner tone="danger" className="w-full">

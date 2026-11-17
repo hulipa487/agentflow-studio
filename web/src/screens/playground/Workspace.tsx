@@ -31,7 +31,7 @@ function replyNote(r: WireReply): string {
   return notes.join(' · ')
 }
 
-export function Workspace({ client, agents }: { client: Client; agents: string[] }) {
+export function Workspace({ client, agents, reloadAgents }: { client: Client; agents: string[]; reloadAgents: () => void }) {
   const [params, setParams] = useSearchParams()
   const wanted = params.get('agent') ?? ''
 
@@ -133,6 +133,13 @@ export function Workspace({ client, agents }: { client: Client; agents: string[]
   useEffect(() => {
     if (agents.includes(wanted)) switchAgent(wanted)
   }, [wanted, agents, switchAgent])
+
+  // A refresh can find the open agent deleted: move to one that still exists.
+  useEffect(() => {
+    if (agents.includes(session.current.agent)) return
+    switchAgent(agents[0])
+    setParams({ agent: agents[0] }, { replace: true })
+  }, [agents, switchAgent, setParams])
 
   const pickAgent = (name: string) => {
     switchAgent(name)
@@ -322,6 +329,8 @@ export function Workspace({ client, agents }: { client: Client; agents: string[]
   useScreenActions({
     send,
     refresh: () => {
+      // An agent created since this screen opened joins the picker.
+      reloadAgents()
       loadThreads(session.current.agent)
       void refreshTrace()
     },

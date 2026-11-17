@@ -68,10 +68,20 @@ export function highlightCode(code: string, lang: string): string {
   return out
 }
 
+/** Whether a link leads somewhere this viewer can take the reader. */
+function resolvable(href: string): boolean {
+  return href.startsWith('#') || slugFor(href) !== undefined || assetFor(href) !== undefined || /^(https?:)?\/\//.test(href) || href.startsWith('mailto:')
+}
+
 function renderer(): Marked {
   const md = new Marked({ gfm: true, breaks: false })
   md.use({
     renderer: {
+      // A relative link to a file that is not bundled reads as plain text, as
+      // in the desktop viewer, instead of a link that does nothing.
+      link({ href, tokens }) {
+        return resolvable(href) ? false : this.parser.parseInline(tokens)
+      },
       heading({ tokens, depth }) {
         const html = this.parser.parseInline(tokens)
         const text = html.replace(/<[^>]+>/g, '')

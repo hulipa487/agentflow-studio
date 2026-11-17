@@ -5,6 +5,7 @@ import { BookOpen } from 'lucide-react'
 import { Button, Select } from '@/components/ui'
 import { Markdown } from '@/components/ui/Markdown'
 import { docPage, docPages, readDoc } from '@/docs/library'
+import { docPath } from '@/screens/docs/helpers'
 
 const BUILDER_DOC_PAGES = [
   { slug: 'loops-reference', label: 'Loop API reference' },
@@ -37,7 +38,7 @@ export function DocsPane({ onOpenDocs }: { onOpenDocs: (path: string) => void })
             // The two builder guides link to each other; those stay in the
             // pane. Any other guide opens in the documentation viewer.
             if (BUILDER_DOC_PAGES.some((p) => p.slug === next)) setSlug(next)
-            else onOpenDocs('/docs/' + next + (anchor ? '#' + encodeURIComponent(anchor) : ''))
+            else onOpenDocs(docPath(next, anchor))
           }}
           onAsset={() => onOpenDocs('/docs/' + slug)}
         />

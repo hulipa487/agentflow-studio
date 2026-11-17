@@ -97,7 +97,7 @@ export default function Tenancy() {
       }
       actions={<IconButton icon={RotateCw} label="Refresh" onClick={reloadAll} />}
     >
-      <AsyncView loading={loading} error={error} hasData={!!data} retry={reloadAll} loadingText="Loading…">
+      <AsyncView loading={loading} error={error} hasData={!!data} retry={reloadAll} loadingText="Loading…" offTitle="Tenancy is unavailable">
         <Tabs<Tab>
           className="mb-3"
           value={tab}

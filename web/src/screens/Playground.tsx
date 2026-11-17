@@ -14,7 +14,8 @@ export default function Playground() {
   // Spawn profiles are templates; the runtime refuses to chat with one.
   const agents = useMemo(() => (rows ?? []).filter((r) => !r.spawn).map((r) => r.name), [rows])
 
-  if (rows && agents.length > 0) return <Workspace client={client} agents={agents} />
+  // Quiet: a failed re-read keeps the list, and the workspace with it.
+  if (rows && agents.length > 0) return <Workspace client={client} agents={agents} reloadAgents={() => reload(true)} />
 
   return (
     <Page title={TITLE} subtitle={SUBTITLE}>

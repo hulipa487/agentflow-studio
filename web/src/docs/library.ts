@@ -126,14 +126,18 @@ export interface DocHeading {
   id: string
 }
 
-/** The same slug the Markdown renderer gives a heading. */
+/**
+ * The id the Markdown renderer gives a heading: GitHub's slug, which the
+ * guides' own #links are written against. Every space becomes a hyphen, so
+ * "audit — message journal" is audit--message-journal, as on GitHub.
+ */
 export function headingID(text: string): string {
   return text
     .toLowerCase()
     .replace(/`/g, '')
     .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .trim()
-    .replace(/\s+/g, '-')
+    .replace(/\s/g, '-')
 }
 
 /** The h2/h3 outline of a page, for section navigation. */

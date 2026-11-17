@@ -28,7 +28,7 @@ import {
   indentUnit,
   syntaxHighlighting,
 } from '@codemirror/language'
-import { closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
+import { acceptCompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search'
 import { lintKeymap } from '@codemirror/lint'
 import { lua } from '@codemirror/legacy-modes/mode/lua'
@@ -223,6 +223,9 @@ export function CodeEditor({
           ...foldKeymap,
           ...completionKeymap,
           ...lintKeymap,
+          // Tab takes the selected completion, as in the desktop editor; with
+          // no menu open the binding declines and Tab indents.
+          { key: 'Tab', run: acceptCompletion },
           indentWithTab,
         ]),
         placeholder ? cmPlaceholder(placeholder) : [],

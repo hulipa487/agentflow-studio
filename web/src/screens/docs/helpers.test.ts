@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bundledDocFiles, docOutline, docPages, readDoc, searchDocs } from '@/docs/library'
+import { bundledDocFiles, docOutline, docPages, headingID, readDoc, searchDocs } from '@/docs/library'
 import { docPath, sectionForMatch, splitMatch } from './helpers'
 
 describe('docPath', () => {
@@ -7,6 +7,24 @@ describe('docPath', () => {
     expect(docPath('loops')).toBe('/docs/loops')
     expect(docPath('loops', '6-api-reference')).toBe('/docs/loops?h=6-api-reference')
     expect(docPath('loops', 'a b&c')).toBe('/docs/loops?h=a%20b%26c')
+  })
+})
+
+describe('headingID', () => {
+  it('matches the slug GitHub gives a heading', () => {
+    expect(headingID('6. API reference')).toBe('6-api-reference')
+    // Dropping the dash leaves two spaces, and each becomes a hyphen.
+    expect(headingID('audit — message journal')).toBe('audit--message-journal')
+  })
+
+  it('resolves every in-page link the bundled guides contain', () => {
+    for (const p of docPages()) {
+      const body = readDoc(p.slug) ?? ''
+      const ids = new Set(docOutline(body).map((h) => h.id))
+      for (const m of body.matchAll(/\]\(#([^)\s]+)\)/g)) {
+        expect(ids.has(m[1]) || ids.has(headingID(m[1])), `${p.file}: #${m[1]}`).toBe(true)
+      }
+    }
   })
 })
 

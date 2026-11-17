@@ -7,7 +7,8 @@ import { Banner, Button, ComboInput, Field, Input, Modal, Textarea, cx, toneBg, 
 
 function ConfirmDialog({ opts, resolve }: { opts: ConfirmOptions; resolve: (ok: boolean) => void }) {
   const [typed, setTyped] = useState('')
-  const blocked = opts.typeToConfirm !== undefined && typed !== opts.typeToConfirm
+  // Trimmed, so an id pasted with a stray space or newline still matches.
+  const blocked = opts.typeToConfirm !== undefined && typed.trim() !== opts.typeToConfirm
   return (
     <Modal
       open

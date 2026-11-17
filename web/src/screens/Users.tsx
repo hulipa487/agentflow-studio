@@ -171,7 +171,7 @@ export default function Users() {
         </>
       }
     >
-      <AsyncView loading={list.loading} error={list.error} hasData={!!list.data} retry={() => list.reload()} loadingText="Loading…">
+      <AsyncView loading={list.loading} error={list.error} hasData={!!list.data} retry={() => list.reload()} loadingText="Loading…" offTitle="The identity layer is off">
         <Split fixed="left" initial={340} min={260} max={560} storageKey="users" left={left} right={right} />
       </AsyncView>
       <InviteDialog invite={invite} onClose={() => setInvite(null)} />
