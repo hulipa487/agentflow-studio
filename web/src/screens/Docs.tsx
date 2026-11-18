@@ -26,12 +26,12 @@ function PagerLink({ page, dir }: { page: DocPage; dir: 'prev' | 'next' }) {
         (next ? 'items-end text-right' : 'items-start')
       }
     >
-      <span className="inline-flex items-center gap-1 text-[11px] text-faint">
+      <span className="inline-flex items-center gap-1 text-xs text-faint">
         {!next && <ArrowLeft className="size-3" />}
         {next ? 'Next' : 'Previous'}
         {next && <ArrowRight className="size-3" />}
       </span>
-      <span className="max-w-full truncate text-[13px] font-semibold text-text">{page.title}</span>
+      <span className="max-w-full truncate text-base font-semibold text-text">{page.title}</span>
     </Link>
   )
 }
@@ -158,7 +158,7 @@ function Viewer({ pages }: { pages: DocPage[] }) {
                 <span className="min-w-0 truncate text-xs text-muted">{page.title}</span>
               </div>
               {source === undefined ? (
-                <p className="text-[12.5px] text-muted">This page could not be read.</p>
+                <p className="text-sm text-muted">This page could not be read.</p>
               ) : (
                 <Markdown source={source} onNavigate={(slug, a) => navigate(docPath(slug, a))} onAsset={openAsset} />
               )}

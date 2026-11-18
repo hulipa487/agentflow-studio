@@ -24,7 +24,7 @@ function Share({ line, total }: { line: UsageLine; total: number }) {
       <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface2">
         <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(frac * 100, line.billable > 0 ? 2 : 0)}%` }} />
       </div>
-      <span className="w-10 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted">{sharePercent(line.share, total)}</span>
+      <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums text-muted">{sharePercent(line.share, total)}</span>
     </div>
   )
 }
@@ -151,7 +151,7 @@ export default function Usage() {
                   <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
                     <Segmented value={groupBy} onChange={setGroupBy} options={GROUPS.map((g) => ({ value: g, label: GROUP_LABEL[g] }))} />
                     <span className="flex-1" />
-                    <span className="font-mono text-[11px] text-faint">
+                    <span className="font-mono text-xs text-faint">
                       {table.lines.length} {table.lines.length === 1 ? 'row' : 'rows'}
                     </span>
                     <Button size="sm" icon={Download} onClick={download}>
@@ -160,7 +160,7 @@ export default function Usage() {
                   </div>
                   <Table rows={table.lines} rowKey={(l) => l.id} columns={columns} />
                 </Panel>
-                <p className="text-[11px] leading-snug text-faint">
+                <p className="text-xs leading-snug text-faint">
                   Billable = input + output, the rule quotas and budgets use. Per-call detail lives on each profile under Users when usage.events is on.
                 </p>
               </>

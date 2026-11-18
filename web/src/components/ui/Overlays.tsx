@@ -24,7 +24,7 @@ function ConfirmDialog({ opts, resolve }: { opts: ConfirmOptions; resolve: (ok: 
         </>
       }
     >
-      <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{opts.message}</div>
+      <div className="whitespace-pre-wrap text-base leading-relaxed">{opts.message}</div>
       {opts.typeToConfirm !== undefined && (
         <Field label={<>Type <code className="text-text">{opts.typeToConfirm}</code> to confirm</>} className="mt-4">
           <Input
@@ -135,7 +135,7 @@ export function Overlays() {
             </Button>
           }
         >
-          <div className="whitespace-pre-wrap text-[13px] leading-relaxed">{dialog.opts.message}</div>
+          <div className="whitespace-pre-wrap text-base leading-relaxed">{dialog.opts.message}</div>
         </Modal>
       )}
       <div className="pointer-events-none fixed bottom-9 right-4 z-[60] flex w-[min(420px,calc(100vw-2rem))] flex-col items-end gap-2">

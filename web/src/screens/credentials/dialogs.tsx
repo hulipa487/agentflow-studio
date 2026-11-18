@@ -89,7 +89,7 @@ export function CredentialEditor({
         </Banner>
       )}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 text-[11px] text-muted">
+        <div className="flex items-center gap-2 text-xs text-muted">
           <span>Bucket</span>
           <Chip tone={bucket === '' ? 'neutral' : 'accent'}>{bucketPhrase(bucket)}</Chip>
         </div>
@@ -126,7 +126,7 @@ export function CredentialEditor({
             <Input mono value={form.scheme} onChange={set('scheme')} />
           </Field>
         </div>
-        <p className="-mt-2 text-[11px] leading-snug text-faint">
+        <p className="-mt-2 text-xs leading-snug text-faint">
           Sent as &lt;header&gt;: &lt;scheme&gt; &lt;value&gt;. Defaults are Authorization: Bearer &lt;value&gt;.
         </p>
       </div>

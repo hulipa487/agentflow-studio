@@ -14,7 +14,7 @@ export function Outline({ outline, active, onPick }: { outline: DocHeading[]; ac
   if (outline.length === 0) return null
   return (
     <aside className="hidden w-[232px] shrink-0 flex-col border-l border-line min-[1200px]:flex" aria-label="On this page">
-      <div className="shrink-0 px-4 pb-1.5 pt-4 text-[10px] font-bold uppercase tracking-[0.07em] text-faint">On this page</div>
+      <div className="shrink-0 px-4 pb-1.5 pt-4 text-xs font-bold text-faint">On this page</div>
       <div ref={list} className="min-h-0 flex-1 overflow-y-auto pb-4 pl-4 pr-2">
         {outline.map((h, i) => (
           <button

@@ -153,7 +153,7 @@ function GroupDetail({ id, dir, rev, reloadAll, notify }: { id: string; dir: Dir
     <div className="flex flex-col gap-3 pb-2">
       <Panel className="flex flex-col gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[15px] font-semibold">{g.name}</span>
+          <span className="truncate text-md font-semibold">{g.name}</span>
           {disbanded ? <StatusChip tone="danger">disbanded</StatusChip> : <StatusChip tone="success">active</StatusChip>}
           <span className="flex-1" />
           <Button variant="danger" icon={Trash2} loading={busy === 'disband'} disabled={disbanded || busy !== ''} onClick={disband}>

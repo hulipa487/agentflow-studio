@@ -91,7 +91,7 @@ export function LoopTab({
               type="button"
               onClick={() => setOpen((o) => !o)}
               aria-expanded={open}
-              className="flex h-7 w-full items-center gap-1.5 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.06em] text-faint hover:text-text"
+              className="flex h-7 w-full items-center gap-1.5 px-3 text-left text-xs font-semibold text-faint hover:text-text"
             >
               {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
               Issues
@@ -108,7 +108,7 @@ export function LoopTab({
                       className="flex w-full items-baseline gap-2 px-3 py-1 text-left text-xs hover:bg-hover focus-visible:bg-hover"
                     >
                       <Dot tone={SEVERITY_TONE[d.severity]} className="translate-y-[-1px] self-center" />
-                      <span className="w-12 shrink-0 font-mono text-[11px] text-faint">L{d.line}</span>
+                      <span className="w-12 shrink-0 font-mono text-xs text-faint">L{d.line}</span>
                       <span className="min-w-0 flex-1 break-words text-text">{d.message}</span>
                       {d.code && <Chip>{d.code}</Chip>}
                     </button>

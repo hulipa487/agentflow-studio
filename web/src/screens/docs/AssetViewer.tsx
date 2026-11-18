@@ -24,9 +24,9 @@ export function AssetViewer({ asset, path, onClose }: { asset: DocAsset | undefi
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 px-5 pb-4 pt-3">
       <div className="flex shrink-0 items-center gap-2">
-        <h2 className="min-w-0 truncate text-[16px] font-semibold leading-tight">{asset.title}</h2>
+        <h2 className="min-w-0 truncate text-lg font-semibold leading-tight">{asset.title}</h2>
         <Chip>{asset.path}</Chip>
-        <span className="font-mono text-[11px] text-faint">{text.split('\n').length} lines · read-only</span>
+        <span className="font-mono text-xs text-faint">{text.split('\n').length} lines · read-only</span>
         <span className="flex-1" />
         <CopyButton text={text} what={name} size="md" />
         <Button

@@ -23,7 +23,7 @@ const ACTION_TONE: Record<string, Tone> = { allow: 'success', review: 'warning',
 function Row({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <div className={`flex min-w-0 items-baseline gap-3 ${className ?? ''}`}>
-      <span className="w-[76px] shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</span>
+      <span className="w-[76px] shrink-0 text-xs font-semibold text-faint">{label}</span>
       <div className="min-w-0 flex-1 text-xs text-muted">{children}</div>
     </div>
   )
@@ -205,7 +205,7 @@ export default function Safety() {
             }
           >
             {profiles.length === 0 && (
-              <p className="px-3 pb-2 text-[12.5px] text-muted">No named safety profiles. Agents can still use the built-in "default" chain or "none".</p>
+              <p className="px-3 pb-2 text-sm text-muted">No named safety profiles. Agents can still use the built-in "default" chain or "none".</p>
             )}
             {profiles.map((p) => {
               const filters = p.filters ?? []
@@ -214,7 +214,7 @@ export default function Safety() {
               return (
                 <div key={p.name} className="border-t border-line/70 px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-mono text-[13px] font-semibold">{p.name}</span>
+                    <span className="truncate font-mono text-base font-semibold">{p.name}</span>
                     <Chip tone="accent">{plural(filters.length, 'filter')}</Chip>
                     <LiveChip live={p.live} />
                     <div className="flex-1" />
@@ -262,7 +262,7 @@ export default function Safety() {
             }
           >
             {classifiers.length === 0 && (
-              <p className="px-3 pb-2 text-[12.5px] text-muted">
+              <p className="px-3 pb-2 text-sm text-muted">
                 No model-backed classifiers yet. Add one to enable classifier:&lt;name&gt; filters in a profile.
               </p>
             )}
@@ -273,7 +273,7 @@ export default function Safety() {
               return (
                 <div key={c.name} className="border-t border-line/70 px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-mono text-[13px] font-semibold">{c.name}</span>
+                    <span className="truncate font-mono text-base font-semibold">{c.name}</span>
                     <Chip tone="accent" title="model">
                       {c.model}
                     </Chip>

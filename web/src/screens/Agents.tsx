@@ -4,9 +4,9 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FlaskConical, Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import type { AgentRow } from '@/api/types'
-import { AsyncView, Avatar, Button, Chip, Chips, EmptyState, IconButton, Page, Panel, SearchBox, Section, StatusChip } from '@/components/ui'
+import { AsyncView, Button, Chip, Chips, EmptyState, IconButton, Page, Panel, SearchBox, Section, StatusChip } from '@/components/ui'
 import { useAsync, useScreenActions } from '@/lib/hooks'
-import { initial, pathTail, plural } from '@/lib/format'
+import { pathTail, plural } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { useUI } from '@/state/ui'
 import { deleteAgentFlow } from './agentActions'
@@ -40,7 +40,7 @@ export default function Agents() {
       subtitle="Prototype a loop, apply it live, and keep the definition in your deployment config."
       actions={
         <>
-          {total > 0 && <span className="font-mono text-[11px] text-faint">{plural(total, 'agent')}</span>}
+          {total > 0 && <span className="font-mono text-xs text-faint">{plural(total, 'agent')}</span>}
           <SearchBox value={filter} onChange={setFilter} placeholder="Filter agents…" className="w-56" />
           <IconButton icon={RotateCw} label="Refresh" onClick={() => reload()} />
           {total > 0 && (
@@ -62,10 +62,10 @@ export default function Agents() {
         ) : (
           <div className="flex flex-col gap-3">
             {agents.length === 0 ? (
-              <div className="py-8 text-center text-[12.5px] text-muted">No agents match this filter.</div>
+              <div className="py-8 text-center text-sm text-muted">No agents match this filter.</div>
             ) : (
               <Panel flush className="overflow-hidden">
-                <div className={`${GRID} border-b border-line px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-faint`}>
+                <div className={`${GRID} border-b border-line px-3 py-1.5 text-xs font-semibold text-faint`}>
                   <span>Agent</span>
                   <span>Loop</span>
                   <span>Capabilities</span>
@@ -86,18 +86,15 @@ export default function Agents() {
                       }}
                       className={`${GRID} cursor-pointer border-b border-line/70 px-3 py-2 last:border-b-0 hover:bg-hover focus-visible:bg-hover`}
                     >
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <Avatar letter={initial(row.name)} />
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] font-semibold">{row.name}</div>
-                          <div className="truncate font-mono text-[11px] text-muted">{row.model || 'default model'}</div>
-                        </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-base font-medium">{row.name}</div>
+                        <div className="truncate text-xs text-muted">{row.model || 'default model'}</div>
                       </div>
-                      <div className="truncate font-mono text-[11.5px] text-muted" title={row.loop}>
+                      <div className="truncate font-mono text-sm text-muted" title={row.loop}>
                         {row.loop ? pathTail(row.loop) : 'in-memory loop'}
                       </div>
                       <div className="min-w-0">
-                        {caps.length === 0 ? <span className="font-mono text-[10.5px] text-faint">deployment defaults</span> : <Chips items={caps} tone="accent" max={3} />}
+                        {caps.length === 0 ? <span className="font-mono text-xs text-faint">deployment defaults</span> : <Chips items={caps} tone="accent" max={3} />}
                       </div>
                       <div className="flex flex-wrap items-center gap-1">
                         {row.persisted ? <StatusChip tone="success">persisted</StatusChip> : <StatusChip tone="warning">runtime only</StatusChip>}

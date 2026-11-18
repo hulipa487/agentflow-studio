@@ -22,14 +22,14 @@ export function DocsPane({ onOpenDocs }: { onOpenDocs: (path: string) => void })
 
   let body
   if (docPages().length === 0) {
-    body = <p className="text-[12.5px] text-muted">Documentation is not bundled in this build.</p>
+    body = <p className="text-sm text-muted">Documentation is not bundled in this build.</p>
   } else if (!docPage(slug)) {
-    body = <p className="text-[12.5px] text-muted">This guide is not bundled in this build.</p>
+    body = <p className="text-sm text-muted">This guide is not bundled in this build.</p>
   } else {
     const source = readDoc(slug)
     body =
       source === undefined ? (
-        <p className="text-[12.5px] text-muted">This guide could not be read.</p>
+        <p className="text-sm text-muted">This guide could not be read.</p>
       ) : (
         <Markdown
           compact
@@ -49,7 +49,7 @@ export function DocsPane({ onOpenDocs }: { onOpenDocs: (path: string) => void })
     <aside className="flex min-h-0 flex-1 flex-col rounded-card border border-line bg-surface">
       <div className="flex shrink-0 flex-col gap-2 border-b border-line p-3">
         <div className="flex items-center gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-tight">Luau Reference</h2>
+          <h2 className="min-w-0 flex-1 truncate text-md font-semibold leading-tight">Luau Reference</h2>
           <Button size="sm" variant="ghost" icon={BookOpen} title="Open this guide in the documentation viewer" onClick={() => onOpenDocs('/docs/' + slug)}>
             Full Docs
           </Button>

@@ -26,7 +26,7 @@ const GRID = 'grid grid-cols-[minmax(180px,1.2fr)_minmax(110px,0.8fr)_minmax(160
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
-      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</span>
+      <span className="shrink-0 text-xs font-semibold text-faint">{label}</span>
       {children}
     </span>
   )
@@ -34,7 +34,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 
 function Value({ children, title }: { children: ReactNode; title?: string }) {
   return (
-    <span className="truncate font-mono text-[11.5px] text-muted" title={title}>
+    <span className="truncate font-mono text-sm text-muted" title={title}>
       {children}
     </span>
   )
@@ -323,7 +323,7 @@ export default function Channels() {
         <>
           {list && (
             <>
-              <span className="font-mono text-[11px] text-faint">{plural(channels.length, 'channel')}</span>
+              <span className="font-mono text-xs text-faint">{plural(channels.length, 'channel')}</span>
               {!editable && <Chip tone="warning">read-only</Chip>}
               <StatusChip tone={pending > 0 ? 'warning' : 'success'}>
                 {pending === 0 ? 'all changes live' : `${pending === 1 ? '1 change' : `${pending} changes`} · restart required`}
@@ -351,7 +351,7 @@ export default function Channels() {
         ) : (
           <Panel flush className="overflow-x-auto">
             <div className="min-w-[760px]">
-              <div className={`${GRID} border-b border-line px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-faint`}>
+              <div className={`${GRID} border-b border-line px-3 py-1.5 text-xs font-semibold text-faint`}>
                 <span>Channel</span>
                 <span>Agent</span>
                 <span>Route</span>
@@ -365,7 +365,7 @@ export default function Channels() {
                   <div key={ch.index} className="border-b border-line/70 px-3 py-2 last:border-b-0">
                     <div className={GRID}>
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-[13px] font-semibold" title={title}>
+                        <span className="truncate text-base font-semibold" title={title}>
                           {title}
                         </span>
                         <Chip tone="accent">{ch.type}</Chip>
@@ -374,7 +374,7 @@ export default function Channels() {
                       <div className="truncate font-mono text-xs" title={routed}>
                         {routed || '—'}
                       </div>
-                      <div className="truncate font-mono text-[11.5px] text-muted" title={ch.path}>
+                      <div className="truncate font-mono text-sm text-muted" title={ch.path}>
                         {ch.path || <span className="text-faint">driver default</span>}
                       </div>
                       <div>{ch.live ? <StatusChip tone="success">live</StatusChip> : <StatusChip tone="warning">restart required</StatusChip>}</div>

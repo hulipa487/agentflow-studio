@@ -16,17 +16,17 @@ import {
 import { createPortal } from 'react-dom'
 import clsx, { type ClassValue } from 'clsx'
 import { extendTailwindMerge } from 'tailwind-merge'
-import { Check, ChevronDown, Copy, Loader2, RotateCw, Search, X, type LucideIcon } from 'lucide-react'
+import { Check, ChevronDown, Copy, Info, Loader2, RotateCw, Search, X, type LucideIcon } from 'lucide-react'
 import { featureOff, errorMessage } from '@/api/client'
 import { copyText, humanCount } from '@/lib/format'
 import { toast, type Tone } from '@/state/ui'
 
 export type { Tone }
 
-// The theme's own radius and shadow names, so a caller's override of them
-// merges like any built-in utility.
+// The theme's own radius, shadow and type-scale names, so a caller's override
+// of them merges like any built-in utility.
 const merge = extendTailwindMerge({
-  extend: { theme: { radius: ['card', 'ctl'], shadow: ['float'] } },
+  extend: { theme: { radius: ['card', 'ctl'], shadow: ['float'], text: ['md'] } },
 })
 
 /**
@@ -83,10 +83,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const BTN_VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-accent text-on-primary font-semibold hover:brightness-110 active:brightness-95 border-transparent',
-  default: 'bg-surface2 text-text font-medium hover:bg-hover active:bg-pressed border-line',
+  primary: 'bg-accent text-on-primary font-medium hover:brightness-105 active:brightness-95 border-transparent',
+  default: 'bg-surface text-text font-medium hover:bg-hover active:bg-pressed border-line',
   ghost: 'bg-transparent text-muted font-medium hover:bg-hover hover:text-text active:bg-pressed border-transparent',
-  danger: 'bg-danger text-on-primary font-semibold hover:brightness-110 active:brightness-95 border-transparent',
+  danger: 'bg-transparent text-danger font-medium hover:bg-tone-danger active:bg-tone-danger border-danger/40',
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -100,7 +100,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={disabled || loading}
       className={cx(
         'inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-ctl border transition-[background-color,filter,opacity] duration-100',
-        size === 'sm' ? 'h-7 px-2.5 text-xs' : 'h-[30px] px-3 text-[13px]',
+        size === 'sm' ? 'h-7 px-2.5 text-sm' : 'h-[30px] px-3 text-base',
         BTN_VARIANT[variant],
         'disabled:opacity-50',
         className,
@@ -171,7 +171,7 @@ export function CopyButton({ text, what = 'value', size = 'sm', className }: { t
 // ---- form controls ----------------------------------------------------------
 
 const CONTROL =
-  'h-[30px] w-full rounded-ctl border border-line bg-bg px-2.5 text-[13px] text-text placeholder:text-faint transition-colors duration-100 ' +
+  'h-[30px] w-full rounded-ctl border border-line bg-bg px-2.5 text-base text-text placeholder:text-faint transition-colors duration-100 ' +
   'hover:border-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-55 disabled:hover:border-line'
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -301,7 +301,7 @@ export function Checkbox({
       </span>
       {(label || hint) && (
         <span className="min-w-0">
-          {label && <span className={cx('block truncate text-[13px] text-text', mono && 'font-mono text-xs')}>{label}</span>}
+          {label && <span className={cx('block truncate text-base text-text', mono && 'font-mono text-xs')}>{label}</span>}
           {hint && <span className="block text-xs text-muted">{hint}</span>}
         </span>
       )}
@@ -359,9 +359,9 @@ export function Field({
 }) {
   return (
     <div className={cx('flex min-w-0 flex-col gap-1', className)}>
-      <span className="text-[11px] font-medium text-muted">{label}</span>
+      <span className="text-xs font-medium text-muted">{label}</span>
       {children}
-      {error ? <span className="text-[11px] text-danger">{error}</span> : hint ? <span className="text-[11px] leading-snug text-faint">{hint}</span> : null}
+      {error ? <span className="text-xs text-danger">{error}</span> : hint ? <span className="text-xs leading-snug text-faint">{hint}</span> : null}
     </div>
   )
 }
@@ -406,15 +406,24 @@ export function SearchBox({
 
 // ---- badges -----------------------------------------------------------------
 
-/** A borderless tinted badge: the tone colors the text and the fill. */
+// Chip text colour: a tag is information, not decoration, so only the tones
+// that ask for attention colour it. Accent and success read as plain text.
+const CHIP_TEXT: Record<Tone, string> = {
+  neutral: 'text-muted',
+  accent: 'text-text',
+  success: 'text-text',
+  warning: 'text-warning',
+  danger: 'text-danger',
+}
+
+/** A small tag for an identifier: a type, a capability, a model. */
 export function Chip({ tone = 'neutral', children, className, title }: { tone?: Tone; children: ReactNode; className?: string; title?: string }) {
   return (
     <span
       title={title}
       className={cx(
-        'inline-flex h-5 max-w-full shrink-0 items-center truncate rounded-md px-2 font-mono text-[10.5px] leading-none',
-        TONE_BG[tone],
-        TONE_TEXT[tone],
+        'inline-flex h-[18px] max-w-full shrink-0 items-center truncate rounded bg-surface2 px-1.5 font-mono text-xs leading-none',
+        CHIP_TEXT[tone],
         className,
       )}
     >
@@ -423,11 +432,11 @@ export function Chip({ tone = 'neutral', children, className, title }: { tone?: 
   )
 }
 
-/** A chip led by a state dot: live, restart required, busy. */
+/** A state: a coloured dot and a word. No pill — the dot carries the colour. */
 export function StatusChip({ tone = 'neutral', children, pulse, className }: { tone?: Tone; children: ReactNode; pulse?: boolean; className?: string }) {
   return (
-    <span className={cx('inline-flex h-5 shrink-0 items-center gap-1.5 rounded-full px-2 font-mono text-[10.5px] leading-none', TONE_BG[tone], TONE_TEXT[tone], className)}>
-      <span className={cx('size-1.5 rounded-full', TONE_DOT[tone], pulse && 'animate-pulse')} />
+    <span className={cx('inline-flex shrink-0 items-center gap-1.5 text-sm leading-none text-muted', className)}>
+      <span className={cx('size-1.5 shrink-0 rounded-full', TONE_DOT[tone], pulse && 'animate-pulse')} />
       {children}
     </span>
   )
@@ -455,7 +464,7 @@ export function Chips({ items, tone = 'neutral', max }: { items: string[]; tone?
 /** A keyboard shortcut drawn as a keycap. */
 export function Kbd({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <kbd className={cx('inline-flex h-[18px] shrink-0 items-center rounded border border-line bg-surface2 px-1.5 font-mono text-[10px] leading-none text-muted', className)}>
+    <kbd className={cx('inline-flex h-[18px] shrink-0 items-center rounded border border-line bg-surface2 px-1.5 font-mono text-xs leading-none text-muted', className)}>
       {children}
     </kbd>
   )
@@ -464,7 +473,7 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
 export function Avatar({ letter, size = 30, className }: { letter: string; size?: number; className?: string }) {
   return (
     <span
-      className={cx('inline-flex shrink-0 items-center justify-center rounded-full border border-accent/60 bg-accent-dim font-semibold text-accent', className)}
+      className={cx('inline-flex shrink-0 items-center justify-center rounded-full bg-surface2 font-semibold text-muted', className)}
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
       {letter}
@@ -498,11 +507,10 @@ export function Section({
 }) {
   return (
     <section className={cx('flex min-w-0 flex-col rounded-card border border-line bg-surface', className)}>
-      <header className="flex items-start gap-3 px-3 pb-2 pt-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-[14px] font-semibold leading-tight text-text">{title}</h3>
-          {subtitle && <p className="mt-0.5 text-xs leading-snug text-muted">{subtitle}</p>}
-        </div>
+      <header className="flex min-h-10 items-center gap-2 px-3 py-2">
+        <h3 className="min-w-0 truncate text-base font-semibold text-text">{title}</h3>
+        {subtitle && <Hint text={subtitle} />}
+        <div className="flex-1" />
         {action && <div className="flex shrink-0 items-center gap-1.5">{action}</div>}
       </header>
       {children !== undefined && <div className={cx('min-w-0', flush ? 'pb-1' : 'px-3 pb-3')}>{children}</div>}
@@ -515,7 +523,7 @@ export function Banner({ tone = 'danger', children, onClose, className }: { tone
   return (
     <div
       role={tone === 'danger' ? 'alert' : 'status'}
-      className={cx('flex items-start gap-2 rounded-ctl border py-2 pl-3 pr-2 text-[12.5px] leading-snug', TONE_BG[tone], TONE_BORDER[tone], TONE_TEXT[tone], className)}
+      className={cx('flex items-start gap-2 rounded-ctl border py-2 pl-3 pr-2 text-sm leading-snug', TONE_BG[tone], TONE_BORDER[tone], TONE_TEXT[tone], className)}
     >
       <span className={cx('mt-0.5 w-[3px] shrink-0 self-stretch rounded-full', TONE_DOT[tone])} />
       <div className="min-w-0 flex-1 whitespace-pre-wrap break-words">{children}</div>
@@ -574,13 +582,13 @@ export function EmptyState({
   className?: string
 }) {
   return (
-    <div className={cx('flex flex-1 items-center justify-center py-10', className)}>
-      <div className="flag-glow flex max-w-md flex-col items-center gap-2 rounded-card border border-line bg-surface px-8 py-7 text-center">
-        {icon ?? <Logo size={48} />}
-        <div className="mt-1 text-[14px] font-semibold">{title}</div>
-        {guidance && <div className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-muted">{guidance}</div>}
+    <div className={cx('flex flex-1 items-center justify-center py-12', className)}>
+      <div className="flex max-w-sm flex-col items-center gap-1.5 text-center">
+        {icon}
+        <div className="text-md font-semibold">{title}</div>
+        {guidance && <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted">{guidance}</div>}
         {actionLabel && onAction && (
-          <Button variant="primary" className="mt-2 min-w-44" onClick={onAction}>
+          <Button variant="primary" className="mt-3" onClick={onAction}>
             {actionLabel}
           </Button>
         )}
@@ -593,12 +601,31 @@ export function EmptyState({
 export function KV({ label, value, copy, className }: { label: string; value: ReactNode; copy?: string; className?: string }) {
   return (
     <div className={cx('min-w-0', className)}>
-      <div className="text-[11px] text-muted">{label}</div>
+      <div className="text-xs text-muted">{label}</div>
       <div className="flex min-w-0 items-center gap-1">
         <span className="truncate font-mono text-xs text-text">{value}</span>
         {copy && <CopyButton text={copy} what={label} />}
       </div>
     </div>
+  )
+}
+
+/**
+ * The explanation behind a heading, on demand: an info mark whose tooltip holds
+ * it. A sentence under every title is useful once and noise ever after.
+ */
+export function Hint({ text, className }: { text: ReactNode; className?: string }) {
+  const label = typeof text === 'string' ? text : undefined
+  return (
+    <span className={cx('group relative inline-flex shrink-0 text-faint hover:text-muted', className)} tabIndex={0} aria-label={label}>
+      <Info className="size-3.5" strokeWidth={2} />
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute -left-2 top-[calc(100%+6px)] z-50 hidden w-max max-w-80 rounded-ctl border border-line bg-float px-2.5 py-1.5 text-sm font-normal leading-snug text-text shadow-float group-hover:block group-focus:block"
+      >
+        {text}
+      </span>
+    </span>
   )
 }
 
@@ -630,14 +657,14 @@ export function Page({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="shrink-0 border-b border-line px-5 pb-3 pt-3">
-        <div className="flex min-h-[30px] items-center gap-3">
-          <h1 className="min-w-0 truncate text-[19px] font-semibold leading-tight tracking-[-0.01em]">{title}</h1>
+      <header className="shrink-0 border-b border-line px-5 py-2.5">
+        <div className="flex min-h-[30px] items-center gap-2">
+          <h1 className="min-w-0 truncate text-lg font-semibold">{title}</h1>
+          {subtitle && <Hint text={subtitle} />}
           <div className="flex-1" />
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </div>
-        {subtitle && <p className="mt-0.5 text-[12.5px] leading-snug text-muted">{subtitle}</p>}
-        {meta && <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-faint">{meta}</div>}
+        {meta && <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-faint">{meta}</div>}
         {banner && <div className="mt-2 flex flex-col gap-2 empty:hidden">{banner}</div>}
       </header>
       <div className={cx('min-h-0 flex-1', scroll ? 'overflow-y-auto' : 'flex flex-col overflow-hidden', 'px-5 py-3', className)}>
@@ -720,11 +747,11 @@ export function Table<R>({
   className?: string
 }) {
   if (rows.length === 0 && empty !== undefined) {
-    return <div className="px-3 py-6 text-center text-[12.5px] text-muted">{empty}</div>
+    return <div className="px-3 py-6 text-center text-sm text-muted">{empty}</div>
   }
   return (
     <div className={cx('min-w-0 overflow-x-auto', className)}>
-      <table className="w-full table-fixed border-collapse text-[12.5px]">
+      <table className="w-full table-fixed border-collapse text-sm">
         <colgroup>
           {columns.map((c) => (
             <col key={c.key} style={c.width !== undefined ? { width: c.width } : undefined} />
@@ -736,7 +763,7 @@ export function Table<R>({
               <th
                 key={c.key}
                 className={cx(
-                  'border-b border-line px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-faint',
+                  'border-b border-line px-3 py-1.5 text-xs font-medium text-faint',
                   c.align === 'right' ? 'text-right' : 'text-left',
                 )}
               >
@@ -753,7 +780,7 @@ export function Table<R>({
               className={cx(
                 'border-b border-line/70 last:border-b-0',
                 onRowClick && 'cursor-pointer hover:bg-hover',
-                selected?.(row) && 'bg-accent-dim/60',
+                selected?.(row) && 'bg-hover',
               )}
             >
               {columns.map((c) => (
@@ -783,16 +810,9 @@ export function Sparkline({ values, height = 28, className }: { values: number[]
   const w = 100
   const h = height - 2
   const pts = values.map((v, i) => `${((i / (values.length - 1)) * w).toFixed(2)},${Math.max(1, h - ((v - lo) / span) * h + 1).toFixed(2)}`)
-  const id = useId()
   return (
     <svg viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" className={cx('w-full', className)} style={{ height }} aria-hidden>
-      <defs>
-        <linearGradient id={id} x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="var(--af-accent)" />
-          <stop offset="1" stopColor="var(--af-accent2)" />
-        </linearGradient>
-      </defs>
-      <polyline points={pts.join(' ')} fill="none" stroke={`url(#${id})`} strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={pts.join(' ')} fill="none" stroke="var(--af-accent)" strokeOpacity="0.8" strokeWidth="1.25" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
 }
@@ -815,9 +835,9 @@ export function StatTile({
 }) {
   return (
     <div className={cx('flex min-w-0 flex-col rounded-card border border-line bg-surface px-3 py-2.5', className)}>
-      <div className="truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</div>
-      <div className={cx('mt-1 truncate text-[20px] font-semibold leading-tight tabular-nums', tone === 'neutral' ? 'text-text' : TONE_TEXT[tone])}>{value}</div>
-      {sub && <div className="mt-0.5 truncate text-[11px] text-muted">{sub}</div>}
+      <div className="truncate text-xs font-medium text-muted">{label}</div>
+      <div className={cx('mt-0.5 truncate text-xl font-semibold tabular-nums', tone === 'neutral' || tone === 'accent' ? 'text-text' : TONE_TEXT[tone])}>{value}</div>
+      {sub && <div className="mt-0.5 truncate text-xs text-muted">{sub}</div>}
       {spark && <Sparkline values={spark} className="mt-1.5" />}
     </div>
   )
@@ -840,7 +860,7 @@ export function Meter({ used, limit, className }: { used: number; limit: number;
       <div className="h-1.5 overflow-hidden rounded-full bg-surface2">
         <div className={cx('h-full rounded-full transition-[width]', tone)} style={{ width: `${Math.max(frac * 100, used > 0 ? 2 : 0)}%` }} />
       </div>
-      <div className="mt-1 font-mono text-[11px] text-muted">
+      <div className="mt-1 font-mono text-xs text-muted">
         {humanCount(used)} / {humanCount(limit)}
       </div>
     </div>
@@ -854,7 +874,7 @@ export interface TabDef<V extends string> {
   badge?: ReactNode
 }
 
-/** An underlined tab strip; the active tab carries the flag gradient. */
+/** An underlined tab strip. */
 export function Tabs<V extends string>({
   tabs,
   value,
@@ -880,14 +900,14 @@ export function Tabs<V extends string>({
             aria-selected={active}
             onClick={() => onChange(t.id)}
             className={cx(
-              'relative -mb-px flex h-8 items-center gap-1.5 px-2.5 text-[13px] transition-colors',
-              active ? 'font-semibold text-text' : 'text-muted hover:text-text',
+              'relative -mb-px flex h-8 items-center gap-1.5 px-2.5 text-base transition-colors',
+              active ? 'font-medium text-text' : 'text-muted hover:text-text',
             )}
           >
             {t.icon && <t.icon className="size-3.5" strokeWidth={2} />}
             {t.label}
             {t.badge}
-            {active && <span className="absolute inset-x-1.5 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-accent to-accent2" />}
+            {active && <span className="absolute inset-x-1.5 bottom-0 h-0.5 rounded-full bg-accent" />}
           </button>
         )
       })}
@@ -975,8 +995,8 @@ export function Modal({
       >
         <header className="flex shrink-0 items-start gap-3 px-5 pb-3 pt-4">
           <div className="min-w-0 flex-1">
-            <h2 className="text-[16px] font-semibold leading-tight">{title}</h2>
-            {subtitle && <p className="mt-1 text-[12.5px] leading-snug text-muted">{subtitle}</p>}
+            <h2 className="text-lg font-semibold leading-tight">{title}</h2>
+            {subtitle && <p className="mt-1 text-sm leading-snug text-muted">{subtitle}</p>}
           </div>
           <IconButton icon={X} label="Close" onClick={onClose} disabled={!dismissable} />
         </header>

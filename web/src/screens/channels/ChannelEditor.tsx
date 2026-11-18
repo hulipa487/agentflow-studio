@@ -327,7 +327,7 @@ export function ChannelEditor({
         )}
 
         <div className="mt-1 border-t border-line pt-3">
-          <h3 className="mb-2 text-[13px] font-semibold">Inbound media</h3>
+          <h3 className="mb-2 text-base font-semibold">Inbound media</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Allowed MIME patterns" hint="Comma-separated, e.g. image/*, application/pdf. Empty disables attachments.">
               <Input mono placeholder="image/*, application/pdf" {...text('mediaAllow')} />

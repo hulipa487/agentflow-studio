@@ -32,7 +32,7 @@ function Restoring() {
   const step = useSession((s) => s.restoreStep)
   const active = useSession((s) => s.restoring)
   return (
-    <div className="flag-glow flex h-full flex-col items-center justify-center gap-4">
+    <div className="flex h-full flex-col items-center justify-center gap-4">
       <Logo size={56} />
       <Loading text={step || 'Reconnecting to the runtime…'} className="py-0" />
       {/* Cancel opens the welcome screen, prefilled with this connection. */}

@@ -141,6 +141,7 @@ func (a *App) setMain(obj fyne.CanvasObject) {
 		// a removed entry then swallows canvas shortcuts (Ctrl+1/2/3).
 		c.Unfocus()
 	}
+	clearTips()
 	a.content.Objects = []fyne.CanvasObject{obj}
 	a.content.Refresh()
 }
@@ -325,17 +326,11 @@ func (a *App) showMain() {
 	navScroll := container.NewVScroll(items)
 	a.navScroll = navScroll
 
-	newAgent := primaryButton("New agent", theme.ContentAddIcon(), a.showNewAgent)
-	newAgentRow := container.NewBorder(nil, nil, nil, vCenter(kbd("Ctrl+N")),
-		container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), newAgent))
-
+	// The rail lists screens and nothing else: creating an agent lives on the
+	// Agents screen, in the command palette and on Ctrl+N.
 	railSpacer := canvas.NewRectangle(color.Transparent)
 	railSpacer.SetMinSize(fyne.NewSize(railWidth, 0))
-	rail := container.NewBorder(
-		container.NewVBox(newAgentRow, vSpacer(spaceXS)),
-		nil, nil, nil,
-		navScroll,
-	)
+	rail := navScroll
 	railBG := canvas.NewRectangle(colorFloat)
 	railEdge := canvas.NewRectangle(colorBorder)
 	railEdge.SetMinSize(fyne.NewSize(1, 0))
@@ -346,11 +341,10 @@ func (a *App) showMain() {
 	a.railPane = railPane
 
 	// ---- command bar ----------------------------------------------------------
-	a.breadcrumb = widget.NewLabel("Home / Overview")
-	a.breadcrumb.TextStyle = fyne.TextStyle{Monospace: true}
+	a.breadcrumb = widget.NewLabel("Overview")
 	a.breadcrumb.SizeName = theme.SizeNameText
 
-	searchHint := widget.NewLabel("Search screens, agents, actions…")
+	searchHint := widget.NewLabel("Go to…")
 	searchHint.Importance = widget.LowImportance
 	searchHint.Truncation = fyne.TextTruncateEllipsis
 	searchRow := container.NewBorder(nil, nil,
@@ -358,13 +352,12 @@ func (a *App) showMain() {
 			container.NewCenter(container.NewGridWrap(fyne.NewSize(14, 14), widget.NewIcon(theme.SearchIcon())))),
 		container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS-2), vCenter(kbd("Ctrl+K"))),
 		vLeft(container.New(compactLabelLayout{}, searchHint)))
-	search := newTapSurface(searchRow, 8, true, func() color.Color { return colorBG }, a.showCommandPalette)
+	search := newTapSurface(searchRow, 5, true, func() color.Color { return colorBG }, a.showCommandPalette)
 	search.height = controlHeight
 
 	a.railDot = dot(toneSuccess)
 	a.connLabel = widget.NewLabel(a.connectionName())
 	a.connLabel.SizeName = theme.SizeNameCaptionText
-	a.connLabel.TextStyle = fyne.TextStyle{Monospace: true}
 	a.connLabel.Truncation = fyne.TextTruncateEllipsis
 	connRow := container.NewBorder(nil, nil,
 		container.New(layout.NewCustomPaddedLayout(0, 0, spaceS+2, 2), vCenter(dotBox(a.railDot))),
@@ -372,14 +365,14 @@ func (a *App) showMain() {
 			container.NewCenter(container.NewGridWrap(fyne.NewSize(13, 13), widget.NewIcon(theme.MenuDropDownIcon())))),
 		vLeft(container.New(compactLabelLayout{}, a.connLabel)))
 	var connPill *tapSurface
-	connPill = newTapSurface(connRow, 8, true, func() color.Color { return colorSurface }, func() {
+	connPill = newTapSurface(connRow, 5, false, func() color.Color { return colorFloat }, func() {
 		a.showProfileSwitcher(connPill)
 	})
 	connPill.height = controlHeight
 
 	a.themeBtn = iconButton(a.themeToggleIcon(), "Toggle light/dark", a.toggleTheme)
 	cluster := hstack(spaceS,
-		vCenter(widthBox(300, search)),
+		vCenter(widthBox(256, search)),
 		vCenter(widthBox(190, connPill)),
 		hstack(0,
 			vCenter(iconButton(theme.HelpIcon(), "Documentation (F1)", a.openDocs)),
@@ -388,7 +381,7 @@ func (a *App) showMain() {
 		),
 	)
 	// 300 + 190 + three icon buttons and gaps: the part of the bar Fyne owns.
-	clusterWidth := float32(300 + 190 + 3*32 + 3*spaceS + spaceS)
+	clusterWidth := float32(256 + 190 + 3*32 + 3*spaceS + spaceS)
 
 	var topActions, topCenter fyne.CanvasObject = container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), cluster), nil
 	if drag := a.dragHandle(); drag != nil {
@@ -410,12 +403,16 @@ func (a *App) showMain() {
 			container.NewBorder(nil, nil,
 				container.NewCenter(breadcrumbRow), topActions, topCenter)),
 	)
-	topBar := container.NewVBox(topRow, newTransStripe(0, 2))
+	topEdge := canvas.NewRectangle(colorBorder)
+	topEdge.SetMinSize(fyne.NewSize(0, 1))
+	topBar := container.NewVBox(topRow, topEdge)
 
 	a.content = container.NewStack()
 	a.shell = container.NewStack(
 		canvas.NewRectangle(colorBG),
 		container.NewBorder(topBar, a.newStatusBar(), railPane, nil, a.content),
+		// Last, so tooltips draw above everything; nothing in it takes input.
+		newTipLayer(),
 	)
 	a.win.SetContent(a.shell)
 	if !a.shortcutsInstalled {

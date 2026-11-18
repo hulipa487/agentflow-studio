@@ -26,13 +26,13 @@ export function LiveChip({ live }: { live: boolean }) {
 
 /** A filter chain, left to right; classifier filters stand out from builtins. */
 export function ChainView({ filters, className }: { filters: string[]; className?: string }) {
-  if (filters.length === 0) return <span className={cx('font-mono text-[11.5px] text-faint', className)}>{EMPTY_CHAIN}</span>
+  if (filters.length === 0) return <span className={cx('font-mono text-sm text-faint', className)}>{EMPTY_CHAIN}</span>
   return (
     <span className={cx('flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1', className)} title={chainText(filters)}>
       {filters.map((f, i) => (
         <Fragment key={`${i}:${f}`}>
           {i > 0 && (
-            <span className="font-mono text-[11px] text-faint" aria-hidden>
+            <span className="font-mono text-xs text-faint" aria-hidden>
               →
             </span>
           )}

@@ -2,14 +2,13 @@
 // seconds while open.
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, FlaskConical, Pencil, Plus, RotateCw, ScrollText } from 'lucide-react'
+import { ArrowRight, FlaskConical, Pencil, RotateCw, ScrollText } from 'lucide-react'
 import type { Metrics, State, StateAgent, StateChannel } from '@/api/types'
 import { errorMessage } from '@/api/client'
 import { AsyncView, Banner, Button, Chip, IconButton, Page, Section, StatTile, StatusChip, Table } from '@/components/ui'
 import { useAsync, useScreenActions } from '@/lib/hooks'
 import { humanCount, humanDuration, orDash, shortID } from '@/lib/format'
 import { useClient } from '@/state/session'
-import { useUI } from '@/state/ui'
 
 const COUNTERS = [
   { name: 'agentflow_llm_calls', label: 'LLM calls' },
@@ -88,15 +87,6 @@ export default function Overview() {
       banner={data && error ? <Banner tone="warning">refresh failed: {errorMessage(error)}</Banner> : null}
       actions={
         <>
-          <Button icon={ScrollText} onClick={() => navigate('/logs')}>
-            Logs
-          </Button>
-          <Button icon={FlaskConical} onClick={() => navigate('/playground')}>
-            Playground
-          </Button>
-          <Button variant="primary" icon={Plus} onClick={() => useUI.getState().setNewAgent(true)}>
-            New agent
-          </Button>
           <IconButton icon={RotateCw} label="Refresh" onClick={() => reload()} />
         </>
       }
@@ -158,11 +148,11 @@ export default function Overview() {
                     </Button>
                   }
                 >
-                  {agents.length === 0 && <div className="py-3 text-center text-[12.5px] text-muted">No agents in the config. Create one from Agents.</div>}
+                  {agents.length === 0 && <div className="py-3 text-center text-sm text-muted">No agents in the config. Create one from Agents.</div>}
                   <div className="flex flex-col">
                     {agents.map((ag) => (
                       <div key={ag.name} className="flex h-8 items-center gap-2">
-                        <span className="truncate text-[13px] font-semibold">{ag.name}</span>
+                        <span className="truncate text-base font-semibold">{ag.name}</span>
                         {ag.model && <Chip tone="accent">{ag.model}</Chip>}
                         {ag.persistent && <Chip tone="success">daemon</Chip>}
                         <span className="flex-1" />
@@ -183,14 +173,14 @@ export default function Overview() {
                   }
                 >
                   {channels.length === 0 && (
-                    <div className="py-3 text-center text-[12.5px] text-muted">No channels. Add one from Channels; it binds at the next start.</div>
+                    <div className="py-3 text-center text-sm text-muted">No channels. Add one from Channels; it binds at the next start.</div>
                   )}
                   <div className="flex flex-col">
                     {channels.map((ch) => (
                       <div key={ch.index} className="flex h-8 min-w-0 items-center gap-2">
                         <Chip>{ch.type}</Chip>
-                        <span className="shrink-0 text-[13px] font-semibold">{ch.name}</span>
-                        <span className="min-w-0 truncate font-mono text-[11px] text-muted">
+                        <span className="shrink-0 text-base font-semibold">{ch.name}</span>
+                        <span className="min-w-0 truncate font-mono text-xs text-muted">
                           → {orDash(ch.agent)}
                           {ch.path ? ' · ' + ch.path : ''}
                           {ch.media_enabled ? ' · media' : ''}

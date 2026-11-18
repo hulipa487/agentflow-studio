@@ -2,6 +2,8 @@ package ui
 
 import (
 	"image/color"
+	"unicode"
+	"unicode/utf8"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -428,9 +430,9 @@ func (studioTheme) Size(n fyne.ThemeSizeName) float32 {
 	case theme.SizeNameText:
 		return 13
 	case theme.SizeNameHeadingText:
-		return 19
+		return 16
 	case theme.SizeNameSubHeadingText:
-		return 15
+		return 13
 	case theme.SizeNameCaptionText:
 		return 11
 	case theme.SizeNameInlineIcon:
@@ -438,19 +440,19 @@ func (studioTheme) Size(n fyne.ThemeSizeName) float32 {
 	case theme.SizeNameInputBorder:
 		return 1
 	case theme.SizeNameInputRadius:
-		return 8
+		return 5
 	case theme.SizeNameSelectionRadius:
-		return 7
+		return 5
 	case theme.SizeNameButtonRadius:
-		return 8
+		return 5
 	case theme.SizeNameCardRadius:
-		return 10
+		return 6
 	case theme.SizeNamePopupRadius:
-		return 10
+		return 6
 	case theme.SizeNameMenuRadius:
-		return 10
+		return 6
 	case theme.SizeNameDialogRadius:
-		return 12
+		return 8
 	case theme.SizeNameSeparatorThickness:
 		return 1
 	case theme.SizeNameScrollBar:
@@ -500,6 +502,10 @@ func applyStudioTheme(a fyne.App, family themePalette, v appTheme) {
 }
 
 // Minimalist Lucide-inspired 1.75px vector icon suite.
+//
+// Circles are drawn with Bézier curves, never with SVG arcs: Fyne's rasterizer
+// fills a large-arc circle solid, which turned the info, help and user glyphs
+// into blobs. Small arcs (rounded caps and corners) render correctly.
 var (
 	checkEmptyIcon = theme.NewThemedResource(fyne.NewStaticResource("studio-check-empty.svg", []byte(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -561,7 +567,7 @@ var (
 </svg>`)))
 	iconHelp = theme.NewThemedResource(fyne.NewStaticResource("studio-help.svg", []byte(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-<path fill="#000" fill-rule="evenodd" d="M12 3.25a8.75 8.75 0 1 0 0 17.5 8.75 8.75 0 0 0 0-17.5zM4.95 12a7.05 7.05 0 1 1 14.1 0 7.05 7.05 0 0 1-14.1 0zm7.05-3.9a1.45 1.45 0 0 0-1.4.95.85.85 0 1 1-1.6-.58 3.15 3.15 0 1 1 4.46 3.85c-.46.23-.61.48-.61.88a.85.85 0 1 1-1.7 0c0-1.15.65-1.92 1.56-2.38a1.45 1.45 0 0 0-.71-2.72zm0 7.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+<path fill="#000" d="M12 3.25C16.83 3.25 20.75 7.17 20.75 12C20.75 16.83 16.83 20.75 12 20.75C7.17 20.75 3.25 16.83 3.25 12C3.25 7.17 7.17 3.25 12 3.25Z M12 4.95C8.11 4.95 4.95 8.11 4.95 12C4.95 15.89 8.11 19.05 12 19.05C15.89 19.05 19.05 15.89 19.05 12C19.05 8.11 15.89 4.95 12 4.95Z M9.35 9.55C9.55 8.25 10.65 7.3 12 7.3C13.5 7.3 14.65 8.4 14.65 9.8C14.65 11 13.9 11.6 13.1 12.05C12.65 12.3 12.85 12.6 12.85 13.25H11.15C11.15 12.1 11.6 11.2 12.4 10.75C12.9 10.45 12.95 10.2 12.95 9.85C12.95 9.35 12.55 9 12 9C11.5 9 11.15 9.3 11.05 9.75Z M12 15.6C12.55 15.6 13 16.05 13 16.6C13 17.15 12.55 17.6 12 17.6C11.45 17.6 11 17.15 11 16.6C11 16.05 11.45 15.6 12 15.6Z"/>
 </svg>`)))
 	iconLogout = theme.NewThemedResource(fyne.NewStaticResource("studio-logout.svg", []byte(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -593,12 +599,12 @@ var (
 </svg>`)))
 	iconInfo = theme.NewThemedResource(fyne.NewStaticResource("studio-info.svg", []byte(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-<path fill="#000" fill-rule="evenodd" d="M12 3.25a8.75 8.75 0 1 0 0 17.5 8.75 8.75 0 0 0 0-17.5zM4.95 12a7.05 7.05 0 1 1 14.1 0 7.05 7.05 0 0 1-14.1 0zm7.05-4.3a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm0 3.45a.85.85 0 0 1 .85.85v4a.85.85 0 1 1-1.7 0v-4a.85.85 0 0 1 .85-.85z"/>
+<path fill="#000" d="M12 3.25C16.83 3.25 20.75 7.17 20.75 12C20.75 16.83 16.83 20.75 12 20.75C7.17 20.75 3.25 16.83 3.25 12C3.25 7.17 7.17 3.25 12 3.25Z M12 4.95C8.11 4.95 4.95 8.11 4.95 12C4.95 15.89 8.11 19.05 12 19.05C15.89 19.05 19.05 15.89 19.05 12C19.05 8.11 15.89 4.95 12 4.95Z M12 7.2C12.55 7.2 13 7.65 13 8.2C13 8.75 12.55 9.2 12 9.2C11.45 9.2 11 8.75 11 8.2C11 7.65 11.45 7.2 12 7.2Z M11.15 11.1H12.85V16.6H11.15Z"/>
 </svg>`)))
 	// iconUser is a person: profiles and tenants, distinct from iconAgent.
 	iconUser = theme.NewThemedResource(fyne.NewStaticResource("studio-user.svg", []byte(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-<path fill="#000" fill-rule="evenodd" d="M12 3.25a4.25 4.25 0 1 1 0 8.5 4.25 4.25 0 0 1 0-8.5zm0 1.7a2.55 2.55 0 1 0 0 5.1 2.55 2.55 0 0 0 0-5.1zM4.25 19.5c0-3.3 3.1-5.75 7.75-5.75s7.75 2.45 7.75 5.75a.85.85 0 1 1-1.7 0c0-2.1-2.15-4.05-6.05-4.05S5.95 17.4 5.95 19.5a.85.85 0 1 1-1.7 0z"/>
+<path fill="#000" fill-rule="evenodd" d="M12 3.25C14.35 3.25 16.25 5.15 16.25 7.5C16.25 9.85 14.35 11.75 12 11.75C9.65 11.75 7.75 9.85 7.75 7.5C7.75 5.15 9.65 3.25 12 3.25Z M12 4.95C10.59 4.95 9.45 6.09 9.45 7.5C9.45 8.91 10.59 10.05 12 10.05C13.41 10.05 14.55 8.91 14.55 7.5C14.55 6.09 13.41 4.95 12 4.95Z M4.25 19.5c0-3.3 3.1-5.75 7.75-5.75s7.75 2.45 7.75 5.75a.85.85 0 1 1-1.7 0c0-2.1-2.15-4.05-6.05-4.05S5.95 17.4 5.95 19.5a.85.85 0 1 1-1.7 0z"/>
 </svg>`)))
 	iconAgent = theme.NewThemedResource(fyne.NewStaticResource("studio-agent.svg", []byte(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -849,7 +855,7 @@ const (
 	pageGutter = 20
 	pageTop    = 12
 	pageBottom = 12
-	cardRadius = 10
+	cardRadius = 6
 )
 
 // pageInset is the standard page margin.
@@ -1020,20 +1026,15 @@ func controlFrame(obj fyne.CanvasObject) fyne.CanvasObject {
 	return container.New(controlFrameLayout{}, obj)
 }
 
+// pageHeader is a screen's title row. The explanation that used to sit under
+// every title is behind a hint glyph: it helps the first time and is noise
+// every time after.
 func pageHeader(title, subtitle string, actions fyne.CanvasObject) fyne.CanvasObject {
-	titleLabel := insetLeading(titleText(title, theme.SizeNameHeadingText))
-	var top fyne.CanvasObject
+	titleLabel := titleWithHint(insetLeading(titleText(title, theme.SizeNameHeadingText)), subtitle)
 	if actions == nil {
-		top = container.NewBorder(nil, nil, vCenter(titleLabel), nil, nil)
-	} else {
-		top = container.NewBorder(nil, nil, vCenter(titleLabel), vCenter(actions), nil)
+		return container.NewBorder(nil, nil, vCenter(titleLabel), nil, nil)
 	}
-	if subtitle == "" {
-		return top
-	}
-	desc := muted(subtitle)
-	desc.Wrapping = fyne.TextWrapWord
-	return vstack(2, top, compactLabel(desc, false))
+	return container.NewBorder(nil, nil, vCenter(titleLabel), vCenter(actions), nil)
 }
 
 func panel(content fyne.CanvasObject) fyne.CanvasObject {
@@ -1057,7 +1058,7 @@ func panelFlush(content fyne.CanvasObject) fyne.CanvasObject {
 
 func subpanel(content fyne.CanvasObject) fyne.CanvasObject {
 	bg := canvas.NewRectangle(colorSurface2)
-	bg.CornerRadius = 8
+	bg.CornerRadius = cardRadius
 	bg.StrokeColor = colorBorder
 	bg.StrokeWidth = 1
 	pad := layout.NewCustomPaddedLayout(spaceS, spaceS, spaceM, spaceM)
@@ -1066,7 +1067,7 @@ func subpanel(content fyne.CanvasObject) fyne.CanvasObject {
 
 func inputFrame(content fyne.CanvasObject) fyne.CanvasObject {
 	bg := canvas.NewRectangle(colorBG)
-	bg.CornerRadius = 8
+	bg.CornerRadius = 5
 	bg.StrokeColor = colorBorder
 	bg.StrokeWidth = 1
 	pad := layout.NewCustomPaddedLayout(4, 4, 8, 8)
@@ -1079,12 +1080,7 @@ func section(title, subtitle string, content fyne.CanvasObject) fyne.CanvasObjec
 
 func sectionAction(title, subtitle string, action fyne.CanvasObject, content fyne.CanvasObject) fyne.CanvasObject {
 	titleLabel := container.New(layout.NewCustomPaddedLayout(0, 0, 2, 0), titleText(title, theme.SizeNameSubHeadingText))
-	head := vstack(2, titleLabel)
-	if subtitle != "" {
-		s := muted(subtitle)
-		s.Wrapping = fyne.TextWrapWord
-		head.Add(compactLabel(s, true))
-	}
+	head := titleWithHint(titleLabel, subtitle)
 	var top fyne.CanvasObject = head
 	if action != nil {
 		top = container.NewBorder(nil, nil, nil, vCenter(action), head)
@@ -1159,33 +1155,43 @@ func mono(text string, sizeName fyne.ThemeSizeName) *widget.Label {
 	return l
 }
 
-// chip is a borderless tinted badge. The tone colors the text and the fill, so
-// a row of chips reads by color before it reads by word.
+// chipText is a tag's text colour. A tag is information, not decoration, so
+// only the tones that ask for attention colour it; accent and success read as
+// plain text.
+func chipText(t tone) color.Color {
+	switch t {
+	case toneWarning, toneDanger:
+		return toneColor(t)
+	case toneAccent, toneSuccess:
+		return colorText
+	}
+	return colorMuted
+}
+
+// chip is a small tag for an identifier: a type, a capability, a model.
 func chip(text string, t tone) fyne.CanvasObject {
-	bg := canvas.NewRectangle(toneBackground(t))
-	bg.CornerRadius = 6
-	txt := canvas.NewText(text, toneColor(t))
-	txt.TextSize = 10.5
+	bg := canvas.NewRectangle(colorSurface2)
+	bg.CornerRadius = 4
+	txt := canvas.NewText(text, chipText(t))
+	txt.TextSize = 11
 	txt.TextStyle = fyne.TextStyle{Monospace: true}
 	txt.Alignment = fyne.TextAlignCenter
 	stack := container.NewStack(bg, container.NewCenter(txt))
-	w := fyne.MeasureText(text, 10.5, txt.TextStyle).Width + 16
-	return container.NewGridWrap(fyne.NewSize(w, 20), stack)
+	w := fyne.MeasureText(text, 11, txt.TextStyle).Width + 12
+	return container.NewGridWrap(fyne.NewSize(w, 18), stack)
 }
 
-// statusChip is a chip led by a state dot: live, restart required, busy.
+// statusChip is a state: a coloured dot and a word. No pill — the dot carries
+// the colour.
 func statusChip(text string, t tone) fyne.CanvasObject {
-	bg := canvas.NewRectangle(toneBackground(t))
-	bg.CornerRadius = 10
 	d := canvas.NewCircle(toneColor(t))
-	txt := canvas.NewText(text, toneColor(t))
-	txt.TextSize = 10.5
-	txt.TextStyle = fyne.TextStyle{Monospace: true}
-	row := container.New(layout.NewCustomPaddedHBoxLayout(5),
+	txt := canvas.NewText(text, colorMuted)
+	txt.TextSize = 12
+	row := container.New(layout.NewCustomPaddedHBoxLayout(6),
 		container.NewCenter(container.NewGridWrap(fyne.NewSize(6, 6), d)),
 		container.NewCenter(txt))
-	w := fyne.MeasureText(text, 10.5, txt.TextStyle).Width + 6 + 5 + 18
-	return container.NewGridWrap(fyne.NewSize(w, 20), container.NewStack(bg, container.NewCenter(row)))
+	w := fyne.MeasureText(text, 12, txt.TextStyle).Width + 6 + 6
+	return container.NewGridWrap(fyne.NewSize(w, 20), row)
 }
 
 // kbd renders a keyboard shortcut as a keycap.
@@ -1228,10 +1234,8 @@ func dotBox(c *canvas.Circle) fyne.CanvasObject {
 }
 
 func avatar(letter string, size float32) fyne.CanvasObject {
-	bg := canvas.NewCircle(colorAccentDim)
-	bg.StrokeColor = colorAccent
-	bg.StrokeWidth = 1
-	txt := canvas.NewText(letter, colorAccent)
+	bg := canvas.NewCircle(colorSurface2)
+	txt := canvas.NewText(letter, colorMuted)
 	txt.TextSize = size * 0.40
 	txt.TextStyle = fyne.TextStyle{Bold: true}
 	txt.Alignment = fyne.TextAlignCenter
@@ -1247,15 +1251,15 @@ func logoMark(size float32) fyne.CanvasObject {
 	return img
 }
 
-// accentBar is the vertical blue-to-pink marker beside an active row.
+// accentBar is the vertical marker beside an active row: one colour.
 func accentBar(width, height float32) *canvas.LinearGradient {
-	g := canvas.NewVerticalGradient(colorAccent, colorAccent2)
+	g := canvas.NewVerticalGradient(colorAccent, colorAccent)
 	g.SetMinSize(fyne.NewSize(width, height))
 	return g
 }
 
 func gradientRule() fyne.CanvasObject {
-	g := canvas.NewLinearGradient(colorAccent, colorAccent2, 270)
+	g := canvas.NewLinearGradient(colorAccent, colorAccent, 270)
 	g.SetMinSize(fyne.NewSize(10, 2))
 	return g
 }
@@ -1293,23 +1297,17 @@ func emptyStateCard(title, guidance string, actionLabel string, action func()) f
 	var btn fyne.CanvasObject
 	if actionLabel != "" && action != nil {
 		b := primaryButton(actionLabel, nil, action)
-		w := fyne.MeasureText(actionLabel, 13, fyne.TextStyle{Bold: true}).Width + 48
-		if w < 180 {
-			w = 180
-		}
+		w := fyne.MeasureText(actionLabel, 13, fyne.TextStyle{Bold: true}).Width + 40
 		btn = container.NewCenter(widthBox(w, controlFrame(b)))
 	}
 	items := []fyne.CanvasObject{
-		container.NewCenter(logoMark(52)),
-		vSpacer(spaceXS),
 		container.NewCenter(widget.NewLabelWithStyle(title, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})),
 		centerNote(guidance),
 	}
 	if btn != nil {
-		items = append(items, vSpacer(spaceXS), btn)
+		items = append(items, vSpacer(spaceS), btn)
 	}
-	body := vstack(spaceXS, items...)
-	return container.NewCenter(panel(container.New(layout.NewCustomPaddedLayout(spaceL, spaceL, spaceXL, spaceXL), body)))
+	return container.NewCenter(vstack(0, items...))
 }
 
 // editorFrame wraps a multi-line entry in a sleek borderless-interior panel
@@ -1340,6 +1338,16 @@ func kv(label, value string) fyne.CanvasObject {
 func kvLine(label, value string) fyne.CanvasObject {
 	v := mono(value, theme.SizeNameCaptionText)
 	return vstack(spaceXS, fieldLabel(label), v)
+}
+
+// sentenceCase capitalises the first letter of a label and leaves the rest:
+// "agent" becomes "Agent", "you" becomes "You". Labels used to be shouted in
+// capitals; sentence case reads as a tool rather than a poster.
+func sentenceCase(text string) string {
+	for i, r := range text {
+		return string(unicode.ToUpper(r)) + text[i+utf8.RuneLen(r):]
+	}
+	return text
 }
 
 func fieldLabel(text string) *widget.Label {

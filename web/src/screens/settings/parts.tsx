@@ -6,9 +6,9 @@ import { PALETTES, useAppearance, type Mode } from '@/state/appearance'
 export function Fact({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[130px_minmax(0,1fr)] items-start gap-x-2 py-1">
-      <span className="pt-0.5 text-[11px] font-medium text-muted">{label}</span>
+      <span className="pt-0.5 text-xs font-medium text-muted">{label}</span>
       <div className="min-w-0">
-        <div className="flex min-h-5 min-w-0 items-center gap-1.5 text-[13px]">{children}</div>
+        <div className="flex min-h-5 min-w-0 items-center gap-1.5 text-base">{children}</div>
         {hint && <p className="mt-0.5 text-xs leading-snug text-muted">{hint}</p>}
       </div>
     </div>
@@ -16,7 +16,7 @@ export function Fact({ label, hint, children }: { label: string; hint?: ReactNod
 }
 
 export function FieldLabel({ children }: { children: ReactNode }) {
-  return <div className="mb-1.5 text-[11px] font-medium text-muted">{children}</div>
+  return <div className="mb-1.5 text-xs font-medium text-muted">{children}</div>
 }
 
 const lightQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: light)') : null

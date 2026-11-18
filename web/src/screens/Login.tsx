@@ -173,13 +173,13 @@ export default function Login() {
   }
 
   return (
-    <div className="flag-glow relative flex h-full flex-col items-center overflow-y-auto px-4 py-10">
+    <div className="relative flex h-full flex-col items-center overflow-y-auto px-4 py-10">
       <div className="my-auto flex w-full max-w-[480px] flex-col items-center">
         <Logo size={68} />
-        <h1 className="mt-4 text-[22px] font-semibold tracking-[-0.01em]">
+        <h1 className="mt-4 text-xl font-semibold tracking-[-0.01em]">
           AgentFlow <span className="flag-text">Studio</span>
         </h1>
-        <p className="mt-1 text-[13px] text-muted">Build, run and trace agents on your own runtime.</p>
+        <p className="mt-1 text-base text-muted">Build, run and trace agents on your own runtime.</p>
         <div className="flag-stripe mt-4 h-[3px] w-44 rounded-full" />
 
         <form
@@ -190,8 +190,8 @@ export default function Login() {
           }}
         >
           <div>
-            <h2 className="text-[15px] font-semibold">Connect to a runtime</h2>
-            <p className="mt-0.5 text-[12.5px] text-muted">
+            <h2 className="text-md font-semibold">Connect to a runtime</h2>
+            <p className="mt-0.5 text-sm text-muted">
               Studio talks to AgentFlow’s admin API with its bearer token. Nothing is stored on a server.
             </p>
           </div>
@@ -218,8 +218,8 @@ export default function Login() {
                         normalizeURL(url) === p.url ? 'border-accent/60 bg-accent-dim/40' : 'border-line bg-bg',
                       )}
                     >
-                      <span className="truncate text-[13px] font-medium">{p.name}</span>
-                      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted">{p.url}</span>
+                      <span className="truncate text-base font-medium">{p.name}</span>
+                      <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{p.url}</span>
                       {tokenFor(p) ? <Chip tone="success">token saved</Chip> : <Chip>no token</Chip>}
                     </button>
                     <IconButton icon={Trash2} label={`Forget ${p.name}`} tone="danger" onClick={() => useConnections.getState().remove(p.name)} />

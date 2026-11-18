@@ -143,7 +143,7 @@ func TestSnapshots(t *testing.T) {
 	}
 	demoPlayground := func() *playgroundView {
 		a.setActive("playground")
-		a.setBreadcrumb("Workspace / Playground")
+		a.setBreadcrumb("Playground")
 		p := a.newPlaygroundView([]string{"assistant", "echo", "lab"}, "assistant")
 		a.setMain(p.root)
 		p.addBubble("You", "Summarize what this agent can do, and check the weather in Hong Kong.", true)

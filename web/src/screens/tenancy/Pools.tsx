@@ -149,7 +149,7 @@ function PoolDetail({ pool: p, dir, rev, notify }: { pool: Pool; dir: Directory;
     <div className="flex flex-col gap-3 pb-2">
       <Panel className="flex flex-col gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[15px] font-semibold">{p.name}</span>
+          <span className="truncate text-md font-semibold">{p.name}</span>
           <Chip tone="accent">{ownerGroup !== '' ? 'group' : 'tenant'} pool</Chip>
           <span className="flex-1" />
           <CopyButton text={'pool: ' + p.name} what="store binding" size="md" />
@@ -160,7 +160,7 @@ function PoolDetail({ pool: p, dir, rev, notify }: { pool: Pool; dir: Directory;
           <KV label="retention" value={`${p.retention_days} days (immutable)`} />
           <KV label="created" value={`${relTime(p.created_at)} by ${shortID(p.created_by)}`} />
         </div>
-        <p className="break-words text-[11px] leading-snug text-faint">
+        <p className="break-words text-xs leading-snug text-faint">
           Bind a memory store to it:{' '}
           <code className="font-mono text-muted">{`stores: { shared: { backend: <name>, table: <table>, pool: ${p.name} } }`}</code>
         </p>
@@ -344,7 +344,7 @@ function NewPoolDialog({ dir, onClose, onCreated }: { dir: Directory; onClose: (
           />
         )}
       </Field>
-      <p className="text-[11px] leading-snug text-faint">
+      <p className="text-xs leading-snug text-faint">
         Names are global and are what config stores bind to. Retention is immutable once set: extending it means a new pool.
       </p>
     </FormModal>

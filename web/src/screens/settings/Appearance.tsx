@@ -23,14 +23,14 @@ function PalettePreview({ palette, theme }: { palette: Palette; theme: 'light' |
           <span className="h-1.5 w-4/5 rounded-full bg-line" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-md border border-line bg-surface p-2">
-          <span className="text-[11px] font-semibold leading-none text-text">assistant</span>
-          <span className="font-mono text-[10px] leading-none text-muted">loops/chat.lua</span>
+          <span className="text-xs font-semibold leading-none text-text">assistant</span>
+          <span className="font-mono text-xs leading-none text-muted">loops/chat.lua</span>
           <span className="mt-0.5 flex items-center gap-1">
-            <span className="rounded bg-accent px-1.5 text-[9px] font-semibold leading-4 text-on-primary">Apply</span>
-            <span className="rounded bg-tone-accent px-1.5 font-mono text-[9px] leading-4 text-accent">llm.chat</span>
-            <span className="rounded bg-tone-success px-1.5 font-mono text-[9px] leading-4 text-success">live</span>
-            <span className="rounded bg-tone-warning px-1.5 font-mono text-[9px] leading-4 text-warning">restart</span>
-            <span className="rounded bg-tone-danger px-1.5 font-mono text-[9px] leading-4 text-danger">error</span>
+            <span className="rounded bg-accent px-1.5 text-xs font-semibold leading-4 text-on-primary">Apply</span>
+            <span className="rounded bg-tone-accent px-1.5 font-mono text-xs leading-4 text-accent">llm.chat</span>
+            <span className="rounded bg-tone-success px-1.5 font-mono text-xs leading-4 text-success">live</span>
+            <span className="rounded bg-tone-warning px-1.5 font-mono text-xs leading-4 text-warning">restart</span>
+            <span className="rounded bg-tone-danger px-1.5 font-mono text-xs leading-4 text-danger">error</span>
           </span>
         </span>
       </span>
@@ -88,7 +88,7 @@ export function AppearanceSection() {
                 >
                   <PalettePreview palette={p.id} theme={shown} />
                   <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-[13px] font-semibold text-text">{p.title}</span>
+                    <span className="truncate text-base font-semibold text-text">{p.title}</span>
                     <Swatches palette={p.id} theme={shown} />
                     <span className="flex-1" />
                     {active ? (

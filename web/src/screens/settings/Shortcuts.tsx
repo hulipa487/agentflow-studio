@@ -27,8 +27,8 @@ const ACTIONS: Shortcut[] = [
 function Rows({ title, rows }: { title: string; rows: Shortcut[] }) {
   return (
     <div className="min-w-0">
-      <div className="pb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{title}</div>
-      <table className="w-full border-collapse text-[12.5px]">
+      <div className="pb-1 text-xs font-semibold text-faint">{title}</div>
+      <table className="w-full border-collapse text-sm">
         <tbody>
           {rows.map((r) => (
             <tr key={r.what} className="border-b border-line/70 last:border-b-0">
@@ -36,7 +36,7 @@ function Rows({ title, rows }: { title: string; rows: Shortcut[] }) {
                 <span className="inline-flex items-center gap-1">
                   {r.keys.map((k, i) => (
                     <span key={k} className="inline-flex items-center gap-1">
-                      {i > 0 && <span className="text-[11px] text-faint">or</span>}
+                      {i > 0 && <span className="text-xs text-faint">or</span>}
                       <Kbd>{k}</Kbd>
                     </span>
                   ))}

@@ -36,10 +36,10 @@ export function ThreadsPane({
         <Select aria-label="Agent" value={agent} onChange={onAgent} options={agents} />
       </Field>
 
-      <div className="mt-1 text-[11px] font-medium text-muted">Recent threads</div>
+      <div className="mt-1 text-xs font-medium text-muted">Recent threads</div>
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
         {threads === null ? null : threads.length === 0 ? (
-          <div className="py-1 text-[12.5px] text-muted">No threads yet.</div>
+          <div className="py-1 text-sm text-muted">No threads yet.</div>
         ) : (
           threads.map((t) => {
             const active = t.thread === thread
@@ -51,13 +51,13 @@ export function ThreadsPane({
                 aria-current={active ? 'true' : undefined}
                 onClick={() => onOpen(t.thread)}
                 className={cx(
-                  'flex h-7 w-full shrink-0 items-center gap-1.5 rounded-ctl px-2 text-left font-mono text-[11.5px] transition-colors duration-100',
+                  'flex h-7 w-full shrink-0 items-center gap-1.5 rounded-ctl px-2 text-left font-mono text-sm transition-colors duration-100',
                   active ? 'bg-accent-dim text-accent' : 'text-muted hover:bg-hover hover:text-text active:bg-pressed',
                 )}
               >
                 <span className={cx('shrink-0 font-semibold', !active && 'text-text')}>{shortID(t.thread)}</span>
                 <span className="min-w-0 truncate">· {t.events} events</span>
-                <span className={cx('ml-auto shrink-0 pl-1 text-[10.5px]', active ? 'text-accent' : 'text-faint')}>{lastActive(t)}</span>
+                <span className={cx('ml-auto shrink-0 pl-1 text-xs', active ? 'text-accent' : 'text-faint')}>{lastActive(t)}</span>
               </button>
             )
           })

@@ -144,9 +144,8 @@ const (
 
 func agentListHeader() fyne.CanvasObject {
 	h := func(text string, w float32) fyne.CanvasObject {
-		t := canvas.NewText(strings.ToUpper(text), colorFaint)
-		t.TextSize = 10
-		t.TextStyle = fyne.TextStyle{Bold: true}
+		t := canvas.NewText(sentenceCase(text), colorFaint)
+		t.TextSize = 11
 		if w == 0 {
 			return vLeft(t)
 		}
@@ -162,21 +161,15 @@ func agentListHeader() fyne.CanvasObject {
 // agentRow is one line of the agents list: identity, loop path, capabilities,
 // state and actions. Double-click-free: the whole row opens the builder.
 func agentRow(a *App, row api.AgentRow) fyne.CanvasObject {
-	letter := "?"
-	if row.Name != "" {
-		letter = strings.ToUpper(row.Name[:1])
-	}
 	model := row.Model
 	if model == "" {
 		model = "default model"
 	}
-	name := widget.NewLabelWithStyle(row.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	name := widget.NewLabel(row.Name)
 	name.Truncation = fyne.TextTruncateEllipsis
-	modelText := mono(model, theme.SizeNameCaptionText)
-	modelText.Importance = widget.LowImportance
-	identity := container.NewBorder(nil, nil,
-		container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), vCenter(avatar(letter, 30))), nil,
-		vLeft(vstack(0, compactLabel(name, false), compactLabel(modelText, false))))
+	modelText := caption(model)
+	modelText.Wrapping = fyne.TextWrapOff
+	identity := vLeft(vstack(0, compactLabel(name, false), compactLabel(modelText, false)))
 
 	loop := row.Loop
 	if loop == "" {

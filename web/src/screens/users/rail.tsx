@@ -32,10 +32,10 @@ export function RailRow({
       <Icon className={cx('mt-[3px] size-3.5 shrink-0', active ? 'text-accent' : 'text-faint')} strokeWidth={2} />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className={cx('truncate text-[13px]', active ? 'font-semibold text-text' : 'font-medium text-text')}>{title}</span>
+          <span className={cx('truncate text-base', active ? 'font-semibold text-text' : 'font-medium text-text')}>{title}</span>
           {trailing}
         </span>
-        <span className="block truncate font-mono text-[11px] text-muted">{caption}</span>
+        <span className="block truncate font-mono text-xs text-muted">{caption}</span>
       </span>
     </button>
   )
@@ -43,5 +43,5 @@ export function RailRow({
 
 /** The quiet line a list or a detail pane shows when it has nothing to list. */
 export function PaneNote({ children, lowered }: { children: ReactNode; /** Sits further down, for an empty detail pane. */ lowered?: boolean }) {
-  return <div className={cx('px-3 pb-6 text-center text-[12.5px] leading-relaxed text-muted', lowered ? 'pt-12' : 'pt-6')}>{children}</div>
+  return <div className={cx('px-3 pb-6 text-center text-sm leading-relaxed text-muted', lowered ? 'pt-12' : 'pt-6')}>{children}</div>
 }

@@ -25,14 +25,14 @@ const TraceRow = memo(function TraceRow({ ev, onOpen }: { ev: TraceEvent; onOpen
     >
       <span className="flex w-full min-w-0 items-center gap-2">
         <Dot tone={tone} />
-        <span className="shrink-0 font-mono text-[10.5px] text-faint">#{ev.seq}</span>
-        <span className={cx('min-w-0 truncate font-mono text-[11.5px] font-bold', tone === 'neutral' ? 'text-muted' : tone === 'danger' ? 'text-danger' : 'text-text')}>
+        <span className="shrink-0 font-mono text-xs text-faint">#{ev.seq}</span>
+        <span className={cx('min-w-0 truncate font-mono text-sm font-bold', tone === 'neutral' ? 'text-muted' : tone === 'danger' ? 'text-danger' : 'text-text')}>
           {ev.kind}
         </span>
-        {cost !== '' && <span className="ml-auto shrink-0 pl-2 font-mono text-[10.5px] tabular-nums text-muted">{cost}</span>}
+        {cost !== '' && <span className="ml-auto shrink-0 pl-2 font-mono text-xs tabular-nums text-muted">{cost}</span>}
       </span>
-      {detail !== '' && <span className="w-full truncate whitespace-pre pl-4 font-mono text-[11px] text-muted">{detail}</span>}
-      {ev.err && <span className="w-full whitespace-pre-wrap break-words pl-4 font-mono text-[11px] text-danger">{ev.err}</span>}
+      {detail !== '' && <span className="w-full truncate whitespace-pre pl-4 font-mono text-xs text-muted">{detail}</span>}
+      {ev.err && <span className="w-full whitespace-pre-wrap break-words pl-4 font-mono text-xs text-danger">{ev.err}</span>}
     </button>
   )
 })
@@ -94,13 +94,13 @@ export function TracePane({
   return (
     <Panel flush className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-center gap-2 border-b border-line py-2 pl-3 pr-2">
-        <h2 className="text-[14px] font-semibold leading-tight">Trace</h2>
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted">{events !== null && `${traceTokens(events)} tok`}</span>
+        <h2 className="text-md font-semibold leading-tight">Trace</h2>
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{events !== null && `${traceTokens(events)} tok`}</span>
         <Select aria-label="Trace filter" className="w-[124px] shrink-0" value={filter} onChange={(v) => onFilter(v as TraceFilter)} options={[...FILTERS]} />
         <IconButton icon={RotateCw} label="Refresh trace" onClick={onRefresh} loading={refreshing} />
       </header>
       <div ref={ref} onScroll={onScroll} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
-        {events !== null && shown.length === 0 && <div className="px-2 py-1.5 text-[12.5px] text-muted">No events match this filter yet.</div>}
+        {events !== null && shown.length === 0 && <div className="px-2 py-1.5 text-sm text-muted">No events match this filter yet.</div>}
         {shown.map((ev) => (
           <TraceRow key={eventKey(ev)} ev={ev} onOpen={setOpen} />
         ))}

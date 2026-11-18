@@ -15,24 +15,15 @@ import (
 
 // The status bar is the shell's bottom band: whether the runtime answers,
 // which runtime it is (address, instance, region, version, uptime, sessions)
-// and the three shortcuts worth remembering. It is fed by the heartbeat, so it
-// is true on every screen, not only on Overview.
+// and the versions. It is fed by the heartbeat, so it is true on every screen,
+// not only on Overview.
 
 const statusBarHeight = float32(24)
 
 func (a *App) newStatusBar() fyne.CanvasObject {
-	a.statusState = monoText("● connected", 11, colorSuccess)
-	a.statusFacts = monoText(a.statusAddress(), 11, colorMuted)
-
-	hint := func(key, what string) fyne.CanvasObject {
-		return hstack(spaceXS, container.NewCenter(kbd(key)), container.NewCenter(monoText(what, 11, colorFaint)))
-	}
-	right := hstack(spaceM,
-		hint("Ctrl+K", "commands"),
-		hint("F1", "docs"),
-		hint("F5", "refresh"),
-		container.NewCenter(monoText(fmt.Sprintf("prelude v%d · studio %s", a.catalog.PreludeVersion, appVersion), 11, colorFaint)),
-	)
+	a.statusState = barText("● connected", colorSuccess)
+	a.statusFacts = barText(a.statusAddress(), colorFaint)
+	right := container.NewCenter(barText(fmt.Sprintf("prelude v%d · studio %s", a.catalog.PreludeVersion, appVersion), colorFaint))
 	left := hstack(spaceM, container.NewCenter(a.statusState), container.NewCenter(a.statusFacts))
 
 	bg := canvas.NewRectangle(colorFloat)
@@ -43,6 +34,13 @@ func (a *App) newStatusBar() fyne.CanvasObject {
 	row := container.New(layout.NewCustomPaddedLayout(0, 0, spaceM, spaceM),
 		container.NewBorder(nil, nil, left, right, nil))
 	return container.NewStack(bg, height, container.NewBorder(edge, nil, nil, nil, row))
+}
+
+// barText is the status bar's 11px text.
+func barText(text string, c color.Color) *canvas.Text {
+	t := canvas.NewText(text, c)
+	t.TextSize = 11
+	return t
 }
 
 func (a *App) statusAddress() string {

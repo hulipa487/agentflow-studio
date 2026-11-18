@@ -24,10 +24,10 @@ export function NewAgentDialog() {
     <div key={key} className="flex items-center gap-3 rounded-ctl border border-line bg-surface2 px-3 py-2.5">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-[14px] font-semibold">{title}</span>
+          <span className="text-md font-semibold">{title}</span>
           <Chip tone={tone}>{tag}</Chip>
         </div>
-        <p className="mt-0.5 text-[12.5px] leading-snug text-muted">{description}</p>
+        <p className="mt-0.5 text-sm leading-snug text-muted">{description}</p>
       </div>
       <Button variant="primary" icon={ArrowRight} onClick={() => use(template)}>
         Use

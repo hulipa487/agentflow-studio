@@ -109,11 +109,9 @@ func (a *App) enter(view string) {
 	a.clearActions()
 	a.setActive(view)
 	if it := a.navByID(view); it != nil {
-		if it.id == view {
-			a.setBreadcrumb(it.section + " / " + it.label)
-		} else {
-			a.setBreadcrumb(it.label)
-		}
+		// The rail already says which section a screen is in; the crumb names
+		// the screen, and the builder adds the agent after it.
+		a.setBreadcrumb(it.label)
 	}
 	if view != "overview" {
 		a.backAction = a.showOverview

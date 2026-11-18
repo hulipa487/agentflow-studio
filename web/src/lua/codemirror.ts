@@ -50,7 +50,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, te
 }
 
 // The kit's Chip, as plain DOM: tooltips live outside the React tree.
-const CHIP = 'inline-flex h-5 max-w-full items-center truncate rounded-md px-2 font-mono text-[10.5px] leading-none'
+const CHIP = 'inline-flex h-5 max-w-full items-center truncate rounded-md px-2 font-mono text-xs leading-none'
 
 function chip(text: string, tone: 'accent' | 'warning', title?: string): HTMLElement {
   const node = el('span', `${CHIP} ${tone === 'accent' ? 'bg-tone-accent text-accent' : 'bg-tone-warning text-warning'}`, text)
@@ -68,7 +68,7 @@ function appendInline(parent: HTMLElement, text: string) {
 }
 
 function cardRoot(padded: boolean): HTMLElement {
-  return el('div', `${padded ? 'px-2.5 py-2 ' : ''}max-w-[440px] font-sans text-[12px] leading-normal text-text`)
+  return el('div', `${padded ? 'px-2.5 py-2 ' : ''}max-w-[440px] font-sans text-sm leading-normal text-text`)
 }
 
 function cardTitle(text: string): HTMLElement {

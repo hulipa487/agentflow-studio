@@ -303,7 +303,7 @@ export default function Config() {
         {directory && (
           <Panel className="flex flex-col gap-3">
             <div className="min-w-0">
-              <div className="text-[11px] text-muted">Config directory</div>
+              <div className="text-xs text-muted">Config directory</div>
               <div className="flex min-w-0 items-center gap-1">
                 <span className="truncate font-mono text-xs text-text">{configDir || '—'}</span>
                 {configDir && <CopyButton text={configDir} what="path" />}
@@ -369,7 +369,7 @@ export default function Config() {
                 }
               >
                 {viewText === '' ? (
-                  <div className="flex min-h-0 flex-1 items-center justify-center rounded-ctl border border-line bg-bg px-6 text-center text-[12.5px] text-muted">
+                  <div className="flex min-h-0 flex-1 items-center justify-center rounded-ctl border border-line bg-bg px-6 text-center text-sm text-muted">
                     The file on disk does not parse as YAML, so there is no structured view of it.
                   </div>
                 ) : (

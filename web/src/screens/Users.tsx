@@ -95,7 +95,7 @@ export default function Users() {
   const left = (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <SearchBox value={filter} onChange={setFilter} placeholder="Filter by name, email or id" />
-      <div className="px-1 font-mono text-[11px] text-faint">{count}</div>
+      <div className="px-1 font-mono text-xs text-faint">{count}</div>
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
         {total === 0 && <PaneNote>Nobody has registered. Issue an invite, or let users register through /v1/users.</PaneNote>}
         {shown.map((u) => (

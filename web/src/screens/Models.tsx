@@ -27,8 +27,8 @@ const GRID = 'grid grid-cols-[minmax(170px,1fr)_minmax(200px,1.5fr)_minmax(160px
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-faint">{label}</span>
-      <span className="truncate font-mono text-[11.5px] text-muted">{children}</span>
+      <span className="text-xs font-semibold text-faint">{label}</span>
+      <span className="truncate font-mono text-sm text-muted">{children}</span>
     </span>
   )
 }
@@ -36,7 +36,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 function ModelSettings({ m }: { m: Model }) {
   const tools = m.server_tools ?? []
   const plain = !m.timeout && !(m.retry > 0) && !(m.max_tokens > 0) && !m.thinking && tools.length === 0
-  if (plain) return <span className="font-mono text-[10.5px] text-faint">provider defaults</span>
+  if (plain) return <span className="font-mono text-xs text-faint">provider defaults</span>
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
       {m.timeout && <Fact label="timeout">{m.timeout}</Fact>}
@@ -200,7 +200,7 @@ export default function Models() {
       banner={banners.length > 0 ? banners : null}
       actions={
         <>
-          {data && <span className="font-mono text-[11px] text-faint">{plural(models.length, 'model')}</span>}
+          {data && <span className="font-mono text-xs text-faint">{plural(models.length, 'model')}</span>}
           {/* Only drift gives these two something to do. */}
           {drift.count > 0 && (
             <>
@@ -233,7 +233,7 @@ export default function Models() {
         ) : (
           <Panel flush className="overflow-x-auto">
             <div className="min-w-[990px]">
-              <div className={`${GRID} border-b border-line px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-faint`}>
+              <div className={`${GRID} border-b border-line px-3 py-1.5 text-xs font-semibold text-faint`}>
                 <span>Model</span>
                 <span>Endpoint</span>
                 <span>Settings</span>
@@ -247,7 +247,7 @@ export default function Models() {
                 return (
                   <div key={m.name} className={`${GRID} border-b border-line/70 px-3 py-2 last:border-b-0`}>
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate text-[13px] font-semibold" title={m.name}>
+                      <span className="truncate text-base font-semibold" title={m.name}>
                         {m.name}
                       </span>
                       <Chip tone="accent">{m.provider}</Chip>
@@ -256,7 +256,7 @@ export default function Models() {
                       <div className="truncate font-mono text-xs" title={m.model}>
                         {m.model}
                       </div>
-                      <div className="truncate font-mono text-[11px] text-muted" title={m.base_url}>
+                      <div className="truncate font-mono text-xs text-muted" title={m.base_url}>
                         {m.base_url || <span className="text-faint">provider default</span>}
                       </div>
                     </div>

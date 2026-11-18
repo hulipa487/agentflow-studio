@@ -108,7 +108,7 @@ func TestViewsBuild(t *testing.T) {
 				t.Fatalf("enter %s: rail row %s active=%v", it.id, other.id, other.row.active)
 			}
 		}
-		if want := it.section + " / " + it.label; a.breadcrumb.Text != want {
+		if want := it.label; a.breadcrumb.Text != want {
 			t.Fatalf("breadcrumb = %q, want %q", a.breadcrumb.Text, want)
 		}
 	}

@@ -212,7 +212,7 @@ func simpleTable(cols []tableColumn, rows [][]fyne.CanvasObject) fyne.CanvasObje
 	}
 	header := make([]fyne.CanvasObject, len(cols))
 	for i, c := range cols {
-		l := fieldLabel(strings.ToUpper(c.title))
+		l := fieldLabel(sentenceCase(c.title))
 		if c.right {
 			l.Alignment = fyne.TextAlignTrailing
 		}
@@ -247,10 +247,11 @@ func cellNum(n int64) *widget.Label {
 // statTile is a compact KPI: label, big value, optional sub-line and spark.
 func statTile(label, value, sub string, t tone, spark fyne.CanvasObject) fyne.CanvasObject {
 	v := titleText(value, theme.SizeNameHeadingText)
-	if t != toneNeutral {
+	// A number is coloured only when it asks for attention.
+	if t != toneNeutral && t != toneAccent {
 		v.Color = toneColor(t)
 	}
-	items := []fyne.CanvasObject{fieldLabel(strings.ToUpper(label)), insetLeading(v)}
+	items := []fyne.CanvasObject{fieldLabel(label), insetLeading(v)}
 	if sub != "" {
 		items = append(items, compactLabel(caption(sub), false))
 	}

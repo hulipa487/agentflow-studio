@@ -26,7 +26,6 @@ type playgroundView struct {
 	root   fyne.CanvasObject
 
 	agentSelect  *widget.Select
-	avatarBox    *fyne.Container
 	threadBox    *fyne.Container
 	messages     *fyne.Container
 	msgScroll    *container.Scroll
@@ -187,12 +186,10 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 	p.headerName.SizeName = theme.SizeNameSubHeadingText
 	p.headerThread = mono("thread · "+shortID(p.thread), theme.SizeNameCaptionText)
 	p.tokens = caption("")
-	p.avatarBox = container.NewStack(avatar(strings.ToUpper(agent[:1]), 34))
 
 	p.stopBtn = iconButton(theme.MediaStopIcon(), "Stop session", p.stop)
 	titleStack := vstack(0, compactLabel(p.headerName, false), compactLabel(p.headerThread, false))
-	headLeft := container.NewBorder(nil, nil,
-		container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), vCenter(p.avatarBox)), nil, vLeft(titleStack))
+	headLeft := vLeft(titleStack)
 	headRight := hstack(spaceXS,
 		vCenter(p.activity),
 		vCenter(dotBox(p.statusDot)),
@@ -238,14 +235,6 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 func (p *playgroundView) updateHeader() {
 	p.headerName.SetText(p.agent)
 	p.headerThread.SetText("thread · " + shortID(p.thread))
-	letter := "?"
-	if p.agent != "" {
-		letter = strings.ToUpper(p.agent[:1])
-	}
-	if p.avatarBox != nil {
-		p.avatarBox.Objects = []fyne.CanvasObject{avatar(letter, 34)}
-		p.avatarBox.Refresh()
-	}
 }
 
 func (p *playgroundView) setStatus(text string, t tone) {
@@ -439,16 +428,16 @@ func (p *playgroundView) send() {
 }
 
 func (p *playgroundView) addBubble(role, text string, mine bool) *widget.Label {
-	fill := colorSurface2
+	// Both sides are neutral: the side of the thread says who spoke, so the
+	// sender's bubble needs no accent fill on top of it.
+	fill := colorSurface
 	stroke := colorBorder
 	roleColor := colorMuted
 	if mine {
-		fill = colorAccentDim
-		stroke = colorAccent
-		roleColor = colorAccent
+		fill = colorSurface2
 	}
 	bg := canvas.NewRectangle(fill)
-	bg.CornerRadius = 10
+	bg.CornerRadius = cardRadius
 	bg.StrokeColor = stroke
 	bg.StrokeWidth = 1
 
@@ -462,12 +451,11 @@ func (p *playgroundView) addBubble(role, text string, mine bool) *widget.Label {
 		}
 	}
 
-	roleTxt := canvas.NewText(strings.ToUpper(role), roleColor)
-	roleTxt.TextSize = 10
-	roleTxt.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
+	roleTxt := canvas.NewText(sentenceCase(role), roleColor)
+	roleTxt.TextSize = 11
 
 	timeTxt := canvas.NewText(time.Now().Format("15:04"), colorFaint)
-	timeTxt.TextSize = 10
+	timeTxt.TextSize = 11
 	timeTxt.TextStyle = fyne.TextStyle{Monospace: true}
 
 	body := wrapLabel(text)

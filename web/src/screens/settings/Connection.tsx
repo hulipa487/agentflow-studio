@@ -157,10 +157,10 @@ export function ConnectionSection() {
                     <Dot tone={isActive ? 'success' : 'neutral'} />
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className={'truncate text-[13px] ' + (isActive ? 'font-semibold' : '')}>{p.name}</span>
+                        <span className={'truncate text-base ' + (isActive ? 'font-semibold' : '')}>{p.name}</span>
                         {isActive && <Chip tone="success">active</Chip>}
                       </div>
-                      <div className="truncate font-mono text-[11px] text-muted" title={p.url}>
+                      <div className="truncate font-mono text-xs text-muted" title={p.url}>
                         {p.url}
                       </div>
                     </div>

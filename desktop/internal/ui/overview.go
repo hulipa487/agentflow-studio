@@ -61,12 +61,7 @@ func (a *App) showOverview() {
 
 func (a *App) newOverviewView() *overviewView {
 	v := &overviewView{app: a}
-	actions := hstack(spaceS,
-		actionButton("Logs", theme.FileTextIcon(), a.showLogs),
-		actionButton("Playground", theme.MediaPlayIcon(), func() { a.showPlayground("") }),
-		primaryButton("New agent", theme.ContentAddIcon(), a.showNewAgent),
-		iconButton(theme.ViewRefreshIcon(), "Refresh", func() { v.load(true) }),
-	)
+	actions := iconButton(theme.ViewRefreshIcon(), "Refresh", func() { v.load(true) })
 	v.s = a.newScreen("Overview", "What this runtime is doing right now. Refreshes every 5 seconds while open.", actions)
 	v.s.loading("Contacting the runtime…")
 	v.load(true)

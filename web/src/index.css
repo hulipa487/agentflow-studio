@@ -157,8 +157,23 @@
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Noto Sans', sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
 
-  --radius-card: 10px;
-  --radius-ctl: 8px;
+  /* One type scale for the whole app. Tailwind's defaults are replaced so a
+     stray text-sm cannot reintroduce a size the scale does not have. */
+  --text-xs: 11px;
+  --text-xs--line-height: 1.45;
+  --text-sm: 12px;
+  --text-sm--line-height: 1.5;
+  --text-base: 13px;
+  --text-base--line-height: 1.5;
+  --text-md: 14px;
+  --text-md--line-height: 1.45;
+  --text-lg: 16px;
+  --text-lg--line-height: 1.35;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.25;
+
+  --radius-card: 6px;
+  --radius-ctl: 5px;
   --shadow-float: var(--af-shadow);
 
   --animate-fade-in: fade-in 120ms ease-out;
@@ -239,22 +254,17 @@
 }
 
 @layer components {
-  /* The flag hairline under the command bar and on the welcome card. */
+  /* The palette's flag, as a hairline. It belongs to the brand moments only —
+     the welcome screen and the palette picker — not to the working screens. */
   .flag-stripe {
     background: var(--af-flag);
   }
-  /* Blue-to-pink text for the wordmark. */
+  /* The wordmark on the welcome screen. */
   .flag-text {
     background: linear-gradient(90deg, var(--af-accent), var(--af-accent2));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-  }
-  /* A soft flag glow behind hero surfaces. */
-  .flag-glow {
-    background:
-      radial-gradient(60% 50% at 20% 0%, color-mix(in srgb, var(--af-accent) 14%, transparent), transparent 70%),
-      radial-gradient(50% 45% at 85% 5%, color-mix(in srgb, var(--af-accent2) 12%, transparent), transparent 70%);
   }
 
   /* Rendered Markdown (the documentation viewer and inline guides). */
@@ -263,10 +273,10 @@
     line-height: 1.65;
     color: var(--af-text);
   }
-  .prose-af h1 { font-size: 22px; font-weight: 650; margin: 0 0 12px; letter-spacing: -0.01em; }
-  .prose-af h2 { font-size: 17px; font-weight: 650; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--af-line); }
-  .prose-af h3 { font-size: 14.5px; font-weight: 650; margin: 22px 0 8px; }
-  .prose-af h4 { font-size: 13px; font-weight: 650; margin: 18px 0 6px; color: var(--af-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .prose-af h1 { font-size: 20px; font-weight: 650; margin: 0 0 12px; letter-spacing: -0.01em; }
+  .prose-af h2 { font-size: 16px; font-weight: 650; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--af-line); }
+  .prose-af h3 { font-size: 14px; font-weight: 650; margin: 22px 0 8px; }
+  .prose-af h4 { font-size: 13px; font-weight: 650; margin: 18px 0 6px; color: var(--af-muted); }
   .prose-af p { margin: 0 0 12px; }
   .prose-af ul, .prose-af ol { margin: 0 0 12px; padding-left: 22px; }
   .prose-af ul { list-style: disc; }
@@ -274,10 +284,10 @@
   .prose-af li { margin: 3px 0; }
   .prose-af a { color: var(--af-accent); text-decoration: none; }
   .prose-af a:hover { text-decoration: underline; }
-  .prose-af code { font-size: 12px; background: var(--af-surface2); border: 1px solid var(--af-line); border-radius: 5px; padding: 1px 5px; color: var(--af-accent); }
-  .prose-af pre { background: var(--af-bg); border: 1px solid var(--af-line); border-radius: 8px; padding: 12px 14px; overflow: auto; margin: 0 0 14px; }
+  .prose-af code { font-size: 12px; background: var(--af-surface2); border-radius: 4px; padding: 1px 4px; }
+  .prose-af pre { background: var(--af-bg); border: 1px solid var(--af-line); border-radius: 6px; padding: 12px 14px; overflow: auto; margin: 0 0 14px; }
   .prose-af pre code { background: none; border: 0; padding: 0; color: var(--af-text); font-size: 12px; line-height: 1.6; }
-  .prose-af blockquote { margin: 0 0 12px; padding: 8px 14px; border-left: 3px solid var(--af-accent2); background: var(--af-surface2); border-radius: 0 8px 8px 0; color: var(--af-muted); }
+  .prose-af blockquote { margin: 0 0 12px; padding: 4px 14px; border-left: 2px solid var(--af-line); color: var(--af-muted); }
   .prose-af blockquote p:last-child { margin: 0; }
   .prose-af table { width: 100%; border-collapse: collapse; margin: 0 0 14px; font-size: 12.5px; display: block; overflow-x: auto; }
   .prose-af th { text-align: left; font-weight: 600; color: var(--af-muted); border-bottom: 1px solid var(--af-line); padding: 6px 10px; white-space: nowrap; }

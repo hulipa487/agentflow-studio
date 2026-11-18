@@ -121,7 +121,7 @@ export function CommandPalette() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type a screen, an agent or an action…"
             spellCheck={false}
-            className="h-11 min-w-0 flex-1 bg-transparent text-[14px] text-text placeholder:text-faint focus:outline-none"
+            className="h-11 min-w-0 flex-1 bg-transparent text-md text-text placeholder:text-faint focus:outline-none"
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault()
@@ -142,7 +142,7 @@ export function CommandPalette() {
           <Kbd>Esc</Kbd>
         </div>
         <div ref={list} className="min-h-0 flex-1 overflow-y-auto p-1.5">
-          {shown.length === 0 && <div className="px-3 py-6 text-center text-[12.5px] text-muted">Nothing matches “{query}”.</div>}
+          {shown.length === 0 && <div className="px-3 py-6 text-center text-sm text-muted">Nothing matches “{query}”.</div>}
           {shown.map((c, i) => (
             <button
               key={c.title}
@@ -152,17 +152,17 @@ export function CommandPalette() {
               onClick={() => run(c)}
               className={cx('relative flex w-full items-center gap-2.5 rounded-[7px] px-3 py-1.5 text-left', i === selected ? 'bg-surface2' : '')}
             >
-              {i === selected && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-gradient-to-b from-accent to-accent2" />}
+              {i === selected && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent" />}
               <c.icon className={cx('size-4 shrink-0', i === selected ? 'text-accent' : 'text-muted')} strokeWidth={1.9} />
               <span className="min-w-0 flex-1">
-                <span className={cx('block truncate text-[13px]', i === selected ? 'font-semibold text-text' : 'text-text')}>{c.title}</span>
-                <span className="block truncate text-[11px] text-muted">{c.hint}</span>
+                <span className={cx('block truncate text-base', i === selected ? 'font-semibold text-text' : 'text-text')}>{c.title}</span>
+                <span className="block truncate text-xs text-muted">{c.hint}</span>
               </span>
               {c.shortcut && <Kbd>{c.shortcut}</Kbd>}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3 border-t border-line px-3.5 py-1.5 font-mono text-[10.5px] text-faint">
+        <div className="flex items-center gap-3 border-t border-line px-3.5 py-1.5 font-mono text-xs text-faint">
           <span className="inline-flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span>
           <span className="inline-flex items-center gap-1"><Kbd>Enter</Kbd> run</span>
           <span className="ml-auto">{shown.length} of {commands.length}</span>

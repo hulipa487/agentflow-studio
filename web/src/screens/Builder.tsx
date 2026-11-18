@@ -107,7 +107,7 @@ function LoadState({ name, loading, error, retry }: { name: string; loading: boo
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-center gap-2 border-b border-line px-5 py-3">
         <IconButton icon={ArrowLeft} label="Back" onClick={back} />
-        <h1 className="min-w-0 truncate text-[19px] font-semibold leading-tight tracking-[-0.01em]">{name}</h1>
+        <h1 className="min-w-0 truncate text-xl font-semibold leading-tight tracking-[-0.01em]">{name}</h1>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
         <AsyncView loading={loading} error={error} hasData={false} retry={retry} loadingText="Loading agent…">
@@ -460,11 +460,11 @@ function BuilderView({
       // on Config can break (or fix) the loop.
       badge:
         loopErrors > 0 ? (
-          <span className="font-mono text-[10px] text-danger" title={countLabel(loopErrors, 'error', 'errors') + ' in the loop'}>
+          <span className="font-mono text-xs text-danger" title={countLabel(loopErrors, 'error', 'errors') + ' in the loop'}>
             {loopErrors}
           </span>
         ) : loopWarnings > 0 ? (
-          <span className="font-mono text-[10px] text-warning" title={countLabel(loopWarnings, 'warning', 'warnings') + ' in the loop'}>
+          <span className="font-mono text-xs text-warning" title={countLabel(loopWarnings, 'warning', 'warnings') + ' in the loop'}>
             {loopWarnings}
           </span>
         ) : undefined,
@@ -479,7 +479,7 @@ function BuilderView({
         <div className="flex items-center gap-2">
           <IconButton icon={ArrowLeft} label="Back" onClick={back} disabled={locked} />
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-[19px] font-semibold leading-tight tracking-[-0.01em]">
+            <h1 className="truncate text-xl font-semibold leading-tight tracking-[-0.01em]">
               {displayName(name)}
               {dirty && (
                 <span className="text-accent" title="Unsaved changes">

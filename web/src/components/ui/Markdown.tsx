@@ -130,7 +130,7 @@ export function Markdown({
       btn.dataset.copy = '1'
       btn.textContent = 'copy'
       btn.className =
-        'absolute right-1.5 top-1.5 rounded border border-line bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-muted opacity-0 transition-opacity hover:text-text'
+        'absolute right-1.5 top-1.5 rounded border border-line bg-surface2 px-1.5 py-0.5 font-mono text-xs text-muted opacity-0 transition-opacity hover:text-text'
       btn.onclick = async () => {
         const code = pre.querySelector('code')?.textContent ?? ''
         if (await copyText(code)) toast('code copied', 'success')

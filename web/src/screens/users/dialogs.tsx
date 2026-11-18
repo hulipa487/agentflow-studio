@@ -96,13 +96,13 @@ export function InviteDialog({ invite, onClose }: { invite: Invite | null; onClo
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2 rounded-card border border-line bg-bg py-2 pl-3 pr-2">
-          <code className="min-w-0 flex-1 select-all break-all font-mono text-[14px] tracking-wide text-text">{invite.invite}</code>
+          <code className="min-w-0 flex-1 select-all break-all font-mono text-md tracking-wide text-text">{invite.invite}</code>
           <CopyButton text={invite.invite} what="invite code" size="md" />
         </div>
-        <p className="break-words text-[11px] leading-snug text-faint">
+        <p className="break-words text-xs leading-snug text-faint">
           Single use, expires in {orDash(invite.expires_in)}. {invite.hint}
         </p>
-        <p className="text-[11px] leading-snug text-faint">
+        <p className="text-xs leading-snug text-faint">
           Invites matter when runtime.users.registration is invite; with open registration anyone can register without one.
         </p>
       </div>

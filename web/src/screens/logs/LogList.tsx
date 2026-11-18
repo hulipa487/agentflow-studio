@@ -20,7 +20,7 @@ const Row = memo(function Row({ line, onCopy }: { line: LogLine; onCopy: (text: 
       onClick={() => onCopy(line.text)}
       title={line.text}
       style={{ height: ROW }}
-      className={cx('flex w-full items-stretch text-left font-mono text-[11.5px] leading-5 hover:bg-hover focus-visible:bg-hover', LEVEL_TEXT[line.level])}
+      className={cx('flex w-full items-stretch text-left font-mono text-sm leading-5 hover:bg-hover focus-visible:bg-hover', LEVEL_TEXT[line.level])}
     >
       <span className={cx('w-[3px] shrink-0', LEVEL_BAR[line.level])} />
       <span className="min-w-0 flex-1 truncate whitespace-pre pl-2 pr-3">{line.text}</span>
@@ -115,7 +115,7 @@ export function LogList({
           </div>
         </div>
       </div>
-      {n === 0 && <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-[12.5px] text-muted">{empty}</div>}
+      {n === 0 && <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted">{empty}</div>}
       {!following && n > 0 && (
         <button
           type="button"

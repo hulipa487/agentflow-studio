@@ -158,9 +158,9 @@ export function UserDetail({
         <div className="flex min-w-0 items-center gap-3">
           <Avatar letter={letter} size={44} />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[15px] font-semibold leading-tight">{title}</div>
+            <div className="truncate text-md font-semibold leading-tight">{title}</div>
             <div className="mt-0.5 flex min-w-0 items-center gap-1">
-              <span className="truncate font-mono text-[11px] text-muted">{id}</span>
+              <span className="truncate font-mono text-xs text-muted">{id}</span>
               <CopyButton text={id} what="user id" />
             </div>
           </div>

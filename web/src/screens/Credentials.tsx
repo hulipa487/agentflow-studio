@@ -111,7 +111,7 @@ export default function Credentials() {
             {c.fingerprint}
           </Chip>
         ) : (
-          <span className="font-mono text-[10.5px] text-faint">no fingerprint</span>
+          <span className="font-mono text-xs text-faint">no fingerprint</span>
         ),
     },
     {
@@ -166,7 +166,7 @@ export default function Credentials() {
               User bucket…
             </Button>
           )}
-          {list && <span className="font-mono text-[11px] text-faint">{plural(rows.length, 'secret')}</span>}
+          {list && <span className="font-mono text-xs text-faint">{plural(rows.length, 'secret')}</span>}
           <IconButton icon={RotateCw} label="Refresh" loading={refreshing} onClick={refresh} />
           {list && enabled && rows.length > 0 && (
             <Button variant="primary" icon={Plus} onClick={() => setDialog({ kind: 'edit', existing: null })}>
