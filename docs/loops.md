@@ -782,7 +782,9 @@ memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text }
 
 `token_budget` is a support chunk loaded into every session; it keeps the system
 message and the newest message and drops the oldest history until the estimate
-fits.
+fits. A tool exchange — an assistant turn that asked for tools and the results
+that answer it — is kept or dropped as one, so a trimmed history is always one a
+provider accepts.
 
 ### 7.3 Streaming
 
@@ -962,10 +964,19 @@ local reply = llm.chat(messages, { model = info.model })
 
 - `info.instructions` already includes any per-user instruction layer.
 - `token_budget` estimates tokens as `ceil(chars / 4)`, keeps the system message
-  and the newest message, and drops the oldest history until it fits.
-- **Tool results are not counted by `token_budget`.** A tool that returns a huge
-  body can evict real history; bound tool output (`builtin:fetch` has
-  `max_bytes`, default 1 MiB) and summarize large results in the loop.
+  and the newest message, and drops the oldest history until it fits. The
+  estimate covers a message's text, replayed thinking blocks and the arguments
+  of the tool calls it made.
+- **A tool exchange is never split.** An assistant turn with `tool_calls` and
+  the `role = "tool"` messages after it are kept or dropped together. Between
+  the rounds of a tool loop the newest message is a tool result, so the whole
+  current exchange is kept even when it alone is over the budget.
+- **A large tool result costs what it weighs.** It is counted like any other
+  message, so one huge body can evict real history, and nothing in the engine
+  truncates a tool result: bound tool output (`builtin:fetch` has `max_bytes`,
+  default 1 MiB) and summarize large results in the loop.
+- `token_budget` trims; it does not repair. A history that already holds a
+  tool result with no matching call is passed through as it is.
 - Budgets are enforced before the call: a declared `budget.tokens_per_day` is a
   hard per-agent pool; per-user quotas are charged from the ledger.
 - Thinking tokens are reported in `usage.reasoning`; they count toward the
