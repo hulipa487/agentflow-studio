@@ -3,6 +3,7 @@
 #   make web     # build ../web and copy it into frontend/dist
 #   make build   # build the binary (runs `make web` first if needed)
 #   make windows # cross-compile Windows amd64 and arm64 .exe files
+#   make winres  # regenerate the Windows icon, manifest and version resources
 #   make run     # build and run
 #   make test    # go test
 #
@@ -30,7 +31,7 @@ endif
 
 export CGO_ENABLED := 1
 
-.PHONY: web build windows run test clean
+.PHONY: web build windows winres run test clean
 
 web:
 	cd ../web && npm run build
@@ -49,6 +50,13 @@ windows: frontend/dist/index.html
 	  CGO_ENABLED=0 GOOS=windows GOARCH=$$arch go build -tags desktop,production -trimpath \
 	    -ldflags "-s -w -H windowsgui -X main.version=$(VERSION)" -o agentflow-studio-wails-$$arch.exe . ; \
 	done
+
+# The .syso files are committed, so a plain go build on Windows picks up the
+# icon (winres/icon*.png), the manifest (per-monitor DPI awareness, Common
+# Controls v6 for native dialogs) and the version info. Rerun after changing
+# winres/.
+winres:
+	go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64,arm64
 
 run: build
 	./$(BIN)

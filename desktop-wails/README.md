@@ -102,20 +102,24 @@ Checked in the running app with a fresh profile and a Fyne `config.json`:
 - **Background colour:** covered by tests of the endpoint; the colour change on
   screen during a resize was not captured.
 
+- **Windows icon, manifest and version info:** `rsrc_windows_amd64.syso` and
+  `rsrc_windows_arm64.syso`, generated from `winres/` by `make winres`
+  (go-winres), give the .exe the AgentFlow icon (16 to 256 px), a manifest with
+  per-monitor DPI awareness, Common Controls v6 (native-styled dialogs) and
+  long-path support, and version info ("AgentFlow Studio" 0.1.0). Extracting
+  the resources back out of the built amd64 .exe confirmed all three. Linux
+  and macOS get the same icon through Wails' options; on Linux it was not
+  confirmed from the running window.
+
 ## Still open
 
 1. **Windows and macOS were not run.** The Windows .exe files build here; they
    need a run on Windows 10/11 (WebView2, dialogs, named pipes). macOS has to
    be built and run on a Mac.
-2. **Windows icon, manifest and version info.** The .exe has no icon and no
-   application manifest yet (per-monitor DPI awareness, Common Controls v6 for
-   native dialogs). The usual route is a `.syso` resource generated with
-   `go-winres` or `wails build`; generating it here was not done because it
-   runs a third-party tool fetched from the internet.
-3. **Packaging.** No installer (NSIS/MSI with the WebView2 bootstrapper, or the
+2. **Packaging.** No installer (NSIS/MSI with the WebView2 bootstrapper, or the
    fixed runtime for offline installs), no macOS bundle, signing or
    notarisation, no Linux .desktop file or package.
-4. **Native dialogs follow the OS language,** not the app's: the GTK save dialog
+3. **Native dialogs follow the OS language,** not the app's: the GTK save dialog
    was in English while the app was in 繁體中文.
 
 Once those are done, `../desktop/internal/ui` (and the Fyne dependency) can go,

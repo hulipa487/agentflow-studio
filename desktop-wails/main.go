@@ -32,6 +32,13 @@ import (
 //go:embed all:frontend/dist
 var embedded embed.FS
 
+// The app icon. Windows takes it from the .exe's resources
+// (rsrc_windows_*.syso, made from winres/ with `make winres`); Linux and
+// macOS are handed it here.
+//
+//go:embed winres/icon256.png
+var appIcon []byte
+
 // version is set at build time with -ldflags "-X main.version=...".
 var version = "dev"
 
@@ -109,11 +116,11 @@ func main() {
 			WebviewUserDataPath: dataDir,
 		},
 		Mac: &mac.Options{
-			About: &mac.AboutInfo{Title: "AgentFlow Studio", Message: version},
+			About: &mac.AboutInfo{Title: "AgentFlow Studio", Message: version, Icon: appIcon},
 		},
 		// The Linux program name (which also names the webview's data folder)
 		// is set in prgname_linux.go, before GTK starts.
-		Linux: &linux.Options{},
+		Linux: &linux.Options{Icon: appIcon},
 	})
 	if err != nil {
 		log.Fatal(err)
