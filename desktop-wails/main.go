@@ -53,6 +53,7 @@ func main() {
 	}
 	state := loadWindowState(dataDir)
 	var ctx context.Context
+	proxy := newProxy()
 
 	err = wails.Run(&options.App{
 		Title:     "AgentFlow Studio",
@@ -68,13 +69,15 @@ func main() {
 		}(),
 		AssetServer: &assetserver.Options{
 			Assets:  assets,
-			Handler: newProxy(),
+			Handler: proxy,
 		},
-		// The light theme's page background, so a resize or the first paint
-		// does not flash a different colour. (In the dark theme it still can.)
+		// The light theme's page background, for the first paint. The web app
+		// sends its own background whenever the theme changes, so a resize
+		// never shows a different colour at the edges.
 		BackgroundColour: &options.RGBA{R: 246, G: 249, B: 252, A: 255},
 		OnStartup: func(c context.Context) {
 			ctx = c
+			proxy.desktop.setContext(c)
 		},
 		OnDomReady: func(c context.Context) {
 			if state.HasPosition && !state.Maximised {
@@ -108,9 +111,9 @@ func main() {
 		Mac: &mac.Options{
 			About: &mac.AboutInfo{Title: "AgentFlow Studio", Message: version},
 		},
-		Linux: &linux.Options{
-			ProgramName: "agentflow-studio",
-		},
+		// The Linux program name (which also names the webview's data folder)
+		// is set in prgname_linux.go, before GTK starts.
+		Linux: &linux.Options{},
 	})
 	if err != nil {
 		log.Fatal(err)

@@ -62,5 +62,6 @@
   "common.durDays": "{d}d {h}h",
   "common.value": "value",
   "common.featureOffIdentity": "{message}\n\nSet runtime.identity.enabled: true (and runtime.users.enabled for the public user API), then restart AgentFlow.",
-  "common.featureOffTenancy": "{message}\n\nTenancy needs a runtime store (runtime.persistence)."
+  "common.featureOffTenancy": "{message}\n\nTenancy needs a runtime store (runtime.persistence).",
+  "common.saveFailed": "save failed: {message}"
 }

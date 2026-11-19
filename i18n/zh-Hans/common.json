@@ -62,5 +62,6 @@
   "common.durDays": "{d} 天 {h} 小时",
   "common.value": "值",
   "common.featureOffIdentity": "{message}\n\n请设置 runtime.identity.enabled: true（如需公开的用户 API，还要设置 runtime.users.enabled），然后重启 AgentFlow。",
-  "common.featureOffTenancy": "{message}\n\n租户功能需要运行时存储（runtime.persistence）。"
+  "common.featureOffTenancy": "{message}\n\n租户功能需要运行时存储（runtime.persistence）。",
+  "common.saveFailed": "保存失败：{message}"
 }

@@ -125,6 +125,26 @@ export const useConnections = create<ConnectionsState>()(
   ),
 )
 
+/**
+ * Adds connections saved by the old desktop app, on a first run with nothing
+ * saved here. They always go through the local proxy, the only route the
+ * desktop shell has. Returns how many were added.
+ */
+export function importProfiles(saved: { name?: string; url: string; token?: string; forget_token?: boolean }[], active?: string): number {
+  if (useConnections.getState().profiles.length > 0) return 0
+  const profiles: Profile[] = []
+  for (const s of saved) {
+    const url = normalizeURL(s.url)
+    if (!url || profiles.some((p) => p.url === url)) continue
+    const taken = s.name && !profiles.some((p) => p.name === s.name)
+    const keep = !s.forget_token && !!s.token
+    profiles.push({ name: taken ? s.name! : uniqueName(profiles, url), url, viaProxy: true, forgetToken: !keep, token: keep ? s.token : undefined })
+  }
+  if (profiles.length === 0) return 0
+  useConnections.setState({ profiles, active: profiles.find((p) => p.name === active)?.name ?? '' })
+  return profiles.length
+}
+
 export function activeProfile(): Profile | undefined {
   const { profiles, active } = useConnections.getState()
   return profiles.find((p) => p.name === active)

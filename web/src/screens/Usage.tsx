@@ -94,8 +94,9 @@ export default function Usage() {
 
   const download = () => {
     const name = `agentflow-usage-${day}-${groupBy === 'slice' ? 'slices' : 'by-' + groupBy}.csv`
-    downloadText(name, toCSV(table, groupBy !== 'slice'), 'text/csv')
-    toast(t('usage.exported', { name }), 'success')
+    void downloadText(name, toCSV(table, groupBy !== 'slice'), 'text/csv').then(
+      (saved) => saved && toast(t('usage.exported', { name: saved }), 'success'),
+    )
   }
 
   return (

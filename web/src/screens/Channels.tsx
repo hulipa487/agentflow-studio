@@ -3,11 +3,12 @@
 // start, so every row says whether it is live or waiting for a restart.
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
+import { FolderOpen, Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
 import type { Channel, ChannelList } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, CopyButton, EmptyState, IconButton, Page, Panel, StatusChip } from '@/components/ui'
 import { useAsync, useScreenActions } from '@/lib/hooks'
+import { openFolder, useDesktopShell } from '@/lib/desktop'
 import { useClient } from '@/state/session'
 import { confirm, info, toast } from '@/state/ui'
 import { t } from '@/i18n'
@@ -236,6 +237,18 @@ export default function Channels() {
 
   const list = data?.list
   const channels = list?.channels ?? []
+  // The desktop app can show the config's folder in the file manager.
+  const desktop = useDesktopShell()
+  const showFolder = async (path: string) => {
+    try {
+      const r = await openFolder(path)
+      if (r.ok) return
+      const key = r.problem === 'missing' ? 'shell.folderMissing' : r.problem === 'notdir' ? 'shell.folderNotDir' : 'shell.folderOpenFailed'
+      toast(t(key, { dir: r.dir, message: r.ok === false && r.error ? r.error : r.dir }), 'danger')
+    } catch (err) {
+      toast(t('shell.folderOpenFailed', { message: errorMessage(err) }), 'danger')
+    }
+  }
   const editable = list?.editable ?? false
   const pending = channels.filter((ch) => !ch.live).length
 
@@ -342,6 +355,7 @@ export default function Channels() {
                   {list.path}
                 </span>
                 <CopyButton text={list.path} what={t('channels.configPath')} />
+                {desktop && <IconButton icon={FolderOpen} size="sm" label={t('channels.openConfigFolder')} onClick={() => void showFolder(list.path!)} />}
               </span>
             )}
             {editable && list.note && <span>{list.note}</span>}

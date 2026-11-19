@@ -3,3 +3,4 @@
 # the web build, copied in by `make web`
 /frontend/dist/*
 !/frontend/dist/.gitkeep
+/agentflow-studio-wails-*.exe

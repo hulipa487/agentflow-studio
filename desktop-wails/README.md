@@ -16,8 +16,22 @@ a second binary next to it.
   does under the Vite dev server.
 - **`window.go`** remembers window size, position and maximised state in
   `<config dir>/agentflow-studio/desktop/window.json`.
+- **`desktop.go`** answers under `/__af/__desktop/` with what a browser tab
+  cannot do (`web/src/lib/desktop.ts` is the web side, used only when
+  `/__af/__ping` reports `"shell": "wails"`):
+  - `save`: exports (user data, usage CSV, docs files) open the native save
+    dialog instead of the webview silently writing into the home folder;
+  - `open-folder`: the Channels screen gets an "Open config folder" button, as
+    in the Fyne app, when the runtime's config is on this machine;
+  - `fyne-config`: on the first run the web app imports the Fyne app's saved
+    connections (tokens only where Fyne remembered them), and its language,
+    theme and palette where the web app has none of its own yet;
+  - `background`: the window colour follows the page's theme, so a resize
+    never shows mismatched edges.
 - Connections, language and theme are kept by the web app in the webview's
-  localStorage, as in a browser.
+  localStorage, as in a browser. On Linux that storage lives in
+  `$XDG_DATA_HOME/agentflow-studio` whatever the binary is called
+  (`prgname_linux.go`); on Windows in the app data folder.
 - A second launch brings the running window forward (Wails' single-instance
   lock).
 - `probe.go` (build tag `probe` only) is a test aid: a loopback control socket
@@ -26,12 +40,15 @@ a second binary next to it.
 ## Build
 
     make build        # make web, then go build -tags desktop,production[,webkit2_41]
-    make test         # proxy tests: TCP and Unix targets, refusals, streaming
+    make windows      # cross-compile Windows amd64 and arm64 .exe files (no cgo)
+    make test         # proxy and desktop-bridge tests
 
 No Wails CLI is needed. Linux builds need the WebKitGTK 4.1 development files
 (`libwebkit2gtk-4.1-dev`) and run with `libwebkit2gtk-4.1-0`. Windows runs on
 the WebView2 runtime (part of Windows 11 and current Windows 10); macOS uses
-the system WKWebView. Only the Linux build was tried.
+the system WKWebView. The Linux build was run; the Windows builds compile
+(amd64 and arm64) but were not run; macOS needs cgo and the macOS SDK, so it
+must be built on a Mac.
 
 ## Findings (Linux ARM64 dev board, 2026-11-20)
 
@@ -67,29 +84,39 @@ reconnects to the remembered runtime with no login.
 The memory figures are not like for like (different screens), but a webview
 app costs a few hundred MB more than Fyne, mostly in the WebKit web process.
 
-## Gaps before it could replace the Fyne app
+## Closed since the first spike
 
-1. **File downloads.** The web app saves exports (user data, logs) with a blob
-   link. In WebKitGTK under Wails that writes the file straight into the home
-   directory with no dialog. Needs a small Go endpoint (for example
-   `POST /__af/__save`) that opens `runtime.SaveFileDialog`, and `downloadText`
-   in the web app using it when `/__af/__ping` reports `"shell": "wails"`.
-2. **Open config folder.** The Fyne app can open the runtime's config directory
-   in the file manager (`desktop/internal/ui/openfolder.go`); the web app has no
-   equivalent. Needs a Go endpoint plus a button that appears only in the shell.
-3. **Settings migration.** Fyne keeps its connection profiles in
-   `appconfig` (`<config dir>/agentflow-studio/...`); the web app keeps them in
-   localStorage. A first-run import from the Fyne file would carry users over.
-4. **Webview profile location.** On Linux, Wails names the webview's data
-   directory after the executable, so renaming the binary loses localStorage.
-   Ship it under one fixed name (or set the data path explicitly once Wails
-   exposes it on Linux). On Windows it is pinned to the app data dir here.
-5. **Windows and macOS** were not built or run. Packaging (installer, icon,
-   WebView2 bootstrapper or fixed runtime for offline installs, macOS bundle
-   and signing) is not started.
-6. **Background colour.** The window background is the light theme's, so in
-   the dark theme a resize can briefly show light edges; it should follow the
-   theme (`runtime.WindowSetBackgroundColour` when the theme changes).
+Checked in the running app with a fresh profile and a Fyne `config.json`:
+
+- **First-run import:** the app opened in 繁體中文 and the dark theme taken
+  from the Fyne config, and reconnected to the imported runtime with no login.
+- **Save dialog:** the docs "Download" button opened the GTK save dialog with
+  the file name filled in; cancelling it wrote nothing and showed no
+  "downloaded" message. (Callers now toast only once the file is saved.)
+- **Open config folder:** the button appears beside the config path on the
+  Channels screen in the app, and not in a browser. A path that is not on this
+  machine is reported instead of opening an empty window. Actually opening the
+  file manager was not exercised here.
+- **Storage location:** the webview's data folder is `agentflow-studio` for a
+  binary named `studio-probe`.
+- **Background colour:** covered by tests of the endpoint; the colour change on
+  screen during a resize was not captured.
+
+## Still open
+
+1. **Windows and macOS were not run.** The Windows .exe files build here; they
+   need a run on Windows 10/11 (WebView2, dialogs, named pipes). macOS has to
+   be built and run on a Mac.
+2. **Windows icon, manifest and version info.** The .exe has no icon and no
+   application manifest yet (per-monitor DPI awareness, Common Controls v6 for
+   native dialogs). The usual route is a `.syso` resource generated with
+   `go-winres` or `wails build`; generating it here was not done because it
+   runs a third-party tool fetched from the internet.
+3. **Packaging.** No installer (NSIS/MSI with the WebView2 bootstrapper, or the
+   fixed runtime for offline installs), no macOS bundle, signing or
+   notarisation, no Linux .desktop file or package.
+4. **Native dialogs follow the OS language,** not the app's: the GTK save dialog
+   was in English while the app was in 繁體中文.
 
 Once those are done, `../desktop/internal/ui` (and the Fyne dependency) can go,
 and every Studio feature is built once, in `../web`.

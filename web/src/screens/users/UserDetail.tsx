@@ -110,8 +110,7 @@ export function UserDetail({
       () => client.exportUser(id),
       (text) => {
         const name = `agentflow-user-${shortID(id)}.json`
-        downloadText(name, text)
-        toast(t('users.exported', { name }), 'success')
+        void downloadText(name, text).then((saved) => saved && toast(t('users.exported', { name: saved }), 'success'))
       },
     )
 

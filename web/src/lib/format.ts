@@ -1,6 +1,8 @@
 // Formatting helpers, ported from the desktop Studio (internal/ui/screen.go
 // and widgets.go) so both apps print numbers, durations and ids the same way.
 import { t } from '@/i18n'
+import { inDesktopShell, saveWithDialog } from './desktop'
+import { toast } from '@/state/ui'
 
 export function humanCount(n: number): string {
   const neg = n < 0
@@ -95,8 +97,28 @@ export function initial(name: string | null | undefined): string {
   return name && name.length > 0 ? name[0].toUpperCase() : '?'
 }
 
-/** Saves text as a file from the browser. */
-export function downloadText(filename: string, text: string, type = 'application/json'): void {
+/**
+ * Saves text as a file: a download in a browser, a save dialog in the desktop
+ * app (whose webview would otherwise drop the file in the home folder unasked).
+ * Resolves to the file's name once it is saved, or null when the operator
+ * cancelled the dialog or saving failed (a failure is reported here).
+ */
+export async function downloadText(filename: string, text: string, type = 'application/json'): Promise<string | null> {
+  if (!(await inDesktopShell())) {
+    browserDownload(filename, text, type)
+    return filename
+  }
+  try {
+    const r = await saveWithDialog(filename, text)
+    if (r.ok) return r.name
+    if (!r.cancelled) toast(t('common.saveFailed', { message: r.error ?? '' }), 'danger')
+  } catch (err) {
+    toast(t('common.saveFailed', { message: err instanceof Error ? err.message : String(err) }), 'danger')
+  }
+  return null
+}
+
+function browserDownload(filename: string, text: string, type: string): void {
   const url = URL.createObjectURL(new Blob([text], { type }))
   const a = document.createElement('a')
   a.href = url

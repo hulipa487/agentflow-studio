@@ -33,8 +33,9 @@ export function AssetViewer({ asset, path, onClose }: { asset: DocAsset | undefi
         <Button
           icon={Download}
           onClick={() => {
-            downloadText(name, text, MIME[asset.language])
-            toast(t('docs.downloaded', { name }), 'success')
+            void downloadText(name, text, MIME[asset.language]).then(
+              (saved) => saved && toast(t('docs.downloaded', { name: saved }), 'success'),
+            )
           }}
         >
           {t('docs.download')}

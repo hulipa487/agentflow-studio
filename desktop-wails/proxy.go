@@ -81,11 +81,12 @@ func parseTarget(raw string) (target, error) {
 }
 
 type proxy struct {
-	tcp *http.Transport
+	tcp     *http.Transport
+	desktop *desktop
 }
 
 func newProxy() *proxy {
-	return &proxy{tcp: &http.Transport{
+	return &proxy{desktop: newDesktop(), tcp: &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 		TLSHandshakeTimeout:   10 * time.Second,
@@ -128,6 +129,10 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "proxy": true, "platform": platform(), "shell": "wails"})
+		return
+	}
+	if action, ok := strings.CutPrefix(rest, "/__desktop/"); ok {
+		p.desktop.serve(w, r, action)
 		return
 	}
 	if !strings.HasPrefix(rest, "/admin/") {

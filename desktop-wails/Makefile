@@ -2,6 +2,7 @@
 #
 #   make web     # build ../web and copy it into frontend/dist
 #   make build   # build the binary (runs `make web` first if needed)
+#   make windows # cross-compile Windows amd64 and arm64 .exe files
 #   make run     # build and run
 #   make test    # go test
 #
@@ -29,7 +30,7 @@ endif
 
 export CGO_ENABLED := 1
 
-.PHONY: web build run test clean
+.PHONY: web build windows run test clean
 
 web:
 	cd ../web && npm run build
@@ -41,6 +42,13 @@ frontend/dist/index.html:
 
 build: frontend/dist/index.html
 	go build -tags $(TAGS) -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) .
+
+# Windows binaries cross-compile from any OS: Wails needs no cgo there.
+windows: frontend/dist/index.html
+	for arch in amd64 arm64; do \
+	  CGO_ENABLED=0 GOOS=windows GOARCH=$$arch go build -tags desktop,production -trimpath \
+	    -ldflags "-s -w -H windowsgui -X main.version=$(VERSION)" -o agentflow-studio-wails-$$arch.exe . ; \
+	done
 
 run: build
 	./$(BIN)
