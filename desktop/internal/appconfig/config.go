@@ -34,6 +34,11 @@ type Config struct {
 	ForgetToken bool      `json:"forget_token,omitempty"`
 	Profiles    []Profile `json:"profiles,omitempty"`
 	Active      string    `json:"active,omitempty"`
+	// BuilderPersist is the builder's Apply choice: true applies and saves to
+	// the runtime's config. BuilderDock is what the builder's dock shows:
+	// "run", "docs", or empty for closed.
+	BuilderPersist bool   `json:"builder_persist,omitempty"`
+	BuilderDock    string `json:"builder_dock,omitempty"`
 }
 
 // Path returns the config file. AGENTFLOW_STUDIO_CONFIG overrides it (useful

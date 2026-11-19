@@ -28,7 +28,9 @@ export function Shortcuts() {
       }
       if (e.key === 'F1') {
         e.preventDefault()
-        navigate('/docs')
+        // A screen with its own reference (the builder's docs drawer) shows that instead.
+        if (ui.actions.help && !modalOpen()) ui.actions.help()
+        else navigate('/docs')
         return
       }
       if (mod && !e.altKey && !e.shiftKey && key === 's') {

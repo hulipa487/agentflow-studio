@@ -2,51 +2,28 @@ package ui
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"image/color"
 	"strconv"
 	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"agentflow-studio/internal/api"
 )
 
+// playgroundView is the Playground: the agent picker, recent threads and the
+// act-as field around one chatSession.
 type playgroundView struct {
-	app    *App
-	agent  string
-	thread string
-	root   fyne.CanvasObject
+	*chatSession
+	root fyne.CanvasObject
 
-	agentSelect  *widget.Select
-	threadBox    *fyne.Container
-	messages     *fyne.Container
-	msgScroll    *container.Scroll
-	traceBox     *fyne.Container
-	traceScroll  *container.Scroll
-	input        *widget.Entry
-	actAs        *widget.SelectEntry
-	sendBtn      *widget.Button
-	stopBtn      *widget.Button
-	activity     *widget.Activity
-	status       *widget.Label
-	statusDot    *canvas.Circle
-	headerName   *widget.Label
-	headerThread *widget.Label
-	tokens       *widget.Label
-
-	assistant *widget.Label
-	sending   bool
-	events    []api.TraceEvent
-	filter    *widget.Select
-	empty     fyne.CanvasObject
+	agentSelect *widget.Select
+	threadBox   *fyne.Container
+	actAs       *widget.SelectEntry
 }
 
 func (a *App) showPlayground(agent string) {
@@ -110,26 +87,23 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 	if agent == "" {
 		agent = "agent"
 	}
-	p := &playgroundView{app: a, agent: agent, thread: newThreadID()}
+	p := &playgroundView{chatSession: newChatSession(a, agent, chatOptions{
+		emptyNote: "The turn streams into the trace panel on the right.",
+	})}
+	p.onTurnEnd = p.loadThreads
 
 	p.agentSelect = widget.NewSelect(names, func(name string) {
 		if name == "" || name == p.agent {
 			return
 		}
-		p.agent = name
-		p.thread = newThreadID()
-		p.clearChat()
-		p.updateHeader()
-		p.setStatus("ready", toneSuccess)
+		p.switchTo(name, newThreadID(), "ready", toneSuccess)
 		p.loadThreads()
 	})
 	p.agentSelect.SetSelected(agent)
 
 	newThread := primaryButton("New thread", theme.ContentAddIcon(), func() {
-		p.thread = newThreadID()
-		p.clearChat()
-		p.updateHeader()
-		p.setStatus("new thread "+shortID(p.thread), toneAccent)
+		id := newThreadID()
+		p.switchTo(p.agent, id, "new thread "+shortID(id), toneAccent)
 		p.loadThreads()
 	})
 
@@ -139,6 +113,7 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 	p.actAs = widget.NewSelectEntry(nil)
 	p.actAs.SetPlaceHolder("profile uuid")
 	a.loadUserIDs(func(ids []string) { p.actAs.SetOptions(ids) })
+	p.chatSession.actAs = func() string { return p.actAs.Text }
 
 	leftTop := vstack(spaceXS,
 		labeled("Agent", p.agentSelect),
@@ -152,122 +127,15 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 	)
 	left := panel(container.NewBorder(leftTop, leftBottom, nil, nil, threadScroll))
 
-	p.messages = vstack(spaceS)
-	p.empty = container.NewCenter(container.NewPadded(vstack(spaceXS,
-		container.NewCenter(logoMark(48)),
-		container.NewCenter(widget.NewLabelWithStyle("Say hello", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})),
-		centerNote("The turn streams into the trace panel on the right."),
-	)))
-	p.showEmpty()
-	p.msgScroll = container.NewVScroll(container.New(layout.NewCustomPaddedLayout(spaceS, spaceS, spaceXS, spaceXS), p.messages))
-
-	p.input = widget.NewMultiLineEntry()
-	p.input.SetMinRowsVisible(3)
-	p.input.SetPlaceHolder("Message the agent…")
-	p.sendBtn = primaryButton("Send", theme.MailSendIcon(), p.send)
-	composerBar := container.New(layout.NewCustomPaddedLayout(2, 4, spaceS, 4),
-		container.NewBorder(nil, nil,
-			vCenter(caption("Ctrl+Enter sends · Enter adds a newline")),
-			container.NewGridWrap(fyne.NewSize(92, 34), p.sendBtn),
-			nil,
-		))
-	cleanInput := container.NewThemeOverride(p.input, borderlessEntryTheme{})
-	composer := inputFrame(container.NewBorder(nil, composerBar, nil, nil, cleanInput))
-
-	p.statusDot = dot(toneSuccess)
-	p.status = widget.NewLabel("ready")
-	p.status.SizeName = theme.SizeNameCaptionText
-	p.status.Wrapping = fyne.TextWrapOff
-	p.status.Truncation = fyne.TextTruncateEllipsis
-	p.activity = widget.NewActivity()
-	p.activity.Hide()
-
-	p.headerName = widget.NewLabelWithStyle(agent, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	p.headerName.SizeName = theme.SizeNameSubHeadingText
-	p.headerThread = mono("thread · "+shortID(p.thread), theme.SizeNameCaptionText)
-	p.tokens = caption("")
-
-	p.stopBtn = iconButton(theme.MediaStopIcon(), "Stop session", p.stop)
-	titleStack := vstack(0, compactLabel(p.headerName, false), compactLabel(p.headerThread, false))
-	headLeft := vLeft(titleStack)
-	headRight := hstack(spaceXS,
-		vCenter(p.activity),
-		vCenter(dotBox(p.statusDot)),
-		vCenter(widthBox(110, p.status)),
-		vCenter(p.stopBtn),
-	)
-	head := container.NewBorder(nil, nil, nil, headRight, headLeft)
-
-	center := panel(container.NewBorder(
-		vstack(spaceS, head, widget.NewSeparator()),
-		vstack(spaceS, widget.NewSeparator(), composer),
-		nil, nil, p.msgScroll,
-	))
-
-	p.traceBox = vstack(spaceXS)
-	p.traceScroll = container.NewVScroll(p.traceBox)
-	p.filter = widget.NewSelect([]string{"All events", "Ops only", "Errors only"}, func(string) {
-		p.renderTrace()
-	})
-	p.filter.SetSelected("All events")
-	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh trace", p.refreshTrace)
-	p.tokens.Wrapping = fyne.TextWrapOff
-	traceHead := container.NewBorder(nil, nil,
-		hstack(spaceS, vCenter(insetLeading(titleText("Trace", theme.SizeNameSubHeadingText))), vCenter(compactLabel(p.tokens, false))),
-		hstack(spaceXS, vCenter(widthBox(124, controlFrame(p.filter))), vCenter(refresh)),
-	)
-	trace := panel(container.NewBorder(
-		vstack(spaceS, traceHead, widget.NewSeparator()),
-		nil, nil, nil, p.traceScroll,
-	))
-
-	inner := container.NewHSplit(left, center)
+	inner := container.NewHSplit(left, p.chatPanel)
 	inner.SetOffset(0.28)
-	outer := container.NewHSplit(inner, trace)
+	outer := container.NewHSplit(inner, p.tracePanel)
 	outer.SetOffset(0.67)
 
 	p.root = a.playgroundPage(hstack(spaceS, newThread), outer)
 	p.updateHeader()
 	p.loadThreads()
 	return p
-}
-
-func (p *playgroundView) updateHeader() {
-	p.headerName.SetText(p.agent)
-	p.headerThread.SetText("thread · " + shortID(p.thread))
-}
-
-func (p *playgroundView) setStatus(text string, t tone) {
-	p.status.SetText(text)
-	switch t {
-	case toneDanger:
-		p.status.Importance = widget.DangerImportance
-	case toneWarning:
-		p.status.Importance = widget.WarningImportance
-	case toneSuccess:
-		p.status.Importance = widget.SuccessImportance
-	default:
-		p.status.Importance = widget.MediumImportance
-	}
-	p.status.Refresh()
-	p.statusDot.FillColor = toneColor(t)
-	p.statusDot.Refresh()
-}
-
-func (p *playgroundView) clearChat() {
-	clearBox(p.messages)
-	p.showEmpty()
-	clearBox(p.traceBox)
-	p.events = nil
-	p.assistant = nil
-	p.tokens.SetText("")
-}
-
-func (p *playgroundView) showEmpty() {
-	if p.empty != nil {
-		p.messages.Add(p.empty)
-		p.messages.Refresh()
-	}
 }
 
 func (p *playgroundView) loadThreads() {
@@ -305,280 +173,9 @@ func (p *playgroundView) loadThreads() {
 }
 
 func (p *playgroundView) openThread(thread string) {
-	p.thread = thread
-	p.clearChat()
-	p.updateHeader()
-	p.setStatus("thread "+shortID(thread), toneAccent)
-	agent := p.agent
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		events, err := p.app.api.Trace(ctx, agent, thread)
-		if err != nil {
-			onUI(func() { p.app.showError(err) })
-			return
-		}
-		onUI(func() {
-			p.events = events
-			p.renderTrace()
-		})
-		p.loadThreads()
-	}()
-}
-
-func (p *playgroundView) refreshTrace() {
-	agent, thread := p.agent, p.thread
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		events, err := p.app.api.Trace(ctx, agent, thread)
-		if err != nil {
-			onUI(func() { p.app.showError(err) })
-			return
-		}
-		onUI(func() {
-			p.events = events
-			p.renderTrace()
-		})
-	}()
-}
-
-func (p *playgroundView) stop() {
-	if p.app.chatCancel != nil {
-		p.app.chatCancel()
-	}
-	agent, thread := p.agent, p.thread
-	p.setStatus("stopping…", toneWarning)
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		err := p.app.api.StopThread(ctx, agent, thread)
-		onUI(func() {
-			if err != nil {
-				p.app.showError(err)
-				p.setStatus("error", toneDanger)
-				return
-			}
-			p.setStatus("stop requested", toneWarning)
-		})
-	}()
-}
-
-func (p *playgroundView) send() {
-	if p.sending || p.agent == "" || strings.TrimSpace(p.input.Text) == "" {
-		return
-	}
-	text := p.input.Text
-	p.input.SetText("")
-	p.sending = true
-	p.sendBtn.Disable()
-	p.setStatus("running…", toneAccent)
-	clearBox(p.traceBox)
-	p.events = nil
-
-	p.addBubble("You", text, true)
-	p.assistant = p.addBubble("Agent", "…", false)
-
-	agent, thread, actAs := p.agent, p.thread, strings.TrimSpace(p.actAs.Text)
-	ctx, cancel := context.WithCancel(context.Background())
-	p.app.chatCancel = cancel
-
-	go func() {
-		err := p.app.api.Chat(ctx, api.ChatRequest{
-			Agent:  agent,
-			Thread: thread,
-			Text:   text,
-			ActAs:  actAs,
-		}, func(ev api.ChatEvent) {
-			onUI(func() {
-				switch ev.Type {
-				case "trace":
-					if ev.Trace != nil {
-						p.events = append(p.events, *ev.Trace)
-						p.renderTrace()
-					}
-				case "reply":
-					if ev.Reply != nil {
-						p.appendReply(p.assistant, ev.Reply.Text)
-					}
-				case "error":
-					p.setStatus("error: "+ev.Error, toneDanger)
-				case "done":
-					if ev.Done != nil && ev.Done.TimedOut {
-						p.setStatus("turn timed out; the loop is still running", toneWarning)
-					}
-				}
-			})
-		})
-		canceled := ctx.Err() != nil
-		onUI(func() {
-			p.sending = false
-			p.sendBtn.Enable()
-			switch {
-			case canceled:
-				p.setStatus("turn canceled", toneWarning)
-			case err != nil:
-				p.setStatus("error: "+err.Error(), toneDanger)
-			case strings.HasPrefix(p.status.Text, "running"):
-				p.setStatus("done", toneSuccess)
-			}
-			p.loadThreads()
-		})
-	}()
-}
-
-func (p *playgroundView) addBubble(role, text string, mine bool) *widget.Label {
-	// Both sides are neutral: the side of the thread says who spoke, so the
-	// sender's bubble needs no accent fill on top of it.
-	fill := colorSurface
-	stroke := colorBorder
-	roleColor := colorMuted
-	if mine {
-		fill = colorSurface2
-	}
-	bg := canvas.NewRectangle(fill)
-	bg.CornerRadius = cardRadius
-	bg.StrokeColor = stroke
-	bg.StrokeWidth = 1
-
-	// Drop the empty state once a real message exists.
-	if p.empty != nil {
-		for i, obj := range p.messages.Objects {
-			if obj == p.empty {
-				p.messages.Objects = append(p.messages.Objects[:i], p.messages.Objects[i+1:]...)
-				break
-			}
-		}
-	}
-
-	roleTxt := canvas.NewText(sentenceCase(role), roleColor)
-	roleTxt.TextSize = 11
-
-	timeTxt := canvas.NewText(time.Now().Format("15:04"), colorFaint)
-	timeTxt.TextSize = 11
-	timeTxt.TextStyle = fyne.TextStyle{Monospace: true}
-
-	body := wrapLabel(text)
-	head := container.NewBorder(nil, nil,
-		insetLeading(roleTxt),
-		container.New(layout.NewCustomPaddedLayout(0, 0, 0, 4), timeTxt),
-		nil,
-	)
-	inner := container.New(layout.NewCustomPaddedLayout(8, 8, 10, 10), vstack(2, head, body))
-	bubble := container.NewStack(bg, inner)
-
-	row := container.New(bubbleRowLayout{mine: mine}, bubble)
-	p.messages.Add(row)
-	p.messages.Refresh()
-	p.msgScroll.ScrollToBottom()
-	return body
-}
-
-func (p *playgroundView) appendReply(label *widget.Label, text string) {
-	if label == nil {
-		return
-	}
-	if label.Text == "…" || label.Text == "" {
-		label.SetText(text)
-	} else {
-		label.SetText(label.Text + "\n\n" + text)
-	}
-	p.msgScroll.ScrollToBottom()
-}
-
-func (p *playgroundView) renderTrace() {
-	clearBox(p.traceBox)
-	filter := ""
-	if p.filter != nil {
-		filter = p.filter.Selected
-	}
-	shown := 0
-	for _, ev := range p.events {
-		if filter == "Ops only" && ev.Op == "" {
-			continue
-		}
-		if filter == "Errors only" && ev.Err == "" && ev.Kind != "error" {
-			continue
-		}
-		p.traceBox.Add(p.traceRow(ev))
-		shown++
-	}
-	if shown == 0 {
-		p.traceBox.Add(muted("No events match this filter yet."))
-	}
-	p.traceBox.Refresh()
-	p.traceScroll.ScrollToBottom()
-	p.tokens.SetText(fmt.Sprintf("%d tok", traceTokens(p.events)))
-}
-
-// traceRow is one event as a two-line entry: sequence and kind on the first
-// line with the cost on the right, the op/tool/model (or the error) beneath.
-// The whole row opens the raw event.
-func (p *playgroundView) traceRow(ev api.TraceEvent) fyne.CanvasObject {
-	rowTone := toneAccent
-	switch {
-	case !ev.OK && ev.Err != "":
-		rowTone = toneDanger
-	case ev.Kind == "turn.start" || ev.Kind == "turn.end":
-		rowTone = toneNeutral
-	case ev.Kind == "reply":
-		rowTone = toneSuccess
-	}
-	seq := monoText(fmt.Sprintf("#%d", ev.Seq), 10.5, colorFaint)
-	kind := monoText(ev.Kind, 11.5, colorText)
-	kind.TextStyle.Bold = true
-	if rowTone == toneNeutral {
-		kind.Color = colorMuted
-	}
-	if rowTone == toneDanger {
-		kind.Color = colorDanger
-	}
-	var cost []string
-	if ev.DurationMS > 0 {
-		cost = append(cost, strconv.FormatInt(ev.DurationMS, 10)+"ms")
-	}
-	if ev.TokensIn+ev.TokensOut > 0 {
-		cost = append(cost, fmt.Sprintf("%d→%d tok", ev.TokensIn, ev.TokensOut))
-	}
-	top := container.NewBorder(nil, nil,
-		hstack(spaceS, container.NewCenter(dotBox(dot(rowTone))), container.NewCenter(seq), container.NewCenter(kind)),
-		container.NewCenter(monoText(strings.Join(cost, " · "), 10.5, colorMuted)), nil)
-
-	var detail []string
-	for _, v := range []string{ev.Op, ev.Tool, ev.Model} {
-		if v != "" {
-			detail = append(detail, v)
-		}
-	}
-	if ev.ToolCalls > 0 {
-		detail = append(detail, fmt.Sprintf("%d call(s)", ev.ToolCalls))
-	}
-	body := vstack(3, top)
-	if len(detail) > 0 {
-		d := mono(strings.Join(detail, "  "), theme.SizeNameCaptionText)
-		d.Importance = widget.LowImportance
-		body.Add(container.New(layout.NewCustomPaddedLayout(0, 0, 16, 0), compactLabel(d, true)))
-	}
-	if ev.Err != "" {
-		e := mono(ev.Err, theme.SizeNameCaptionText)
-		e.Importance = widget.DangerImportance
-		e.Wrapping = fyne.TextWrapWord
-		e.Truncation = fyne.TextTruncateOff
-		body.Add(container.New(layout.NewCustomPaddedLayout(0, 0, 16, 0), compactLabel(e, true)))
-	}
-	return newTapSurface(container.New(layout.NewCustomPaddedLayout(6, 6, spaceS, spaceS), body), 7, false,
-		func() color.Color { return colorSurface2 }, func() { p.showEvent(ev) })
-}
-
-func (p *playgroundView) showEvent(ev api.TraceEvent) {
-	raw, _ := json.MarshalIndent(ev, "", "  ")
-	body := widget.NewLabel(string(raw))
-	body.TextStyle = fyne.TextStyle{Monospace: true}
-	body.Wrapping = fyne.TextWrapWord
-	body.Selectable = true
-	scroll := container.NewVScroll(body)
-	scroll.SetMinSize(fyne.NewSize(560, 400))
-	showModalCard(p.app.win, "Trace event #"+strconv.FormatInt(ev.Seq, 10), ev.Kind, inputFrame(scroll), nil)
+	p.switchTo(p.agent, thread, "thread "+shortID(thread), toneAccent)
+	p.loadTrace()
+	p.loadThreads()
 }
 
 // bubbleRowLayout keeps a bubble readable at any pane width: it caps the

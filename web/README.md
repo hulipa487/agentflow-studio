@@ -137,10 +137,10 @@ for a "Discard changes?" answer.
 | `Alt+1` … `Alt+9` | Overview, Agents, Playground, Channels, Models, Credentials, Safety, Users, Logs |
 | `Alt+N` | New agent |
 | `Alt+R` | Refresh the current screen |
-| `Ctrl/⌘+S` | Apply in the builder; validate and save in Config |
-| `Ctrl/⌘+Enter` | Send in the playground |
+| `Ctrl/⌘+S` | Apply in the builder (its remembered choice); validate and save in Config |
+| `Ctrl/⌘+Enter` | Send in the playground; in the builder, apply pending edits and run |
 | `Ctrl+Space` | Completion in the loop editor |
-| `F1` | Documentation |
+| `F1` | Documentation; in the builder, the Luau reference dock |
 | `Esc` | Back |
 
 These differ from the desktop app only where the browser owns the key:

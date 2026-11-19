@@ -35,7 +35,7 @@ The runtime stays the source of truth. Studio holds no agent state of its own: c
 
 **🛠️ Build**
 - **Agents** - every configured agent with its model, capabilities and live sessions. Create from a template or from blank, edit, delete.
-- **Builder** - a form for the agent's model, safety profile, capabilities, skills and credentials, next to a Luau loop editor, an instructions editor and the raw YAML. **Validate** runs the same checks boot does. **Apply** installs the agent live; **Apply & save** also writes it into the deployment's config.
+- **Builder** - a workbench: a form for the agent's model, safety profile, capabilities, skills and credentials, a Luau loop editor, an instructions editor and the raw YAML, with a dock beside them for a **Run** panel (chat and trace with this agent) or the Luau reference (`F1`). **Validate** runs the same checks boot does. **Apply** is a split button: *Apply* installs the agent live, *Apply & save* also writes it into the deployment's config, and the button remembers your pick. `Ctrl+Enter` applies pending edits and sends the Run panel's message (or repeats the last one), so you can edit, run and read the trace without leaving.
 - **Playground** - threaded chat against one agent, one session per thread, with streamed replies and a live trace: turns, ops, model and tool calls, tokens, durations, safety decisions and errors. An optional *act as user* runs the turn as a real profile, so memory scopes and quotas apply.
 
 **✍️ The loop editor**
@@ -126,11 +126,11 @@ The config file is `agentflow-studio/config.json` under the OS config directory 
 | `Ctrl+K` (or `Ctrl+Shift+P`) | Go to any screen, agent or action |
 | `Ctrl+N` | New agent |
 | `Ctrl+1` … `Ctrl+9` | Overview, Agents, Playground, Channels, Models, Credentials, Safety, Users, Logs |
-| `F1` | Documentation |
+| `F1` | Documentation; in the builder, the Luau reference dock |
 | `F5` | Refresh the current screen |
-| `Ctrl+S` | Apply in the builder; validate and save in Config |
+| `Ctrl+S` | Apply in the builder (its remembered choice); validate and save in Config |
 | `Ctrl+Space` | API completion in the loop editor |
-| `Ctrl+Enter` | Send in the playground |
+| `Ctrl+Enter` | Send in the playground; in the builder, apply pending edits and run |
 | `Esc` | Back |
 
 ## Good to know

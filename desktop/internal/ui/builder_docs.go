@@ -17,12 +17,15 @@ var builderDocPages = []builderDocPage{
 	{slug: "loops", label: "Luau coding tutorial"},
 }
 
-// luaDocsPane is the builder's inline documentation pane. The guide selector
-// stays pinned at the top of the card while the reference body scrolls below.
+// luaDocsPane is the builder's inline documentation pane, shown in the dock
+// (F1). The guide selector stays pinned at the top of the card while the
+// reference body scrolls below; "Full docs" opens the guide in the viewer.
 func (b *builderView) luaDocsPane() fyne.CanvasObject {
 	body := vstack(spaceS)
 	var scroll *container.Scroll
+	current := builderDocPages[0].slug
 	build := func(slug string) {
+		current = slug
 		clearBox(body)
 		if b.app.docs == nil {
 			body.Add(muted("Documentation is not bundled in this build."))
@@ -67,7 +70,11 @@ func (b *builderView) luaDocsPane() fyne.CanvasObject {
 
 	titleRow := container.NewBorder(nil, nil,
 		vCenter(insetLeading(titleText("Luau Reference", theme.SizeNameSubHeadingText))),
-		vCenter(chip("F1 Full Docs", toneNeutral)),
+		vCenter(func() fyne.CanvasObject {
+			full := actionButton("Full docs", theme.FileTextIcon(), func() { b.leave(func() { b.app.showDocs(current) }) })
+			full.Importance = widget.LowImportance
+			return full
+		}()),
 		nil,
 	)
 	head := vstack(spaceS, titleRow, controlFrame(picker), widget.NewSeparator())

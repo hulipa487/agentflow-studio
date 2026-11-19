@@ -1,17 +1,20 @@
-// The agent builder: one toolbar (the agent, its state, the actions), the
-// definition on four tabs, and the Luau reference beside it. A port of the
-// desktop Studio's builder.go: the form renders the agent document, the loop
-// and instructions travel as sources, and Apply swaps the live definition.
+// The agent builder, a workbench: one toolbar (the agent, its state, the
+// actions), the definition on four tabs at full width, and a dock that holds
+// either a run panel (chat and trace with this agent) or the Luau reference.
+// A port of the desktop Studio's builder.go: the form renders the agent
+// document, the loop and instructions travel as sources, and Apply swaps the
+// live definition. Ctrl+Enter applies pending edits and runs a turn.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Braces, Check, FileCode, FileText, Play, RefreshCw, Settings, Trash2, Upload } from 'lucide-react'
+import { ArrowLeft, BookOpen, Braces, Check, FileCode, FileText, Play, RefreshCw, Settings, Trash2, Upload } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { AgentDetail, ApplyResult, Template } from '@/api/types'
-import { AsyncView, Banner, Button, Checkbox, Chip, CopyButton, Dot, IconButton, Spinner, Tabs, cx, toneText, type TabDef } from '@/components/ui'
+import { AsyncView, Banner, Button, Chip, CopyButton, Dot, IconButton, Spinner, SplitButton, Tabs, cx, toneText, type TabDef } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
 import { Split } from '@/components/ui/Split'
-import { SKIP_GUARD, useAsync, useDebounced, useScreenActions, useUnsavedGuard } from '@/lib/hooks'
+import { SKIP_GUARD, useAsync, useDebounced, useScreenActions, useStored, useUnsavedGuard } from '@/lib/hooks'
 import { analyze, luauSupport, type LuauDiagnostic, type LuauOptions } from '@/lua'
+import { MOD } from '@/nav'
 import { useCatalog, useClient, useSession } from '@/state/session'
 import { confirm, toast } from '@/state/ui'
 import { deleteAgentFlow } from './agentActions'
@@ -19,6 +22,7 @@ import { ConfigTab } from './builder/ConfigTab'
 import { DocsPane } from './builder/DocsPane'
 import { EditorFrame } from './builder/EditorFrame'
 import { LoopTab } from './builder/LoopTab'
+import { RunPanel, type RunPanelHandle } from './builder/RunPanel'
 import {
   buildYAML,
   checkLabels,
@@ -34,6 +38,8 @@ import {
 } from './builder/model'
 
 type TabID = 'config' | 'loop' | 'instructions' | 'yaml'
+/** What the dock beside the editor shows; '' is closed. */
+type Dock = '' | 'run' | 'docs'
 
 /** One open builder. `name` is '' for an agent that does not exist yet. */
 interface Instance {
@@ -169,7 +175,12 @@ function BuilderView({
   // the form is ignored until the YAML is rebuilt from it.
   const [rawDirty, setRawDirty] = useState(false)
   const [dirty, setDirty] = useState(false)
-  const [persist, setPersist] = useState(false)
+  // The Apply button's choice, remembered across agents like a merge button's.
+  const [persistChoice, setPersist] = useStored<boolean>('agentflow-studio:builder.persist', false)
+  const persist = persistChoice === true
+  const [dockChoice, setDock] = useStored<Dock>('agentflow-studio:builder.dock', '')
+  const dock: Dock = dockChoice === 'run' || dockChoice === 'docs' ? dockChoice : ''
+  const runPanel = useRef<RunPanelHandle>(null)
   const [notice, setNotice] = useState<Notice | null>(() =>
     missingTemplate ? { text: `Template "${missingTemplate}" is not in this runtime's catalog. Starting from a blank agent.`, tone: 'warning' } : null,
   )
@@ -325,10 +336,11 @@ function BuilderView({
     }
   }
 
-  const apply = async () => {
-    if (inFlight.current) return
+  /** Applies the definition (and saves it with `save`); true once it is live. */
+  const apply = async (save = persist): Promise<boolean> => {
+    if (inFlight.current) return false
     const draft = prepare()
-    if (!draft) return
+    if (!draft) return false
     const first = isNew
     const editsAtSend = edits.current
     setNotice(null)
@@ -340,15 +352,15 @@ function BuilderView({
         loop,
         instructions,
         apply: true,
-        persist,
+        persist: save,
         force: false,
         expect_mtime: mtime,
       })
     } catch (err) {
-      if (!alive.current) return
+      if (!alive.current) return false
       end()
       setError(errorMessage(err))
-      return
+      return false
     }
     // The models, tools and templates other screens offer may depend on it.
     void useSession.getState().reloadCatalog()
@@ -358,7 +370,7 @@ function BuilderView({
     } catch {
       /* the header keeps the facts it had */
     }
-    if (!alive.current) return
+    if (!alive.current) return false
     end()
     if (edits.current === editsAtSend) setDirty(false)
     if (first) {
@@ -384,6 +396,29 @@ function BuilderView({
       setNotice({ text: 'Applied live on this instance.', tone: 'success' })
     }
     toast('applied ' + draft.name, 'success')
+    return res.applied
+  }
+
+  /**
+   * Ctrl+Enter: applies pending edits (live only, whatever the Apply button's
+   * choice), then sends the run panel's message so the turn runs what is on
+   * screen.
+   */
+  const run = async () => {
+    if (inFlight.current || deleting) return
+    setDock('run')
+    let target = name
+    if (dirty || isNew) {
+      if (!(await apply(false))) return
+      target = form.name.trim()
+    }
+    if (!alive.current) return
+    runPanel.current?.run(target)
+  }
+
+  const toggleDock = (next: Exclude<Dock, ''>) => {
+    setDock(dock === next ? '' : next)
+    if (next === 'run' && dock !== 'run') setTimeout(() => runPanel.current?.focus(), 0)
   }
 
   /**
@@ -400,7 +435,7 @@ function BuilderView({
     navigate('/agents')
   }
 
-  const test = () => {
+  const openPlayground = () => {
     if (isNew || inFlight.current || deleting) return
     navigate('/playground?agent=' + encodeURIComponent(name))
   }
@@ -437,7 +472,7 @@ function BuilderView({
     }
   }
 
-  useScreenActions({ save: () => void apply(), back, refresh })
+  useScreenActions({ save: () => void apply(), send: () => void run(), back, refresh, help: () => toggleDock('docs') })
 
   const selectTab = (next: TabID) => {
     setTab(next)
@@ -449,6 +484,7 @@ function BuilderView({
   const locked = busy !== '' || deleting
   const status = headerStatus(dirty, detail)
   const applyLabel = busy || (persist ? 'Apply & save' : 'Apply')
+  const dockToggle = (on: boolean) => cx(on && 'border-accent/50 bg-surface2 text-text')
 
   const tabs: TabDef<TabID>[] = [
     { id: 'config', label: 'Config', icon: Settings },
@@ -473,121 +509,157 @@ function BuilderView({
     { id: 'yaml', label: 'YAML', icon: Braces },
   ]
 
-  const main = (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="shrink-0 border-b border-line pb-2.5 pl-3 pr-2 pt-2.5">
+  // The toolbar spans the editor and the dock, so its actions keep their room
+  // however wide the dock is dragged.
+  const toolbar = (
+    <header className="shrink-0 border-b border-line pb-2.5 pl-3 pr-5 pt-2.5">
         <div className="flex items-center gap-2">
           <IconButton icon={ArrowLeft} label="Back" onClick={back} disabled={locked} />
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-semibold leading-tight tracking-[-0.01em]">
-              {displayName(name)}
-              {dirty && (
-                <span className="text-accent" title="Unsaved changes">
-                  {' '}
-                  •
-                </span>
-              )}
-            </h1>
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <Dot tone={status.tone} />
-              <span className={cx('text-xs', toneText(status.tone))}>{status.text}</span>
-            </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-xl font-semibold leading-tight tracking-[-0.01em]">
+            {displayName(name)}
+            {dirty && (
+              <span className="text-accent" title="Unsaved changes">
+                {' '}
+                •
+              </span>
+            )}
+          </h1>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <Dot tone={status.tone} />
+            <span className={cx('text-xs', toneText(status.tone))}>{status.text}</span>
           </div>
-          {busy !== '' && <Spinner />}
-          <Button icon={Check} onClick={() => void validate()} disabled={locked}>
-            Validate
-          </Button>
-          <Button variant="primary" icon={Upload} onClick={() => void apply()} disabled={locked} className="min-w-[124px]">
-            {applyLabel}
-          </Button>
-          <Button icon={Play} onClick={test} disabled={locked || isNew}>
-            Test
-          </Button>
-          <IconButton icon={Trash2} label="Delete" tone="danger" onClick={() => void remove()} disabled={locked || isNew} />
         </div>
-        {notice && (
-          <Banner tone={notice.tone} onClose={() => setNotice(null)} className="mt-2">
-            {notice.text}
-          </Banner>
-        )}
-      </header>
+        {busy !== '' && <Spinner />}
+        <Button icon={Check} onClick={() => void validate()} disabled={locked}>
+          Validate
+        </Button>
+        <SplitButton
+          label={applyLabel}
+          icon={Upload}
+          onClick={() => void apply()}
+          disabled={locked}
+          className="min-w-[136px]"
+          menuLabel="Apply options"
+          options={[
+            {
+              label: 'Apply',
+              hint: 'Swap the live definition on this instance.',
+              checked: !persist,
+              onSelect: () => {
+                setPersist(false)
+                void apply(false)
+              },
+            },
+            {
+              label: 'Apply & save',
+              hint: 'Also write it to the config, so it loads at the next boot.',
+              checked: persist,
+              onSelect: () => {
+                setPersist(true)
+                void apply(true)
+              },
+            },
+          ]}
+        />
+        <Button
+          icon={Play}
+          onClick={() => toggleDock('run')}
+          aria-pressed={dock === 'run'}
+          className={dockToggle(dock === 'run')}
+          title={`Chat with this agent beside the editor (${MOD}+Enter applies and runs)`}
+        >
+          Run
+        </Button>
+        <IconButton icon={BookOpen} label="Luau reference (F1)" onClick={() => toggleDock('docs')} aria-pressed={dock === 'docs'} className={dockToggle(dock === 'docs')} />
+        <IconButton icon={Trash2} label="Delete" tone="danger" onClick={() => void remove()} disabled={locked || isNew} />
+      </div>
+      {notice && (
+        <Banner tone={notice.tone} onClose={() => setNotice(null)} className="mt-2">
+          {notice.text}
+        </Banner>
+      )}
+    </header>
+  )
 
-      <div className="flex min-h-0 flex-1 flex-col pl-5 pr-2 pt-1">
-        <Tabs tabs={tabs} value={tab} onChange={selectTab} trailing={<Checkbox checked={persist} onChange={setPersist} label="Save to config" />} />
+  const main = (
+    <div className={cx('flex min-h-0 flex-1 flex-col pl-5 pt-1', dock === '' ? 'pr-5' : 'pr-2')}>
+      <Tabs tabs={tabs} value={tab} onChange={selectTab} />
 
-        <div className={cx('min-h-0 flex-1 overflow-y-auto', tab !== 'config' && 'hidden')}>
-          <ConfigTab form={form} patch={patch} catalog={catalog} isNew={isNew} capLabels={capLabels} skillLabels={skillLabels} />
+      <div className={cx('min-h-0 flex-1 overflow-y-auto', tab !== 'config' && 'hidden')}>
+        <ConfigTab form={form} patch={patch} catalog={catalog} isNew={isNew} capLabels={capLabels} skillLabels={skillLabels} />
+      </div>
+
+      {/* The source tabs mount on first visit and then stay, so each editor keeps its undo history and scroll position. */}
+      {visited.loop && (
+        <div className={tab === 'loop' ? PANEL : 'hidden'}>
+          <LoopTab
+            source={loop}
+            onChange={editLoop}
+            extensions={support.extensions}
+            diagnostics={analysis.diagnostics}
+            checking={linted !== loop}
+            failure={support.failure || analysis.failure}
+            active={tab === 'loop'}
+          />
         </div>
+      )}
 
-        {/* The source tabs mount on first visit and then stay, so each editor keeps its undo history and scroll position. */}
-        {visited.loop && (
-          <div className={tab === 'loop' ? PANEL : 'hidden'}>
-            <LoopTab
-              source={loop}
-              onChange={editLoop}
-              extensions={support.extensions}
-              diagnostics={analysis.diagnostics}
-              checking={linted !== loop}
-              failure={support.failure || analysis.failure}
-              active={tab === 'loop'}
-            />
-          </div>
-        )}
+      {visited.instructions && (
+        <div className={tab === 'instructions' ? PANEL : 'hidden'}>
+          <EditorFrame
+            title="Instructions"
+            hint="Saved next to the loop as a prompt file; the definition points at it."
+            actions={<CopyButton text={instructions} what="instructions" size="md" />}
+          >
+            <CodeEditor language="markdown" lineWrapping value={instructions} onChange={editInstructions} className="flex-1" />
+          </EditorFrame>
+        </div>
+      )}
 
-        {visited.instructions && (
-          <div className={tab === 'instructions' ? PANEL : 'hidden'}>
-            <EditorFrame
-              title="Instructions"
-              hint="Saved next to the loop as a prompt file; the definition points at it."
-              actions={<CopyButton text={instructions} what="instructions" size="md" />}
-            >
-              <CodeEditor language="markdown" lineWrapping value={instructions} onChange={editInstructions} className="flex-1" />
-            </EditorFrame>
-          </div>
-        )}
+      {visited.yaml && (
+        <div className={tab === 'yaml' ? PANEL : 'hidden'}>
+          <EditorFrame
+            title="Raw YAML"
+            hint="Sent to the runtime. The loop and instructions sources above are sent separately; editing here overrides the form until you rebuild."
+            actions={
+              <>
+                {rawDirty && (
+                  <Chip tone="warning" title="Apply sends this text as written; the Config tab is ignored until you rebuild.">
+                    overrides the form
+                  </Chip>
+                )}
+                <Button size="sm" icon={RefreshCw} onClick={rebuild}>
+                  Rebuild from form
+                </Button>
+                <CopyButton text={yaml} what="YAML" size="md" />
+              </>
+            }
+          >
+            <CodeEditor language="yaml" value={yaml} onChange={editYAML} className="flex-1" />
+          </EditorFrame>
+        </div>
+      )}
+    </div>
+  )
 
-        {visited.yaml && (
-          <div className={tab === 'yaml' ? PANEL : 'hidden'}>
-            <EditorFrame
-              title="Raw YAML"
-              hint="Sent to the runtime. The loop and instructions sources above are sent separately; editing here overrides the form until you rebuild."
-              actions={
-                <>
-                  {rawDirty && (
-                    <Chip tone="warning" title="Apply sends this text as written; the Config tab is ignored until you rebuild.">
-                      overrides the form
-                    </Chip>
-                  )}
-                  <Button size="sm" icon={RefreshCw} onClick={rebuild}>
-                    Rebuild from form
-                  </Button>
-                  <CopyButton text={yaml} what="YAML" size="md" />
-                </>
-              }
-            >
-              <CodeEditor language="yaml" value={yaml} onChange={editYAML} className="flex-1" />
-            </EditorFrame>
-          </div>
-        )}
+  // Both dock bodies stay mounted while the builder is open, so the chat keeps
+  // its thread and the reference its scroll position when the dock flips.
+  const docked = (
+    <div className="flex min-h-0 flex-1 flex-col py-3 pr-5">
+      <div className={dock === 'run' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+        <RunPanel ref={runPanel} client={client} agent={name} onRun={() => void run()} onOpenPlayground={openPlayground} />
+      </div>
+      <div className={dock === 'docs' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+        <DocsPane onOpenDocs={(path) => navigate(path)} />
       </div>
     </div>
   )
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <Split
-        storageKey="builder"
-        fixed="right"
-        initial={400}
-        min={280}
-        max={720}
-        left={main}
-        right={
-          <div className="flex min-h-0 flex-1 flex-col py-3 pr-5">
-            <DocsPane onOpenDocs={(path) => navigate(path)} />
-          </div>
-        }
-      />
+      {toolbar}
+      <Split storageKey="builder.dock" fixed="right" initial={420} min={320} max={760} minOther={480} collapsed={dock === ''} left={main} right={docked} />
     </div>
   )
 }

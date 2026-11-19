@@ -187,7 +187,13 @@ func (a *App) installShortcuts() {
 	add(fyne.KeyN, fyne.KeyModifierControl, a.showNewAgent)
 	add(fyne.KeyK, fyne.KeyModifierControl, a.showCommandPalette)
 	add(fyne.KeyP, fyne.KeyModifierControl|fyne.KeyModifierShift, a.showCommandPalette)
-	add(fyne.KeyF1, 0, a.openDocs)
+	add(fyne.KeyF1, 0, func() {
+		if a.helpAction != nil {
+			a.helpAction()
+			return
+		}
+		a.openDocs()
+	})
 	add(fyne.KeyF5, 0, a.refreshView)
 	c.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl}, func(fyne.Shortcut) {
 		if a.saveAction != nil {

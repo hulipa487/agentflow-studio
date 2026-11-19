@@ -55,6 +55,8 @@ export interface ScreenActions {
   back?: () => void
   /** Alt+R and the shell's refresh command */
   refresh?: () => void
+  /** F1; without it F1 opens the documentation */
+  help?: () => void
 }
 
 interface UIState {

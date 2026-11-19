@@ -1,5 +1,5 @@
 // Center pane: the thread header with its status, the transcript, the composer.
-import { forwardRef, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useImperativeHandle, useRef, type ReactNode } from 'react'
 import { Send, Square } from 'lucide-react'
 import { Button, CopyButton, Dot, IconButton, Panel, cx, toneText } from '@/components/ui'
 import { clockTime, shortID } from '@/lib/format'
@@ -58,8 +58,14 @@ export const ChatPane = forwardRef<
     onDraft: (v: string) => void
     onSend: () => void
     onStop: () => void
+    /** Extra header buttons, before Stop. */
+    actions?: ReactNode
+    /** The line beside Send; defaults to the send shortcut. */
+    hint?: string
+    /** What the empty transcript suggests. */
+    emptyHint?: string
   }
->(function ChatPane({ agent, thread, status, messages, sending, stopping, draft, onDraft, onSend, onStop }, handle) {
+>(function ChatPane({ agent, thread, status, messages, sending, stopping, draft, onDraft, onSend, onStop, actions, hint, emptyHint }, handle) {
   const { ref, onScroll, pin } = useStickToBottom<HTMLDivElement>(messages, agent + '\n' + thread)
   const input = useRef<HTMLTextAreaElement>(null)
   useImperativeHandle(handle, () => ({ pinToEnd: pin, focusComposer: () => input.current?.focus() }), [pin])
@@ -87,6 +93,7 @@ export const ChatPane = forwardRef<
             {status.text}
           </span>
         </div>
+        {actions}
         <IconButton icon={Square} label="Stop session" tone="danger" onClick={onStop} loading={stopping} />
       </header>
 
@@ -94,7 +101,7 @@ export const ChatPane = forwardRef<
         {messages.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 py-8 text-center">
             <div className="text-base font-medium">No messages in this thread</div>
-            <div className="text-sm text-muted">Send one below; each operation of the turn appears in the trace.</div>
+            <div className="text-sm text-muted">{emptyHint ?? 'Send one below; each operation of the turn appears in the trace.'}</div>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -123,7 +130,7 @@ export const ChatPane = forwardRef<
             className="block w-full resize-none bg-transparent px-2.5 pt-2 text-base leading-relaxed text-text placeholder:text-faint focus:outline-none"
           />
           <div className="flex items-center gap-2 py-1 pl-2.5 pr-1">
-            <span className="min-w-0 flex-1 truncate text-xs text-faint">{MOD}+Enter sends · Enter adds a newline</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-faint">{hint ?? `${MOD}+Enter sends · Enter adds a newline`}</span>
             <Button
               variant="primary"
               icon={Send}

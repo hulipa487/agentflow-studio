@@ -111,7 +111,8 @@ export function useAsync<T>(
 
 /**
  * Claims the shell's keyboard actions for the mounted screen: Ctrl/Cmd+S
- * (save), Ctrl/Cmd+Enter (send), Esc (back) and Alt+R (refresh). The latest
+ * (save), Ctrl/Cmd+Enter (send), Esc (back), Alt+R (refresh) and F1 (help,
+ * which otherwise opens the documentation). The latest
  * closures are always used; they are released on unmount.
  */
 export function useScreenActions(actions: ScreenActions): void {
@@ -123,6 +124,7 @@ export function useScreenActions(actions: ScreenActions): void {
       send: () => ref.current.send?.(),
       back: () => ref.current.back?.(),
       refresh: () => ref.current.refresh?.(),
+      help: () => ref.current.help?.(),
     }
     // Only advertise what the screen actually handles.
     const claimed: ScreenActions = {}
@@ -130,12 +132,13 @@ export function useScreenActions(actions: ScreenActions): void {
     if (ref.current.send) claimed.send = proxy.send
     if (ref.current.back) claimed.back = proxy.back
     if (ref.current.refresh) claimed.refresh = proxy.refresh
+    if (ref.current.help) claimed.help = proxy.help
     useUI.setState({ actions: claimed })
     return () => {
       if (useUI.getState().actions === claimed) useUI.setState({ actions: {} })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!actions.save, !!actions.send, !!actions.back, !!actions.refresh])
+  }, [!!actions.save, !!actions.send, !!actions.back, !!actions.refresh, !!actions.help])
 }
 
 /** Navigate with this state to pass a screen's unsaved-edits guard (its own save or delete flow). */

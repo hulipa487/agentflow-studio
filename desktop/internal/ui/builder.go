@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"agentflow-studio/internal/api"
+	"agentflow-studio/internal/appconfig"
 )
 
 var agentNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
@@ -49,20 +50,33 @@ type builderView struct {
 	suppressDirty bool
 	dirty         bool
 
-	persist     *widget.Check
+	// persist is the Apply button's choice, remembered in the app config.
+	persist     bool
 	messages    *fyne.Container
 	title       *canvas.Text
 	subtitle    *widget.Label
 	stateDot    *canvas.Circle
 	validateBtn *widget.Button
 	applyBtn    *widget.Button
-	testBtn     *widget.Button
+	applyMenu   *widget.Button
+	runBtn      *toggleButton
+	docsBtn     *toggleButton
 	deleteBtn   *widget.Button
 	backBtn     *widget.Button
 	activity    *widget.Activity
 	luaEditor   *luaEditor
 	tabs        *container.AppTabs
 	busy        bool
+
+	// The dock beside the editor holds the run panel or the Luau reference;
+	// dock is "run", "docs" or "" (closed).
+	dock      string
+	run       *chatSession
+	runPane   fyne.CanvasObject
+	docsPane  fyne.CanvasObject
+	body      *fyne.Container
+	editor    fyne.CanvasObject
+	dockSplit *container.Split
 }
 
 func displayName(name string) string {
@@ -79,8 +93,7 @@ func (a *App) showBuilder(name string, tpl *api.Template) {
 	if name == "" {
 		b := a.newBuilderView("", nil, tpl)
 		a.setMain(b.root)
-		a.saveAction = b.apply
-		a.backAction = b.back
+		b.claimActions()
 		return
 	}
 
@@ -97,8 +110,7 @@ func (a *App) showBuilder(name string, tpl *api.Template) {
 			}
 			b := a.newBuilderView(name, &d, nil)
 			a.setMain(b.root)
-			a.saveAction = b.apply
-			a.backAction = b.back
+			b.claimActions()
 			a.setBreadcrumb("Agents / " + name)
 		})
 	}()
@@ -228,12 +240,14 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	b.activity = widget.NewActivity()
 	b.activity.Hide()
 
-	b.persist = widget.NewCheck("Save to config", nil)
-	b.persist.OnChanged = func(bool) { b.applyBtn.SetText(b.applyLabel()) }
+	b.persist = a.cfg.BuilderPersist
 
 	b.validateBtn = actionButton("Validate", checkMarkIcon, b.validate)
 	b.applyBtn = primaryButton("Apply", theme.UploadIcon(), b.apply)
-	b.testBtn = actionButton("Test", theme.MediaPlayIcon(), func() { a.showPlayground(b.name) })
+	b.applyMenu = primaryButton("", theme.MenuDropDownIcon(), nil)
+	b.applyMenu.OnTapped = b.showApplyMenu
+	b.runBtn = newToggleButton("Run", theme.MediaPlayIcon(), func() { b.toggleDock("run") })
+	b.docsBtn = newToggleButton("", theme.HelpIcon(), func() { b.toggleDock("docs") })
 	b.deleteBtn = iconButton(theme.DeleteIcon(), "Delete", func() {
 		if b.name != "" {
 			a.confirmDelete(b.name, false, "")
@@ -361,20 +375,50 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	}
 	b.tabs = tabs
 
-	// The right column is the inline Lua guide; Status/Files facts now live
-	// in the title line (state) and the deployment config.
-	inspector := b.luaDocsPane()
+	// The dock: a run panel (chat and trace with this agent) or the inline
+	// Luau guide. Both are built once, so the chat keeps its thread and the
+	// guide its scroll position when the dock flips or closes.
+	b.run = newChatSession(a, name, chatOptions{
+		hint:        "Ctrl+Enter applies edits and sends · empty repeats the last",
+		emptyTitle:  "No messages yet",
+		emptyNote:   "Each send applies your edits first.",
+		statusWidth: 64,
+		actions: []fyne.CanvasObject{
+			iconButton(theme.ContentAddIcon(), "New thread", func() {
+				id := newThreadID()
+				b.run.switchTo(b.run.agent, id, "new thread "+shortID(id), toneAccent)
+			}),
+			iconButton(theme.ComputerIcon(), "Open in the Playground", func() {
+				if name := b.name; name != "" {
+					b.leave(func() { b.app.showPlayground(name) })
+				}
+			}),
+		},
+	})
+	b.run.onSend = b.runTurn
+	if b.isNew {
+		b.run.headerName.SetText("Not applied yet")
+		b.run.setStatus("apply to start", toneNeutral)
+	}
+	runSplit := container.NewVSplit(b.run.chatPanel, b.run.tracePanel)
+	runSplit.SetOffset(0.6)
+	b.runPane = runSplit
+	b.docsPane = b.luaDocsPane()
+	dockPane := container.New(layout.NewCustomPaddedLayout(pageTop, pageBottom, spaceM, pageGutter),
+		container.NewStack(b.runPane, b.docsPane))
 
-	// One toolbar: the agent and its state on the left, the actions on the
-	// right. "Save to config" sits at the end of the tab strip, where it costs
-	// no header height and still fits the minimum window width.
+	// One toolbar across the editor and the dock: the agent and its state on
+	// the left, the actions on the right. Apply is a split button whose menu
+	// chooses between applying live and applying and saving.
+	applySplit := hstack(1, widthBox(112, b.applyBtn), widthBox(30, b.applyMenu))
 	status := hstack(spaceXS, vCenter(dotBox(b.stateDot)), vCenter(compactLabel(b.subtitle, true)))
 	titleLeft := hstack(spaceS, vCenter(b.backBtn), vCenter(vstack(0, b.title, status)))
 	titleRight := hstack(spaceXS,
 		vCenter(b.activity),
 		vCenter(widthBox(96, b.validateBtn)),
-		vCenter(widthBox(124, b.applyBtn)),
-		vCenter(widthBox(76, b.testBtn)),
+		vCenter(applySplit),
+		vCenter(widthBox(76, b.runBtn)),
+		vCenter(widthBox(36, b.docsBtn)),
 		vCenter(b.deleteBtn),
 	)
 	titleRow := container.NewBorder(nil, nil, titleLeft, titleRight, nil)
@@ -384,21 +428,138 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		widget.NewSeparator(),
 	)
 
-	persistCorner := container.NewVBox(container.NewHBox(layout.NewSpacer(),
-		container.New(layout.NewCustomPaddedLayout(spaceXS, 0, 0, spaceXS), compactCheck(b.persist))))
-	tabsPane := container.New(layout.NewCustomPaddedLayout(spaceXS, 0, spaceM, spaceM),
-		container.NewStack(tabs, persistCorner))
-	inspectorPane := container.New(layout.NewCustomPaddedLayout(pageTop, pageBottom, spaceM, pageGutter), inspector)
-	split := container.NewHSplit(container.NewBorder(head, nil, nil, nil, tabsPane), inspectorPane)
-	split.SetOffset(0.68)
-	b.root = split
+	b.editor = container.New(layout.NewCustomPaddedLayout(spaceXS, 0, spaceM, spaceM), tabs)
+	b.dockSplit = container.NewHSplit(b.editor, dockPane)
+	b.dockSplit.SetOffset(0.58)
+	b.body = container.NewStack()
+	b.root = container.NewBorder(head, nil, nil, nil, b.body)
+	b.setDock(a.cfg.BuilderDock)
 
 	b.updateHeader()
 	if b.isNew {
-		b.testBtn.Disable()
 		b.deleteBtn.Disable()
 	}
 	return b
+}
+
+// claimActions binds the window shortcuts to this builder: Ctrl+S applies,
+// Ctrl+Enter applies and runs, F1 flips the Luau reference, Esc goes back.
+func (b *builderView) claimActions() {
+	b.app.saveAction = b.apply
+	b.app.sendAction = b.runTurn
+	b.app.helpAction = func() { b.toggleDock("docs") }
+	b.app.backAction = b.back
+}
+
+// setDock shows the dock's run panel or reference, or closes it so the
+// editor takes the whole width.
+func (b *builderView) setDock(dock string) {
+	if dock != "run" && dock != "docs" {
+		dock = ""
+	}
+	b.dock = dock
+	b.runBtn.setActive(dock == "run")
+	b.docsBtn.setActive(dock == "docs")
+	if dock == "" {
+		b.body.Objects = []fyne.CanvasObject{b.editor}
+	} else {
+		if dock == "run" {
+			b.runPane.Show()
+			b.docsPane.Hide()
+		} else {
+			b.docsPane.Show()
+			b.runPane.Hide()
+		}
+		b.body.Objects = []fyne.CanvasObject{b.dockSplit}
+	}
+	b.body.Refresh()
+}
+
+// rememberDock keeps the dock choice for the next builder.
+func (b *builderView) rememberDock() {
+	if b.app.cfg.BuilderDock == b.dock {
+		return
+	}
+	b.app.cfg.BuilderDock = b.dock
+	_ = appconfig.Save(b.app.cfg)
+}
+
+func (b *builderView) toggleDock(dock string) {
+	if b.dock == dock {
+		dock = ""
+	}
+	b.setDock(dock)
+	b.rememberDock()
+	if dock == "run" {
+		b.app.win.Canvas().Focus(b.run.input)
+	}
+}
+
+// showApplyMenu offers the two ways to apply; the pick runs at once and
+// becomes the button's choice.
+func (b *builderView) showApplyMenu() {
+	if b.busy {
+		return
+	}
+	live := fyne.NewMenuItem("Apply: swap the live definition", func() { b.choosePersist(false) })
+	live.Checked = !b.persist
+	save := fyne.NewMenuItem("Apply & save: also write it to the config", func() { b.choosePersist(true) })
+	save.Checked = b.persist
+	menu := fyne.NewMenu("", live, save)
+	c := b.app.win.Canvas()
+	pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(b.applyMenu)
+	pop := widget.NewPopUpMenu(menu, c)
+	w := pop.MinSize().Width
+	pop.ShowAtPosition(fyne.NewPos(pos.X+b.applyMenu.Size().Width-w, pos.Y+b.applyMenu.Size().Height+4))
+}
+
+func (b *builderView) choosePersist(persist bool) {
+	b.persist = persist
+	if b.app.cfg.BuilderPersist != persist {
+		b.app.cfg.BuilderPersist = persist
+		_ = appconfig.Save(b.app.cfg)
+	}
+	b.applyBtn.SetText(b.applyLabel())
+	b.applyWith(persist, nil)
+}
+
+// runTurn is Ctrl+Enter and the run panel's Send: it applies pending edits
+// (live only, whatever the Apply choice), then sends the composer's message,
+// or repeats the last one when the composer is empty.
+func (b *builderView) runTurn() {
+	if b.busy {
+		return
+	}
+	if b.dock != "run" {
+		b.setDock("run")
+		b.rememberDock()
+	}
+	send := func() {
+		if b.run.agent != b.name {
+			b.run.switchTo(b.name, newThreadID(), "ready", toneSuccess)
+		}
+		typed := b.run.input.Text
+		text := typed
+		if strings.TrimSpace(text) == "" {
+			text = b.run.last
+		}
+		if strings.TrimSpace(text) == "" {
+			b.app.win.Canvas().Focus(b.run.input)
+			return
+		}
+		if b.run.sending {
+			b.app.setStatus("a turn is still running; stop it or wait", toneWarning)
+			return
+		}
+		if b.run.sendText(text) && text == typed {
+			b.run.input.SetText("")
+		}
+	}
+	if b.dirty || b.isNew {
+		b.applyWith(false, send)
+		return
+	}
+	send()
 }
 
 // effectiveCapabilities is what the loop will actually run with: an explicit
@@ -417,7 +578,7 @@ func (b *builderView) effectiveCapabilities() []string {
 }
 
 func (b *builderView) applyLabel() string {
-	if b.persist.Checked {
+	if b.persist {
 		return "Apply & save"
 	}
 	return "Apply"
@@ -484,9 +645,13 @@ func (b *builderView) markDirty() {
 	b.updateHeader()
 }
 
-func (b *builderView) back() {
+func (b *builderView) back() { b.leave(b.app.showAgents) }
+
+// leave runs next at once, or after the operator agrees to lose unapplied
+// edits: every way out of the builder asks the same question.
+func (b *builderView) leave(next func()) {
 	if !b.dirty {
-		b.app.showAgents()
+		next()
 		return
 	}
 	showConfirmPrompt(b.app.win, "Discard changes?",
@@ -494,7 +659,7 @@ func (b *builderView) back() {
 		"Discard", true,
 		func(ok bool) {
 			if ok {
-				b.app.showAgents()
+				next()
 			}
 		})
 }
@@ -507,7 +672,7 @@ func (b *builderView) setBusy(busy bool, verb string) {
 	b.busy = busy
 	b.validateBtn.Disable()
 	b.applyBtn.Disable()
-	b.testBtn.Disable()
+	b.applyMenu.Disable()
 	b.deleteBtn.Disable()
 	b.backBtn.Disable()
 	if busy {
@@ -522,10 +687,10 @@ func (b *builderView) setBusy(busy bool, verb string) {
 	b.activity.Hide()
 	b.validateBtn.Enable()
 	b.applyBtn.Enable()
+	b.applyMenu.Enable()
 	b.applyBtn.SetText(b.applyLabel())
 	b.backBtn.Enable()
 	if !b.isNew {
-		b.testBtn.Enable()
 		b.deleteBtn.Enable()
 	}
 }
@@ -582,7 +747,11 @@ func (b *builderView) validate() {
 	}()
 }
 
-func (b *builderView) apply() {
+func (b *builderView) apply() { b.applyWith(b.persist, nil) }
+
+// applyWith applies the definition (and saves it with persist); after runs
+// once the new definition is live.
+func (b *builderView) applyWith(persist bool, after func()) {
 	if b.busy {
 		return
 	}
@@ -600,7 +769,6 @@ func (b *builderView) apply() {
 		b.setError(err.Error())
 		return
 	}
-	persist := b.persist.Checked
 	b.clearMessages()
 	b.setBusy(true, "Applying…")
 
@@ -636,7 +804,6 @@ func (b *builderView) apply() {
 				b.nameEntry.SetText(name)
 				b.nameEntry.Disable()
 				b.suppressDirty = false
-				b.testBtn.Enable()
 				b.deleteBtn.Enable()
 				b.app.setBreadcrumb("Agents / " + name)
 			}
@@ -654,6 +821,9 @@ func (b *builderView) apply() {
 				b.setNotice("Applied live on this instance.", toneSuccess)
 			}
 			b.app.setStatus("applied "+name, toneSuccess)
+			if after != nil {
+				after()
+			}
 		})
 	}()
 }

@@ -231,6 +231,32 @@ I don't have a weather tool enabled in this example, so I can't fetch a live for
 		ui.wait(800 * time.Millisecond)
 		capture("03-builder-completion" + suffix)
 
+		// The workbench: the run panel docked beside the loop, then the
+		// reference, then the Apply menu.
+		b.luaEditor.editor.ShowCompletions(nil, "", 0, 0)
+		b.setDock("run")
+		b.run.addBubble("You", "hello workbench", true)
+		b.run.assistant = b.run.addBubble("Agent", "echo v2: hello workbench", false)
+		b.run.events = []api.TraceEvent{
+			{Seq: 1, Kind: "turn.start", Turn: "m1"},
+			{Seq: 2, Kind: "op.end", Op: "send", OK: true, DurationMS: 2},
+			{Seq: 3, Kind: "reply", OK: true},
+			{Seq: 4, Kind: "turn.end"},
+		}
+		b.run.renderTrace()
+		ui.wait(300 * time.Millisecond)
+		capture("03-builder-run" + suffix)
+		b.setDock("docs")
+		ui.wait(400 * time.Millisecond)
+		capture("03-builder-docs" + suffix)
+		b.setDock("")
+		b.showApplyMenu()
+		ui.wait(200 * time.Millisecond)
+		capture("03-builder-apply-menu" + suffix)
+		if top := win.Canvas().Overlays().Top(); top != nil {
+			top.Hide()
+		}
+
 		nb := a.newBuilderView("", nil, &a.catalog.Templates[0])
 		a.setMain(nb.root)
 		ui.wait(400 * time.Millisecond)
@@ -374,6 +400,9 @@ I don't have a weather tool enabled in this example, so I can't fetch a live for
 	a.setMain(b.root)
 	win.Resize(fyne.NewSize(1100, 780))
 	capture("06-builder-narrow")
+	b.setDock("run")
+	ui.wait(200 * time.Millisecond)
+	capture("06-builder-run-narrow")
 }
 
 // newUsersViewOpen shows Users with one profile selected (snapshots only).

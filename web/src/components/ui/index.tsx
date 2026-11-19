@@ -146,6 +146,109 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   )
 })
 
+export interface SplitOption {
+  label: string
+  /** One line under the label saying what the choice does. */
+  hint?: string
+  /** Shown checked: the choice the main button currently runs. */
+  checked?: boolean
+  onSelect: () => void
+}
+
+/**
+ * A primary button with a menu of alternatives on its chevron, like a merge
+ * button: the main half runs the current choice, a pick from the menu runs
+ * that choice (and the caller usually makes it the new default).
+ */
+export function SplitButton({
+  label,
+  icon: Icon,
+  onClick,
+  options,
+  menuLabel,
+  disabled,
+  className,
+}: {
+  label: ReactNode
+  icon?: LucideIcon
+  onClick: () => void
+  options: SplitOption[]
+  /** Accessible name of the chevron. */
+  menuLabel: string
+  disabled?: boolean
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    // Capture, so Escape closes the menu without also leaving the screen.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey, true)
+    }
+  }, [open])
+  useEffect(() => {
+    if (disabled) setOpen(false)
+  }, [disabled])
+
+  const half =
+    'inline-flex h-[30px] items-center justify-center bg-accent text-on-primary transition-[filter,opacity] duration-100 hover:brightness-105 active:brightness-95 disabled:opacity-50'
+  return (
+    <div ref={ref} className={cx('relative inline-flex shrink-0', className)}>
+      <button type="button" disabled={disabled} onClick={onClick} className={cx(half, 'min-w-0 flex-1 gap-1.5 whitespace-nowrap rounded-l-ctl pl-3 pr-2.5 text-base font-medium')}>
+        {Icon && <Icon className="size-3.5" strokeWidth={2} />}
+        {label}
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={menuLabel}
+        title={menuLabel}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={cx(half, 'w-7 rounded-r-ctl border-l border-on-primary/25')}
+      >
+        <ChevronDown className="size-3.5" strokeWidth={2} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-40 w-64 animate-pop-in rounded-card border border-line bg-float p-1 shadow-float">
+          {options.map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              role="menuitemradio"
+              aria-checked={!!o.checked}
+              onClick={() => {
+                setOpen(false)
+                o.onSelect()
+              }}
+              className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-hover"
+            >
+              <Check className={cx('mt-0.5 size-3.5 shrink-0 text-accent', !o.checked && 'invisible')} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-base">{o.label}</span>
+                {o.hint && <span className="block text-sm text-muted">{o.hint}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function CopyButton({ text, what = 'value', size = 'sm', className }: { text: string; what?: string; size?: 'sm' | 'md'; className?: string }) {
   const [done, setDone] = useState(false)
   return (

@@ -64,6 +64,9 @@ type App struct {
 	sendAction    func()
 	backAction    func()
 	refreshAction func()
+	// helpAction is F1 on screens with their own reference (the builder's
+	// docs dock); elsewhere F1 opens the documentation.
+	helpAction func()
 
 	shortcutsInstalled bool
 }
@@ -184,6 +187,7 @@ func (a *App) clearActions() {
 	a.sendAction = nil
 	a.backAction = nil
 	a.refreshAction = nil
+	a.helpAction = nil
 }
 
 func (a *App) lock() {
