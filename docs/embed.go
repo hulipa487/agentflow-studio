@@ -9,8 +9,9 @@ package docs
 
 import "embed"
 
-// FS holds the guides at its root and the contract files under openapi/ and
-// luau/.
+// FS holds the guides at its root, their Simplified and Traditional Chinese
+// translations under zh-Hans/ and zh-Hant/ (same file names), and the
+// contract files under openapi/ and luau/.
 //
-//go:embed *.md luau openapi
+//go:embed *.md luau openapi zh-Hans zh-Hant
 var FS embed.FS

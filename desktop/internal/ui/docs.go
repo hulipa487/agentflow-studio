@@ -21,6 +21,7 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"agentflow-studio/internal/docs"
+	"agentflow-studio/internal/i18n"
 )
 
 // SetDocs installs the documentation set: the shared docs module's file
@@ -85,7 +86,7 @@ func (a *App) docsView(slug string) fyne.CanvasObject {
 			}
 			for _, r := range results {
 				slug := r.Page.Slug
-				label := r.Page.Title
+				label := r.Page.DisplayTitle()
 				if r.Snippet != "" {
 					label += "\n" + r.Snippet
 				}
@@ -102,7 +103,7 @@ func (a *App) docsView(slug string) fyne.CanvasObject {
 				sidebarList.Add(caption(T(p.SectionKey)))
 			}
 			slug := p.Slug
-			b := widget.NewButton(p.Title, func() { a.showDocs(slug) })
+			b := widget.NewButton(p.DisplayTitle(), func() { a.showDocs(slug) })
 			b.Alignment = widget.ButtonAlignLeading
 			if p.Slug == page.Slug {
 				b.Importance = widget.HighImportance
@@ -136,10 +137,16 @@ func (a *App) docsView(slug string) fyne.CanvasObject {
 	} else {
 		head := vstack(spaceXS,
 			hstack(spaceS, vCenter(chip(T(page.SectionKey), toneAccent))),
-			insetLeading(titleText(page.Title, theme.SizeNameHeadingText)),
+			insetLeading(titleText(page.DisplayTitle(), theme.SizeNameHeadingText)),
 		)
+		top := []fyne.CanvasObject{head, widget.NewSeparator()}
+		if l := i18n.Language(); l.Chinese() {
+			if _, translated := a.docs.Translation(l, slug); !translated {
+				top = append(top, muted(T("docs.englishOnly")))
+			}
+		}
 		blocks := a.renderMarkdown(slug, body)
-		pageCol = vstack(spaceM, append([]fyne.CanvasObject{head, widget.NewSeparator()}, blocks...)...)
+		pageCol = vstack(spaceM, append(top, blocks...)...)
 	}
 	pageScroll := container.NewVScroll(container.New(
 		layout.NewCustomPaddedLayout(pageTop, pageBottom, spaceS, pageGutter), panel(pageCol)))
@@ -510,7 +517,8 @@ func (r *mdRenderer) text(s string, style textStyle) *widget.TextSegment {
 		size = theme.SizeNameText
 	}
 	return &widget.TextSegment{
-		Text: s,
+		// Chinese gets break points so the paragraph fills its lines.
+		Text: cjkBreaks(s),
 		Style: widget.RichTextStyle{
 			TextStyle: fyne.TextStyle{Bold: style.bold, Italic: style.italic},
 			SizeName:  size,

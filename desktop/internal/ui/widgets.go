@@ -85,7 +85,8 @@ func monoEntry(multiline bool) *widget.Entry {
 }
 
 func wrapLabel(text string) *widget.Label {
-	l := widget.NewLabel(text)
+	// Chinese gets break points so a wrapped hint fills its lines (cjkwrap.go).
+	l := widget.NewLabel(cjkBreaks(text))
 	l.Wrapping = fyne.TextWrapWord
 	return l
 }

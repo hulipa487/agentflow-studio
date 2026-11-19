@@ -46,7 +46,7 @@
   "settings.forgetName": "忘記 {name}",
   "settings.instance": "執行個體",
   "settings.region": "區域",
-  "settings.zone": "可用區域",
+  "settings.zone": "可用區",
   "settings.topology": "拓撲",
   "settings.version": "版本",
   "settings.uptime": "執行時間",

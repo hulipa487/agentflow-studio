@@ -26,5 +26,15 @@
   "docs.sectionBuild": "Build",
   "docs.sectionReference": "Reference",
   "docs.assetUserApi": "User API (OpenAPI)",
-  "docs.assetLuauTypes": "Luau type definitions"
+  "docs.assetLuauTypes": "Luau type definitions",
+  "docs.page.gettingStarted": "Overview",
+  "docs.page.architecture": "Architecture & deployment",
+  "docs.page.multiRegion": "Multi-region",
+  "docs.page.loops": "Luau loops",
+  "docs.page.memory": "Memory",
+  "docs.page.extending": "Extending",
+  "docs.page.configuration": "Configuration",
+  "docs.page.loopsReference": "Loop API reference",
+  "docs.page.openaiApi": "OpenAI-compatible API",
+  "docs.englishOnly": "This guide has no translation yet; it is shown in English."
 }

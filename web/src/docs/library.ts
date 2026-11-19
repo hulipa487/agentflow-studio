@@ -1,7 +1,17 @@
 // The bundled documentation set: the repository's docs/ directory, the same
 // files the desktop Studio embeds. There is no copy to keep in step. Pages are
 // compiled into the app, so the viewer works offline and on every transport.
+//
+// Each guide may have a Simplified and a Traditional Chinese translation at
+// docs/zh-Hans/<file> and docs/zh-Hant/<file>. A page is read in the current
+// UI language and falls back to English where no translation exists. A
+// translation keeps the English headings one for one (a test checks it), and
+// each translated heading takes the id of the English heading in the same
+// position, so links such as configuration.md#memory work in every language.
+import { currentLang, t, type Lang } from '@/i18n'
+
 const pages = import.meta.glob('../../../docs/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const translations = import.meta.glob('../../../docs/zh-{Hans,Hant}/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const assets = import.meta.glob('../../../docs/**/*.{yaml,yml,luau,json}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
 /** The glob keys' prefix: this file's path to the shared docs directory. */
@@ -13,10 +23,30 @@ export function bundledDocFiles(): string[] {
   return Object.keys(pages).map((k) => k.slice(ROOT.length)).sort()
 }
 
+/** Every translated guide, as "zh-Hans/<file>", for the tests. */
+export function bundledTranslations(): string[] {
+  return Object.keys(translations).map((k) => k.slice(ROOT.length)).sort()
+}
+
+/** A guide's English source by file name, for the tests. */
+export function englishSource(file: string): string | undefined {
+  return pages[ROOT + file]
+}
+
+/** A guide's translation by language and file name, if there is one. */
+export function translatedSource(lang: Lang, file: string): string | undefined {
+  if (lang === 'en') return undefined
+  const text = translations[`${ROOT}${lang}/${file}`]
+  return text ? text : undefined
+}
+
 export interface DocPage {
   slug: string
   file: string
+  /** The English title; docTitle() gives it in the current language. */
   title: string
+  /** The catalogue key of the title. */
+  titleKey: string
   /** The catalogue key of the sidebar group the page sits under. */
   sectionKey: string
   order: number
@@ -36,15 +66,15 @@ export interface DocAsset {
 }
 
 const MANIFEST: DocPage[] = [
-  { slug: 'getting-started', file: 'getting-started.md', title: 'Overview', sectionKey: 'docs.sectionStartHere', order: 1 },
-  { slug: 'architecture', file: 'architecture.md', title: 'Architecture & deployment', sectionKey: 'docs.sectionStartHere', order: 2 },
-  { slug: 'multi-region', file: 'multi-region.md', title: 'Multi-region', sectionKey: 'docs.sectionStartHere', order: 3 },
-  { slug: 'loops', file: 'loops.md', title: 'Luau loops', sectionKey: 'docs.sectionBuild', order: 4 },
-  { slug: 'memory', file: 'memory.md', title: 'Memory', sectionKey: 'docs.sectionBuild', order: 5 },
-  { slug: 'extending', file: 'extending.md', title: 'Extending', sectionKey: 'docs.sectionBuild', order: 6 },
-  { slug: 'configuration', file: 'configuration.md', title: 'Configuration', sectionKey: 'docs.sectionReference', order: 7 },
-  { slug: 'loops-reference', file: 'loops-reference.md', title: 'Loop API reference', sectionKey: 'docs.sectionReference', order: 8 },
-  { slug: 'openai-api', file: 'openai-api.md', title: 'OpenAI-compatible API', sectionKey: 'docs.sectionReference', order: 9 },
+  { slug: 'getting-started', file: 'getting-started.md', title: 'Overview', titleKey: 'docs.page.gettingStarted', sectionKey: 'docs.sectionStartHere', order: 1 },
+  { slug: 'architecture', file: 'architecture.md', title: 'Architecture & deployment', titleKey: 'docs.page.architecture', sectionKey: 'docs.sectionStartHere', order: 2 },
+  { slug: 'multi-region', file: 'multi-region.md', title: 'Multi-region', titleKey: 'docs.page.multiRegion', sectionKey: 'docs.sectionStartHere', order: 3 },
+  { slug: 'loops', file: 'loops.md', title: 'Luau loops', titleKey: 'docs.page.loops', sectionKey: 'docs.sectionBuild', order: 4 },
+  { slug: 'memory', file: 'memory.md', title: 'Memory', titleKey: 'docs.page.memory', sectionKey: 'docs.sectionBuild', order: 5 },
+  { slug: 'extending', file: 'extending.md', title: 'Extending', titleKey: 'docs.page.extending', sectionKey: 'docs.sectionBuild', order: 6 },
+  { slug: 'configuration', file: 'configuration.md', title: 'Configuration', titleKey: 'docs.page.configuration', sectionKey: 'docs.sectionReference', order: 7 },
+  { slug: 'loops-reference', file: 'loops-reference.md', title: 'Loop API reference', titleKey: 'docs.page.loopsReference', sectionKey: 'docs.sectionReference', order: 8 },
+  { slug: 'openai-api', file: 'openai-api.md', title: 'OpenAI-compatible API', titleKey: 'docs.page.openaiApi', sectionKey: 'docs.sectionReference', order: 9 },
 ]
 
 /** The sidebar groups in order, as catalogue keys. */
@@ -68,9 +98,27 @@ export function docPage(slug: string): DocPage | undefined {
   return bySlug.get(slug)
 }
 
-export function readDoc(slug: string): string | undefined {
+/** The page's title in the current language. */
+export function docTitle(p: DocPage): string {
+  return t(p.titleKey)
+}
+
+/** The page in the given language (the current one by default), else English. */
+export function readDoc(slug: string, lang: Lang = currentLang()): string | undefined {
   const p = bySlug.get(slug)
-  return p ? pages[ROOT + p.file] : undefined
+  if (!p) return undefined
+  return translatedSource(lang, p.file) ?? pages[ROOT + p.file]
+}
+
+/**
+ * The ids to give a page's headings, in order, when it is shown translated:
+ * the English page's own heading ids. Undefined when the page is shown in
+ * English (its headings then get their own ids).
+ */
+export function docHeadingIDs(slug: string, lang: Lang = currentLang()): string[] | undefined {
+  const p = bySlug.get(slug)
+  if (!p || !translatedSource(lang, p.file)) return undefined
+  return docHeadings(pages[ROOT + p.file] ?? '').map((h) => h.id)
 }
 
 export function readAsset(path: string): string | undefined {
@@ -108,7 +156,7 @@ export function searchDocs(query: string, limit = 20): DocResult[] {
   for (const p of available) {
     const body = readDoc(p.slug) ?? ''
     const idx = body.toLowerCase().indexOf(q)
-    if (idx < 0 && !p.title.toLowerCase().includes(q)) continue
+    if (idx < 0 && !docTitle(p).toLowerCase().includes(q)) continue
     let snippet = ''
     if (idx >= 0) {
       const start = body.lastIndexOf('\n', idx - 1) + 1
@@ -144,8 +192,8 @@ export function headingID(text: string): string {
     .replace(/\s/g, '-')
 }
 
-/** The h2/h3 outline of a page, for section navigation. */
-export function docOutline(source: string): DocHeading[] {
+/** Every heading of a page (all levels, outside code fences), in order. */
+export function docHeadings(source: string): DocHeading[] {
   const out: DocHeading[] = []
   let fenced = false
   for (const line of source.split('\n')) {
@@ -154,11 +202,21 @@ export function docOutline(source: string): DocHeading[] {
       continue
     }
     if (fenced) continue
-    const m = /^(#{2,3})\s+(.+?)\s*#*\s*$/.exec(line)
+    const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line)
     if (m) {
       const text = m[2].replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[*_`]/g, '')
       out.push({ level: m[1].length, text, id: headingID(text) })
     }
   }
   return out
+}
+
+/**
+ * The h2/h3 outline of a page, for section navigation. ids, when given, are
+ * the ids for every heading in order (docHeadingIDs), for a translated page.
+ */
+export function docOutline(source: string, ids?: string[]): DocHeading[] {
+  return docHeadings(source)
+    .map((h, i) => (ids?.[i] ? { ...h, id: ids[i] } : h))
+    .filter((h) => h.level === 2 || h.level === 3)
 }

@@ -42,18 +42,25 @@ export function offsetIn(el: HTMLElement, scroller: HTMLElement): number {
  * the first line containing the query. Empty when the hit precedes every
  * heading (or is only in the page title).
  */
-export function sectionForMatch(source: string, query: string): string {
+export function sectionForMatch(source: string, query: string, ids?: string[]): string {
   const q = query.trim().toLowerCase()
   if (q === '') return ''
   let fenced = false
   let last = ''
+  // n counts every heading, as docHeadings does, so ids (a translated page's
+  // English heading ids, in order) line up with the headings here.
+  let n = 0
   for (const line of source.split('\n')) {
     if (/^\s*(```|~~~)/.test(line)) {
       fenced = !fenced
     } else if (!fenced) {
       // The same heading rule as docOutline, so the id is one the page has.
-      const m = /^(#{2,3})\s+(.+?)\s*#*\s*$/.exec(line)
-      if (m) last = headingID(m[2].replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[*_`]/g, ''))
+      const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line)
+      if (m) {
+        const id = ids?.[n] || headingID(m[2].replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[*_`]/g, ''))
+        n++
+        if (m[1].length === 2 || m[1].length === 3) last = id
+      }
     }
     if (line.toLowerCase().includes(q)) return last
   }

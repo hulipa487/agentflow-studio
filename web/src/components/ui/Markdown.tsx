@@ -74,6 +74,13 @@ function resolvable(href: string): boolean {
   return href.startsWith('#') || slugFor(href) !== undefined || assetFor(href) !== undefined || /^(https?:)?\/\//.test(href) || href.startsWith('mailto:')
 }
 
+// The ids for the headings of the page being parsed, in order, when it is a
+// translation (docHeadingIDs): each heading takes the English heading's id in
+// the same position, so the guides' #links work in every language. Parsing is
+// synchronous, so this is set around one parse call only.
+let headingIDs: string[] | undefined
+let headingIndex = 0
+
 function renderer(): Marked {
   const md = new Marked({ gfm: true, breaks: false })
   md.use({
@@ -86,7 +93,8 @@ function renderer(): Marked {
       heading({ tokens, depth }) {
         const html = this.parser.parseInline(tokens)
         const text = html.replace(/<[^>]+>/g, '')
-        const id = headingID(text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"))
+        const own = headingID(text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"))
+        const id = (headingIDs && headingIDs[headingIndex++]) || own
         return `<h${depth} id="${escapeHTML(id)}">${html}</h${depth}>\n`
       },
       code({ text, lang }) {
@@ -105,6 +113,7 @@ export function Markdown({
   compact,
   onNavigate,
   onAsset,
+  headingIds,
   className,
 }: {
   source: string
@@ -112,11 +121,21 @@ export function Markdown({
   compact?: boolean
   /** Called for links to another bundled guide (slug, optional #anchor). */
   onNavigate?: (slug: string, anchor?: string) => void
+  /** Ids for the headings in order, for a translated guide (docHeadingIDs). */
+  headingIds?: string[]
   /** Called for links to a bundled contract file (openapi/users.yaml, ...). */
   onAsset?: (path: string) => void
   className?: string
 }) {
-  const html = useMemo(() => marked.parse(source, { async: false }) as string, [source])
+  const html = useMemo(() => {
+    headingIDs = headingIds
+    headingIndex = 0
+    try {
+      return marked.parse(source, { async: false }) as string
+    } finally {
+      headingIDs = undefined
+    }
+  }, [source, headingIds])
   const root = useRef<HTMLDivElement>(null)
   const lang = useLang()
 

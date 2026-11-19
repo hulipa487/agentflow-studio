@@ -26,5 +26,15 @@
   "docs.sectionBuild": "建構",
   "docs.sectionReference": "參考",
   "docs.assetUserApi": "使用者 API（OpenAPI）",
-  "docs.assetLuauTypes": "Luau 型別定義"
+  "docs.assetLuauTypes": "Luau 型別定義",
+  "docs.page.gettingStarted": "概述",
+  "docs.page.architecture": "架構與部署",
+  "docs.page.multiRegion": "多區域部署",
+  "docs.page.loops": "Luau 迴圈",
+  "docs.page.memory": "記憶",
+  "docs.page.extending": "擴充",
+  "docs.page.configuration": "組態",
+  "docs.page.loopsReference": "迴圈 API 參考",
+  "docs.page.openaiApi": "OpenAI 相容 API",
+  "docs.englishOnly": "本指南尚未翻譯，以下顯示英文原文。"
 }

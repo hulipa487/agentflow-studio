@@ -162,7 +162,9 @@ in Settings). The choice applies without a reload and is saved in
 `localStorage`; a first visit follows the browser's languages and falls back
 to English. The messages are the shared catalogues in `../i18n`, read through
 `t()` from `src/i18n`; `../i18n/README.md` describes the syntax and the
-glossary. Text the runtime returns is shown as it is.
+glossary. Text the runtime returns is shown as it is. The guides follow the
+same switch: `../docs/zh-Hans/` and `../docs/zh-Hant/` hold their translations,
+and an untranslated guide is shown in English.
 
 ## Layout
 

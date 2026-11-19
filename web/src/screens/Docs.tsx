@@ -4,11 +4,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
-import { DOC_ASSETS, docOutline, docPages, readDoc, type DocPage } from '@/docs/library'
+import { DOC_ASSETS, docHeadingIDs, docOutline, docPages, docTitle, readDoc, type DocPage } from '@/docs/library'
 import { Chip, EmptyState } from '@/components/ui'
 import { Markdown } from '@/components/ui/Markdown'
 import { useScreenActions } from '@/lib/hooks'
-import { t } from '@/i18n'
+import { t, useLang } from '@/i18n'
 import { AssetViewer } from './docs/AssetViewer'
 import { Outline } from './docs/Outline'
 import { Sidebar } from './docs/Sidebar'
@@ -32,7 +32,7 @@ function PagerLink({ page, dir }: { page: DocPage; dir: 'prev' | 'next' }) {
         {next ? t('docs.next') : t('docs.previous')}
         {next && <ArrowRight className="size-3" />}
       </span>
-      <span className="max-w-full truncate text-base font-semibold text-text">{page.title}</span>
+      <span className="max-w-full truncate text-base font-semibold text-text">{docTitle(page)}</span>
     </Link>
   )
 }
@@ -53,8 +53,13 @@ function Viewer({ pages }: { pages: DocPage[] }) {
   const page = pages[index]
   const anchor = search.get('h') ?? ''
   const assetPath = search.get('asset') ?? ''
-  const source = useMemo(() => readDoc(page.slug), [page.slug])
-  const outline = useMemo(() => (source ? docOutline(source) : []), [source])
+  // The guide in the current language (English where it has no translation);
+  // a translation's headings take the English ids, so anchors still resolve.
+  const lang = useLang()
+  const source = useMemo(() => readDoc(page.slug, lang), [page.slug, lang])
+  const headingIds = useMemo(() => docHeadingIDs(page.slug, lang), [page.slug, lang])
+  const englishOnly = lang !== 'en' && headingIds === undefined
+  const outline = useMemo(() => (source ? docOutline(source, headingIds) : []), [source, headingIds])
 
   // A new page starts at the top, or at the heading the link named.
   useLayoutEffect(() => {
@@ -156,12 +161,13 @@ function Viewer({ pages }: { pages: DocPage[] }) {
             <article className="mx-auto w-full max-w-[860px] px-8 pb-16 pt-5">
               <div className="mb-4 flex items-center gap-2">
                 <Chip tone="accent">{t(page.sectionKey)}</Chip>
-                <span className="min-w-0 truncate text-xs text-muted">{page.title}</span>
+                <span className="min-w-0 truncate text-xs text-muted">{docTitle(page)}</span>
               </div>
+              {englishOnly && <p className="mb-3 text-xs text-muted">{t('docs.englishOnly')}</p>}
               {source === undefined ? (
                 <p className="text-sm text-muted">{t('docs.unreadable')}</p>
               ) : (
-                <Markdown source={source} onNavigate={(slug, a) => navigate(docPath(slug, a))} onAsset={openAsset} />
+                <Markdown source={source} headingIds={headingIds} onNavigate={(slug, a) => navigate(docPath(slug, a))} onAsset={openAsset} />
               )}
               {(prev || next) && (
                 <nav className="mt-10 grid grid-cols-2 gap-3 border-t border-line pt-4" aria-label={t('docs.pager')}>

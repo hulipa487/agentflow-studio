@@ -4,9 +4,9 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { FileCode } from 'lucide-react'
-import { DOC_ASSETS, DOC_SECTIONS, docPages, readDoc, searchDocs, type DocPage } from '@/docs/library'
+import { DOC_ASSETS, DOC_SECTIONS, docHeadingIDs, docPages, docTitle, readDoc, searchDocs, type DocPage } from '@/docs/library'
 import { SearchBox, cx } from '@/components/ui'
-import { t } from '@/i18n'
+import { t, useLang } from '@/i18n'
 import { docPath, sectionForMatch, splitMatch } from './helpers'
 
 const CAPTION = 'px-2.5 pb-1 pt-3 text-xs font-bold text-faint'
@@ -42,14 +42,16 @@ export function Sidebar({
 }) {
   const pages = docPages()
   const searching = query.trim() !== ''
+  // Search reads the guides in the current language.
+  const lang = useLang()
   const results = useMemo(
     () =>
       searchDocs(query, 30).map((r) => ({
         ...r,
         // Land on the section the hit is in, not at the top of a long page.
-        anchor: sectionForMatch(readDoc(r.page.slug) ?? '', query),
+        anchor: sectionForMatch(readDoc(r.page.slug, lang) ?? '', query, docHeadingIDs(r.page.slug, lang)),
       })),
-    [query],
+    [query, lang],
   )
   // Sections in their declared order, then any a page names that the list does not.
   // They hold catalogue keys; the headings are translated where rendered.
@@ -77,7 +79,7 @@ export function Sidebar({
                 className={cx(ITEM, 'flex-col !items-start gap-0.5 py-1.5', r.page.slug === current.slug && asset === '' ? ACTIVE : IDLE)}
               >
                 <span className="w-full truncate text-text">
-                  <Marked text={r.page.title} query={query} />
+                  <Marked text={docTitle(r.page)} query={query} />
                 </span>
                 {r.snippet !== '' && (
                   <span className="line-clamp-2 w-full break-words text-sm font-normal leading-snug text-muted">
@@ -97,7 +99,7 @@ export function Sidebar({
                   return (
                     <Link key={p.slug} to={docPath(p.slug)} aria-current={active ? 'page' : undefined} className={cx(ITEM, 'relative', active ? ACTIVE : IDLE)}>
                       {active && <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-accent" />}
-                      <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                      <span className="min-w-0 flex-1 truncate">{docTitle(p)}</span>
                     </Link>
                   )
                 })}
