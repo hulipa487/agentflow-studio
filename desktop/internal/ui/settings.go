@@ -24,20 +24,20 @@ func swatchDot(c color.NRGBA) fyne.CanvasObject {
 func (a *App) settingsView() fyne.CanvasObject {
 	var syncAppearanceUI func()
 
-	lightBtn := actionButton("Light", lightModeIcon, func() {
+	lightBtn := actionButton(T("settings.modeLight"), lightModeIcon, func() {
 		a.chooseTheme(themeLight)
 		syncAppearanceUI()
 	})
-	darkBtn := actionButton("Dark", darkModeIcon, func() {
+	darkBtn := actionButton(T("settings.modeDark"), darkModeIcon, func() {
 		a.chooseTheme(themeDark)
 		syncAppearanceUI()
 	})
 
-	transBtn := actionButton("Trans Pride", checkMarkIcon, func() {
+	transBtn := actionButton(paletteTrans.Title(), checkMarkIcon, func() {
 		a.choosePalette(paletteTrans)
 		syncAppearanceUI()
 	})
-	obsidianBtn := actionButton("Obsidian", checkMarkIcon, func() {
+	obsidianBtn := actionButton(paletteObsidian.Title(), checkMarkIcon, func() {
 		a.choosePalette(paletteObsidian)
 		syncAppearanceUI()
 	})
@@ -57,27 +57,23 @@ func (a *App) settingsView() fyne.CanvasObject {
 
 		if a.palette == paletteTrans {
 			transBtn.Importance = widget.HighImportance
-			transBtn.SetText("Active")
+			transBtn.SetText(T("settings.active"))
 			transBtn.SetIcon(checkMarkIcon)
 			obsidianBtn.Importance = widget.MediumImportance
-			obsidianBtn.SetText("Use Obsidian")
+			obsidianBtn.SetText(T("settings.usePalette", "name", paletteObsidian.Title()))
 			obsidianBtn.SetIcon(nil)
 		} else {
 			obsidianBtn.Importance = widget.HighImportance
-			obsidianBtn.SetText("Active")
+			obsidianBtn.SetText(T("settings.active"))
 			obsidianBtn.SetIcon(checkMarkIcon)
 			transBtn.Importance = widget.MediumImportance
-			transBtn.SetText("Use Trans Pride")
+			transBtn.SetText(T("settings.usePalette", "name", paletteTrans.Title()))
 			transBtn.SetIcon(nil)
 		}
 		transBtn.Refresh()
 		obsidianBtn.Refresh()
 
-		modeLabel := "Dark mode"
-		if a.variant == themeLight {
-			modeLabel = "Light mode"
-		}
-		activeSummary.SetText(a.palette.Title() + " · " + modeLabel)
+		activeSummary.SetText(T("settings.themeSummary", "palette", a.palette.Title(), "mode", a.variant.String()))
 	}
 	syncAppearanceUI()
 
@@ -117,18 +113,24 @@ func (a *App) settingsView() fyne.CanvasObject {
 	)
 
 	appearanceBody := vstack(spaceM,
-		vstack(spaceXS, fieldLabel("Color theme"), paletteGrid),
-		vstack(spaceXS, fieldLabel("Appearance mode"), modePicker),
+		vstack(spaceXS, fieldLabel(T("settings.colorTheme")), paletteGrid),
+		vstack(spaceXS, fieldLabel(T("settings.appearanceMode")), modePicker),
 	)
-	appearance := sectionAction("Appearance",
-		"Choose your Studio theme and light or dark mode. Both settings apply immediately and persist across launches.",
-		chip("Saved automatically", toneAccent),
+	appearance := sectionAction(T("settings.appearance"),
+		T("settings.appearanceHint"),
+		chip(T("settings.savedAutomatically"), toneAccent),
 		appearanceBody,
 	)
 
+	languageBody := vstack(spaceS, muted(T("settings.languageHintDesktop")), a.languageChoices())
+	if cjkFontMissing() {
+		languageBody.Add(messageCard(T("settings.cjkFontMissing"), toneWarning))
+	}
+	language := section(T("common.language"), "", languageBody)
+
 	transport := "TCP"
 	if a.api != nil && a.api.Local() {
-		transport = "Local socket / pipe"
+		transport = T("settings.transportLocal")
 	}
 	endpoint := ""
 	if a.api != nil {
@@ -137,14 +139,14 @@ func (a *App) settingsView() fyne.CanvasObject {
 	fact := func(label string, value fyne.CanvasObject) fyne.CanvasObject {
 		return container.New(settingsFactRow{}, fieldLabel(label), value)
 	}
-	connection := sectionAction("Connection",
-		"The AgentFlow runtime admin API this Studio window is connected to.",
-		chip("connected", toneSuccess),
+	connection := sectionAction(T("settings.connection"),
+		T("settings.connectionHint"),
+		chip(T("common.connected"), toneSuccess),
 		vstack(spaceS,
-			fact("Endpoint", monoInline(endpoint)),
-			fact("Transport", widget.NewLabel(transport)),
+			fact(T("settings.endpoint"), monoInline(endpoint)),
+			fact(T("settings.transport"), widget.NewLabel(transport)),
 			vSpacer(spaceXS),
-			hstack(spaceS, widthBox(132, actionButton("Log Out", nil, a.lock))),
+			hstack(spaceS, widthBox(132, actionButton(T("settings.lock"), nil, a.lock))),
 		),
 	)
 
@@ -157,29 +159,29 @@ func (a *App) settingsView() fyne.CanvasObject {
 			vLeft(widget.NewLabel(desc)),
 		))
 	}
-	shortcuts := section("Keyboard shortcuts",
-		"Navigate workspaces and trigger common editor actions from the keyboard.",
+	shortcuts := section(T("settings.shortcuts"),
+		T("settings.shortcutsHint"),
 		grid(2,
-			shortcutRow("Ctrl+N", "Create a new agent"),
-			shortcutRow("Ctrl+1 … 6", "Switch workspace views"),
-			shortcutRow("Ctrl+S", "Apply changes in Builder"),
-			shortcutRow("Ctrl+Enter", "Send message in Playground"),
-			shortcutRow("Ctrl+Space", "Trigger Luau completion"),
-			shortcutRow("F1 / Esc", "Open docs / return to previous view"),
+			shortcutRow("Ctrl+N", T("settings.shortcutNewAgent")),
+			shortcutRow("Ctrl+1 … 6", T("settings.shortcutViewsDesktop")),
+			shortcutRow("Ctrl+S", T("settings.shortcutSaveDesktop")),
+			shortcutRow("Ctrl+Enter", T("settings.shortcutSend")),
+			shortcutRow("Ctrl+Space", T("settings.shortcutCompletion")),
+			shortcutRow("F1 / Esc", T("settings.shortcutDocsBack")),
 		),
 	)
 
-	about := section("About",
+	about := section(T("settings.about"),
 		"",
 		vstack(spaceS,
-			fact("Studio version", monoInline(appVersion)),
-			fact("Runtime API", widget.NewLabel("AgentFlow admin API")),
-			fact("Active theme", activeSummary),
+			fact(T("settings.studioVersion"), monoInline(appVersion)),
+			fact(T("settings.runtimeApi"), widget.NewLabel(T("settings.adminApi"))),
+			fact(T("settings.activeTheme"), activeSummary),
 		),
 	)
 
-	body := scrollInset(pageScroll(vstack(spaceM, appearance, connection, shortcuts, about)))
-	head := pageHeader("Settings", "Customize Studio appearance, theme palette, and runtime connection.", nil)
+	body := scrollInset(pageScroll(vstack(spaceM, appearance, language, connection, shortcuts, about)))
+	head := pageHeader(T("nav.settings"), T("settings.subtitle"), nil)
 	return container.NewBorder(
 		vstack(0, pageInset(head), widget.NewSeparator()),
 		nil, nil, nil, body,

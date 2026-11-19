@@ -13,13 +13,15 @@ import (
 	"unicode/utf8"
 )
 
-// Page is one rendered document.
+// Page is one rendered document. The title is the guide's own and stays in
+// English, like the guides; SectionKey is the catalogue key of the sidebar
+// group the page sits under.
 type Page struct {
-	Slug    string
-	File    string
-	Title   string
-	Section string
-	Order   int
+	Slug       string
+	File       string
+	Title      string
+	SectionKey string
+	Order      int
 }
 
 // Result is one search hit.
@@ -37,15 +39,15 @@ type Library struct {
 }
 
 var manifest = []Page{
-	{Slug: "getting-started", File: "getting-started.md", Title: "Overview", Section: "Start here", Order: 1},
-	{Slug: "architecture", File: "architecture.md", Title: "Architecture & deployment", Section: "Start here", Order: 2},
-	{Slug: "multi-region", File: "multi-region.md", Title: "Multi-region", Section: "Start here", Order: 3},
-	{Slug: "loops", File: "loops.md", Title: "Luau loops", Section: "Build", Order: 4},
-	{Slug: "memory", File: "memory.md", Title: "Memory", Section: "Build", Order: 5},
-	{Slug: "extending", File: "extending.md", Title: "Extending", Section: "Build", Order: 6},
-	{Slug: "configuration", File: "configuration.md", Title: "Configuration", Section: "Reference", Order: 7},
-	{Slug: "loops-reference", File: "loops-reference.md", Title: "Loop API reference", Section: "Reference", Order: 8},
-	{Slug: "openai-api", File: "openai-api.md", Title: "OpenAI-compatible API", Section: "Reference", Order: 9},
+	{Slug: "getting-started", File: "getting-started.md", Title: "Overview", SectionKey: "docs.sectionStartHere", Order: 1},
+	{Slug: "architecture", File: "architecture.md", Title: "Architecture & deployment", SectionKey: "docs.sectionStartHere", Order: 2},
+	{Slug: "multi-region", File: "multi-region.md", Title: "Multi-region", SectionKey: "docs.sectionStartHere", Order: 3},
+	{Slug: "loops", File: "loops.md", Title: "Luau loops", SectionKey: "docs.sectionBuild", Order: 4},
+	{Slug: "memory", File: "memory.md", Title: "Memory", SectionKey: "docs.sectionBuild", Order: 5},
+	{Slug: "extending", File: "extending.md", Title: "Extending", SectionKey: "docs.sectionBuild", Order: 6},
+	{Slug: "configuration", File: "configuration.md", Title: "Configuration", SectionKey: "docs.sectionReference", Order: 7},
+	{Slug: "loops-reference", File: "loops-reference.md", Title: "Loop API reference", SectionKey: "docs.sectionReference", Order: 8},
+	{Slug: "openai-api", File: "openai-api.md", Title: "OpenAI-compatible API", SectionKey: "docs.sectionReference", Order: 9},
 }
 
 // New validates the manifest against fsys. root is the directory that holds

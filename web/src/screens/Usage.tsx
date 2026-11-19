@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Download, RotateCw } from 'lucide-react'
 import { AsyncView, Button, EmptyState, IconButton, Input, Page, Panel, Segmented, StatTile, Table, type Column } from '@/components/ui'
+import { t, useLang } from '@/i18n'
 import { useAsync, useScreenActions, useStored } from '@/lib/hooks'
 import { downloadText, humanCount, utcDay } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { toast } from '@/state/ui'
-import { GROUP_LABEL, buildTable, extraTotals, sharePercent, toCSV, type GroupBy, type UsageLine } from './usage/aggregate'
+import { COLUMN_TITLE_KEY, GROUP_LABEL_KEY, buildTable, extraTotals, sharePercent, toCSV, type GroupBy, type UsageLine } from './usage/aggregate'
 
 const GROUPS: GroupBy[] = ['tenant', 'agent', 'model', 'slice']
 
@@ -20,7 +21,7 @@ function shiftDay(day: string, days: number): string {
 function Share({ line, total }: { line: UsageLine; total: number }) {
   const frac = Math.min(Math.max(line.share, 0), 1)
   return (
-    <div className="flex items-center gap-2" title={`${humanCount(line.billable)} of ${humanCount(total)} billable`}>
+    <div className="flex items-center gap-2" title={t('usage.shareTitle', { part: humanCount(line.billable), total: humanCount(total) })}>
       <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface2">
         <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(frac * 100, line.billable > 0 ? 2 : 0)}%` }} />
       </div>
@@ -31,6 +32,7 @@ function Share({ line, total }: { line: UsageLine; total: number }) {
 
 export default function Usage() {
   const client = useClient()
+  const lang = useLang()
   const [day, setDay] = useState(() => utcDay())
   const [stored, setGroupBy] = useStored<GroupBy>('agentflow-studio:usage-group', 'tenant')
   const groupBy = GROUPS.includes(stored) ? stored : 'tenant'
@@ -50,14 +52,15 @@ export default function Usage() {
 
   const rows = current?.rows ?? []
   const extra = useMemo(() => extraTotals(current?.rows ?? []), [current])
-  const table = useMemo(() => (current ? buildTable(current, groupBy) : { headers: [], lines: [] }), [current, groupBy])
+  // The no-tenant label is translated text, so the table follows the language.
+  const table = useMemo(() => (current ? buildTable(current, groupBy) : { headers: [], lines: [] }), [current, groupBy, lang])
   const total = current?.totals?.billable ?? 0
 
   const columns = useMemo<Column<UsageLine>[]>(() => {
     const slice = groupBy === 'slice'
     const labels: Column<UsageLine>[] = table.headers.map((h, i) => ({
       key: 'label' + i,
-      title: h,
+      title: t(COLUMN_TITLE_KEY[h] ?? h),
       width: slice ? [undefined, 130, 170][i] : undefined,
       // Agent names read as prose; tenant ids and model names are identifiers.
       mono: h !== 'agent',
@@ -65,7 +68,7 @@ export default function Usage() {
     }))
     const num = (key: 'input' | 'output' | 'billable' | 'calls', width: number): Column<UsageLine> => ({
       key,
-      title: key,
+      title: t('usage.col.' + key),
       width,
       align: 'right',
       mono: true,
@@ -73,95 +76,91 @@ export default function Usage() {
     })
     return [
       ...labels,
-      { key: 'share', title: 'share', width: 150, render: (l) => <Share line={l} total={total} /> },
+      { key: 'share', title: t('usage.col.share'), width: 150, render: (l) => <Share line={l} total={total} /> },
       num('input', 80),
       num('output', 80),
       num('billable', 84),
       num('calls', 64),
       {
         key: 'failed',
-        title: 'failed',
+        title: t('usage.col.failed'),
         width: 64,
         align: 'right',
         mono: true,
         render: (l) => <span className={l.failed > 0 ? 'text-danger' : undefined}>{humanCount(l.failed)}</span>,
       },
     ]
-  }, [table.headers, groupBy, total])
+  }, [table.headers, groupBy, total, lang])
 
   const download = () => {
     const name = `agentflow-usage-${day}-${groupBy === 'slice' ? 'slices' : 'by-' + groupBy}.csv`
     downloadText(name, toCSV(table, groupBy !== 'slice'), 'text/csv')
-    toast('exported to ' + name, 'success')
+    toast(t('usage.exported', { name }), 'success')
   }
 
   return (
     <Page
-      title="Usage"
-      subtitle="The token ledger's daily rollup (usage_daily): what every tenant, agent and model spent on a UTC day. It is the figure quotas and agent budgets are enforced against."
+      title={t('usage.title')}
+      subtitle={t('usage.subtitle')}
       meta={
         current ? (
-          <span>
-            {current.day} (UTC) · {rows.length} slices · {current.tenants} tenants
-          </span>
+          <span>{t('usage.meta', { day: current.day, slices: rows.length, tenants: current.tenants })}</span>
         ) : null
       }
       actions={
         <>
-          <IconButton icon={ChevronLeft} label="Previous day" onClick={() => setDay(shiftDay(day, -1))} />
+          <IconButton icon={ChevronLeft} label={t('usage.prevDay')} onClick={() => setDay(shiftDay(day, -1))} />
           <div className="w-[140px]">
-            <Input type="date" mono aria-label="Day (UTC)" title="Day (UTC)" value={day} max={today} onChange={(e) => pick(e.target.value)} />
+            <Input type="date" mono aria-label={t('usage.day')} title={t('usage.day')} value={day} max={today} onChange={(e) => pick(e.target.value)} />
           </div>
-          <IconButton icon={ChevronRight} label="Next day" disabled={day >= today} onClick={() => pick(shiftDay(day, 1))} />
+          <IconButton icon={ChevronRight} label={t('usage.nextDay')} disabled={day >= today} onClick={() => pick(shiftDay(day, 1))} />
           <Button
             onClick={() => {
               if (day === today) reload()
               else setDay(today)
             }}
           >
-            Today
+            {t('usage.today')}
           </Button>
-          <IconButton icon={RotateCw} label="Refresh" onClick={() => reload()} />
+          <IconButton icon={RotateCw} label={t('common.refresh')} onClick={() => reload()} />
         </>
       }
     >
-      <AsyncView loading={loading || (!!data && !current)} error={error} hasData={!!current} retry={() => reload()} loadingText={`Reading the ledger for ${day}…`}>
+      <AsyncView loading={loading || (!!data && !current)} error={error} hasData={!!current} retry={() => reload()} loadingText={t('usage.loading', { day })}>
         {current && (
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               <StatTile
-                label="Billable"
+                label={t('usage.billable')}
                 value={humanCount(total)}
-                sub={`in ${humanCount(current.totals?.input ?? 0)} · out ${humanCount(current.totals?.output ?? 0)}`}
+                sub={t('usage.inOut', { input: humanCount(current.totals?.input ?? 0), output: humanCount(current.totals?.output ?? 0) })}
                 tone="accent"
               />
-              <StatTile label="Calls" value={humanCount(current.totals?.calls ?? 0)} sub={`${extra.failed} failed`} />
-              <StatTile label="Cached input" value={humanCount(extra.cached)} sub="already counted in input" />
-              <StatTile label="Reasoning" value={humanCount(extra.reasoning)} sub="already counted in output" />
+              <StatTile label={t('usage.calls')} value={humanCount(current.totals?.calls ?? 0)} sub={t('usage.failedCount', { n: extra.failed })} />
+              <StatTile label={t('usage.cachedInput')} value={humanCount(extra.cached)} sub={t('usage.inInput')} />
+              <StatTile label={t('usage.reasoning')} value={humanCount(extra.reasoning)} sub={t('usage.inOutput')} />
             </div>
 
             {rows.length === 0 ? (
               <EmptyState
-                title="Nothing metered on this day"
-                guidance="Every LLM call through a metered agent is recorded here. Pick another day, or chat with an agent and refresh."
+                title={t('usage.emptyTitle')}
+                guidance={t('usage.emptyGuidance')}
               />
             ) : (
               <>
                 <Panel flush className="overflow-hidden">
                   <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
-                    <Segmented value={groupBy} onChange={setGroupBy} options={GROUPS.map((g) => ({ value: g, label: GROUP_LABEL[g] }))} />
+                    <Segmented value={groupBy} onChange={setGroupBy} options={GROUPS.map((g) => ({ value: g, label: t(GROUP_LABEL_KEY[g]) }))} />
                     <span className="flex-1" />
-                    <span className="font-mono text-xs text-faint">
-                      {table.lines.length} {table.lines.length === 1 ? 'row' : 'rows'}
-                    </span>
+                    <span className="font-mono text-xs text-faint">{t('usage.rows', { n: table.lines.length })}</span>
                     <Button size="sm" icon={Download} onClick={download}>
-                      Download CSV
+                      {t('usage.downloadCsv')}
                     </Button>
                   </div>
                   <Table rows={table.lines} rowKey={(l) => l.id} columns={columns} />
                 </Panel>
                 <p className="text-xs leading-snug text-faint">
-                  Billable = input + output, the rule quotas and budgets use. Per-call detail lives on each profile under Users when usage.events is on.
+                  {t('usage.footnote')}
                 </p>
               </>
             )}

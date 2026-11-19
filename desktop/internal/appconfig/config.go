@@ -28,6 +28,8 @@ type Config struct {
 	Token   string `json:"token"`
 	Theme   string `json:"theme,omitempty"`   // "light" or "dark"; empty follows the OS
 	Palette string `json:"palette,omitempty"` // "trans" or "obsidian"; empty defaults to "trans"
+	// Language is "en", "zh-Hans" or "zh-Hant"; empty follows the OS.
+	Language string `json:"language,omitempty"`
 	// ForgetToken keeps the admin token out of this file: the URL is still
 	// remembered, the token is asked for at every launch. The zero value
 	// (remember) is the historical behaviour.

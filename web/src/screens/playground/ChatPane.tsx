@@ -2,12 +2,13 @@
 import { forwardRef, useImperativeHandle, useRef, type ReactNode } from 'react'
 import { Send, Square } from 'lucide-react'
 import { Button, CopyButton, Dot, IconButton, Panel, cx, toneText } from '@/components/ui'
+import { t } from '@/i18n'
 import { clockTime, shortID } from '@/lib/format'
 import { MOD } from '@/nav'
-import type { Message, Status } from './model'
+import { statusText, type Message, type Status } from './model'
 import { useStickToBottom } from './useStickToBottom'
 
-const ROLE_LABEL = { you: 'You', agent: 'Agent', error: 'Error' } as const
+const ROLE_LABEL_KEY = { you: 'playground.roleYou', agent: 'playground.roleAgent', error: 'playground.roleError' } as const
 
 function Bubble({ m }: { m: Message }) {
   const mine = m.role === 'you'
@@ -25,14 +26,14 @@ function Bubble({ m }: { m: Message }) {
         <div className="flex items-center gap-3">
           <span className={cx('text-xs font-medium', failed ? 'text-danger' : 'text-muted')}>
             {/* A traced turn.start is whatever reached the session, not necessarily typed here. */}
-            {mine && m.fromTrace ? 'Inbound' : ROLE_LABEL[m.role]}
+            {mine && m.fromTrace ? t('playground.roleInbound') : t(ROLE_LABEL_KEY[m.role])}
           </span>
           {m.note && <span className="min-w-0 truncate font-mono text-xs text-faint">{m.note}</span>}
           <span className="ml-auto font-mono text-xs text-faint">{clockTime(m.at)}</span>
         </div>
         {/* Replies are untrusted model output: always plain text, never markup. */}
         <div className={cx('mt-0.5 select-text whitespace-pre-wrap break-words text-base leading-relaxed', failed && 'text-danger', waiting && 'text-muted')}>
-          {waiting ? m.pending ? <span className="animate-pulse">…</span> : 'No reply.' : m.text}
+          {waiting ? m.pending ? <span className="animate-pulse">…</span> : t('playground.noReply') : m.text}
         </div>
       </div>
     </div>
@@ -71,6 +72,7 @@ export const ChatPane = forwardRef<
   useImperativeHandle(handle, () => ({ pinToEnd: pin, focusComposer: () => input.current?.focus() }), [pin])
 
   const rebuilt = messages.some((m) => m.fromTrace)
+  const shownStatus = statusText(status)
 
   return (
     <Panel flush className="flex h-full min-h-0 flex-col">
@@ -79,35 +81,35 @@ export const ChatPane = forwardRef<
           <div className="truncate text-base font-semibold leading-tight">{agent}</div>
           <div className="flex min-w-0 items-center gap-0.5">
             <span className="truncate font-mono text-xs text-muted" title={thread}>
-              thread · {shortID(thread)}
+              {t('playground.threadHeader', { id: shortID(thread) })}
             </span>
-            <CopyButton text={thread} what="thread id" />
+            <CopyButton text={thread} what={t('playground.threadId')} />
           </div>
         </div>
         <div className="flex min-w-0 shrink items-center gap-2" role="status" aria-live="polite">
           <Dot tone={status.tone} pulse={sending} className="shrink-0" />
           <span
             className={cx('min-w-0 max-w-[220px] truncate text-sm', status.tone === 'accent' || status.tone === 'neutral' ? 'text-text' : toneText(status.tone))}
-            title={status.text}
+            title={shownStatus}
           >
-            {status.text}
+            {shownStatus}
           </span>
         </div>
         {actions}
-        <IconButton icon={Square} label="Stop session" tone="danger" onClick={onStop} loading={stopping} />
+        <IconButton icon={Square} label={t('playground.stopSession')} tone="danger" onClick={onStop} loading={stopping} />
       </header>
 
       <div ref={ref} onScroll={onScroll} className="flex min-h-0 flex-1 flex-col overflow-y-auto py-3">
         {messages.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 py-8 text-center">
-            <div className="text-base font-medium">No messages in this thread</div>
-            <div className="text-sm text-muted">{emptyHint ?? 'Send one below; each operation of the turn appears in the trace.'}</div>
+            <div className="text-base font-medium">{t('playground.emptyTitle')}</div>
+            <div className="text-sm text-muted">{emptyHint ?? t('playground.emptyHint')}</div>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             {rebuilt && (
               <div className="px-4 pb-1 text-center text-xs leading-snug text-faint">
-                Earlier messages are rebuilt from this thread&apos;s trace payloads; anything the trace ring has dropped is not shown.
+                {t('playground.rebuiltNote')}
               </div>
             )}
             {messages.map((m) => (
@@ -125,12 +127,12 @@ export const ChatPane = forwardRef<
             onChange={(e) => onDraft(e.target.value)}
             rows={3}
             spellCheck={false}
-            aria-label="Message the agent"
-            placeholder="Message the agent…"
+            aria-label={t('playground.messageLabel')}
+            placeholder={t('playground.messagePlaceholder')}
             className="block w-full resize-none bg-transparent px-2.5 pt-2 text-base leading-relaxed text-text placeholder:text-faint focus:outline-none"
           />
           <div className="flex items-center gap-2 py-1 pl-2.5 pr-1">
-            <span className="min-w-0 flex-1 truncate text-xs text-faint">{hint ?? `${MOD}+Enter sends · Enter adds a newline`}</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-faint">{hint ?? t('playground.sendHint', { mod: MOD })}</span>
             <Button
               variant="primary"
               icon={Send}
@@ -141,7 +143,7 @@ export const ChatPane = forwardRef<
                 input.current?.focus()
               }}
             >
-              Send
+              {t('common.send')}
             </Button>
           </div>
         </div>

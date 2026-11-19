@@ -2,7 +2,7 @@ package ui
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,10 +46,9 @@ func (a *App) newSafetyView() *safetyView {
 	v.banner = newBanner()
 	v.count = oneLine("")
 	v.meta = oneLine("")
-	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh", v.load)
+	refresh := iconButton(theme.ViewRefreshIcon(), T("common.refresh"), v.load)
 
-	head := pageHeader("Safety",
-		"Core-owned ingress and egress filter chains, plus the model-backed classifiers they can call. Saves go to the deployment config and bind on the next runtime start.",
+	head := pageHeader(T("safety.title"), T("safety.subtitle"),
 		hstack(spaceS, widthBox(150, v.count), refresh))
 	v.root = container.NewBorder(
 		vstack(0, pageInset(vstack(spaceS, head, v.meta)), hInset(v.banner), widget.NewSeparator()),
@@ -69,7 +68,7 @@ func (v *safetyView) setBanner(text string, t tone) {
 
 func (v *safetyView) load() {
 	v.banner.Clear()
-	v.meta.SetText("loading…")
+	v.meta.SetText(T("common.loading"))
 	v.loadSeq++
 	seq := v.loadSeq
 	go func() {
@@ -84,11 +83,11 @@ func (v *safetyView) load() {
 				v.meta.SetText("")
 				msg := err.Error()
 				if ae, ok := err.(*api.Error); ok && ae.Status == 404 {
-					msg = "This runtime does not expose the Studio safety API yet; rebuild and restart AgentFlow, then reopen Safety."
+					msg = T("safety.apiMissing")
 				}
 				v.setBanner(msg, toneDanger)
 				clearBox(v.list)
-				v.list.Add(container.NewCenter(widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), v.load)))
+				v.list.Add(container.NewCenter(widget.NewButtonWithIcon(T("common.retry"), theme.ViewRefreshIcon(), v.load)))
 				v.list.Refresh()
 				return
 			}
@@ -103,36 +102,28 @@ func (v *safetyView) render() {
 	clearBox(v.list)
 	nProfiles := len(v.data.Profiles)
 	nClassifiers := len(v.data.Classifiers)
-	if nProfiles == 1 {
-		v.count.SetText("1 profile")
-	} else {
-		v.count.SetText(fmt.Sprintf("%d profiles", nProfiles))
-	}
-	classifiersLabel := fmt.Sprintf("%d classifiers", nClassifiers)
-	if nClassifiers == 1 {
-		classifiersLabel = "1 classifier"
-	}
-	meta := classifiersLabel
+	v.count.SetText(T("safety.profileCount", "n", nProfiles))
+	meta := T("safety.classifierCount", "n", nClassifiers)
 	if v.data.RestartRequired {
-		meta += " · restart required"
+		meta += " · " + T("safety.restartRequired")
 	} else {
-		meta += " · live"
+		meta += " · " + T("safety.live")
 	}
 	v.meta.SetText(meta)
 	if !v.data.Editable {
 		note := v.data.Note
 		if note == "" {
-			note = "This deployment has no editable config source for safety profiles."
+			note = T("safety.readOnlyBanner")
 		}
 		v.setBanner(note, toneWarning)
 	}
 
 	newProfile := func() { v.editProfile(nil) }
 	newClassifier := func() { v.editClassifier(nil) }
-	profileAction := iconButton(theme.ContentAddIcon(), "New profile", newProfile)
-	classifierAction := iconButton(theme.ContentAddIcon(), "New classifier", newClassifier)
-	profileCTA := actionButton("New profile", theme.ContentAddIcon(), newProfile)
-	classifierCTA := actionButton("New classifier", theme.ContentAddIcon(), newClassifier)
+	profileAction := iconButton(theme.ContentAddIcon(), T("safety.newProfile"), newProfile)
+	classifierAction := iconButton(theme.ContentAddIcon(), T("safety.newClassifier"), newClassifier)
+	profileCTA := actionButton(T("safety.newProfile"), theme.ContentAddIcon(), newProfile)
+	classifierCTA := actionButton(T("safety.newClassifier"), theme.ContentAddIcon(), newClassifier)
 	if !v.data.Editable {
 		profileAction.Disable()
 		classifierAction.Disable()
@@ -146,7 +137,7 @@ func (v *safetyView) render() {
 	}
 	if nProfiles == 0 {
 		v.profileSection.Add(subpanel(vstack(spaceS,
-			muted("No named safety profiles. Agents can still use the built-in \"default\" chain or \"none\"."),
+			muted(T("safety.noProfiles")),
 			hstack(spaceS, widthBox(160, profileCTA)),
 		)))
 	}
@@ -157,18 +148,14 @@ func (v *safetyView) render() {
 	}
 	if nClassifiers == 0 {
 		v.classifierSection.Add(subpanel(vstack(spaceS,
-			muted("No model-backed classifiers yet. Add one to enable classifier:<name> filters in a profile."),
+			muted(T("safety.noClassifiers")),
 			hstack(spaceS, widthBox(172, classifierCTA)),
 		)))
 	}
 
-	v.list.Add(safetySectionHeader("Filter profiles",
-		"The chain runs in order. Builtins are compiled in; classifier:<name> entries call a model-backed policy.",
-		profileAction))
+	v.list.Add(safetySectionHeader(T("safety.profiles"), T("safety.profilesSubtitle"), profileAction))
 	v.list.Add(v.profileSection)
-	v.list.Add(safetySectionHeader("Model-backed classifiers",
-		"A dedicated engine-keyed model returns a label and score; the policy here maps labels to allow, review, or block.",
-		classifierAction))
+	v.list.Add(safetySectionHeader(T("safety.classifiers"), T("safety.classifiersSubtitle"), classifierAction))
 	v.list.Add(v.classifierSection)
 	v.list.Add(layout.NewSpacer())
 	v.list.Refresh()
@@ -189,15 +176,15 @@ func safetySectionHeader(title, subtitle string, action fyne.CanvasObject) fyne.
 
 func (v *safetyView) profileCard(p api.SafetyProfile) fyne.CanvasObject {
 	title := widget.NewLabelWithStyle(p.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	tone, label := toneWarning, "restart required"
+	tone, label := toneWarning, T("safety.restartRequired")
 	if p.Live {
-		tone, label = toneSuccess, "live"
+		tone, label = toneSuccess, T("safety.live")
 	}
 	top := container.NewBorder(nil, nil,
-		hstack(spaceS, vCenter(title), vCenter(chip(fmt.Sprintf("%d filters", len(p.Filters)), toneAccent)), vCenter(chip(label, tone))),
+		hstack(spaceS, vCenter(title), vCenter(chip(T("safety.filterCount", "n", len(p.Filters)), toneAccent)), vCenter(chip(label, tone))),
 		hstack(spaceXS,
-			vCenter(actionButton("Edit", theme.DocumentCreateIcon(), func() { v.editProfile(&p) })),
-			vCenter(iconButton(theme.DeleteIcon(), "Delete", func() { v.confirmDeleteProfile(p) })),
+			vCenter(actionButton(T("common.edit"), theme.DocumentCreateIcon(), func() { v.editProfile(&p) })),
+			vCenter(iconButton(theme.DeleteIcon(), T("common.delete"), func() { v.confirmDeleteProfile(p) })),
 		),
 		nil,
 	)
@@ -206,32 +193,32 @@ func (v *safetyView) profileCard(p api.SafetyProfile) fyne.CanvasObject {
 	chain.TextStyle = fyne.TextStyle{Monospace: true}
 	chain.SizeName = theme.SizeNameCaptionText
 
-	used := "not referenced by an agent yet"
+	used := T("safety.usedBy.none")
 	if len(p.Agents) > 0 || len(p.SpawnProfiles) > 0 {
 		parts := []string{}
 		if len(p.Agents) > 0 {
-			parts = append(parts, "agents: "+strings.Join(p.Agents, ", "))
+			parts = append(parts, T("safety.usedBy.agents", "list", strings.Join(p.Agents, ", ")))
 		}
 		if len(p.SpawnProfiles) > 0 {
-			parts = append(parts, "spawn: "+strings.Join(p.SpawnProfiles, ", "))
+			parts = append(parts, T("safety.usedBy.spawn", "list", strings.Join(p.SpawnProfiles, ", ")))
 		}
 		used = strings.Join(parts, " · ")
 	}
 	cells := []fyne.CanvasObject{
-		detailRow("chain", chain),
-		detailRow("used by", detailText(used)),
+		detailRow(T("safety.row.chain"), chain),
+		detailRow(T("safety.row.usedBy"), detailText(used)),
 	}
 	if len(p.Classifiers) > 0 {
-		cells = append(cells, detailRow("classifiers", detailText(strings.Join(p.Classifiers, ", "))))
+		cells = append(cells, detailRow(T("safety.row.classifiers"), detailText(strings.Join(p.Classifiers, ", "))))
 	}
 	return panel(vstack(spaceS, top, widget.NewSeparator(), container.NewVBox(cells...)))
 }
 
 func (v *safetyView) classifierCard(c api.SafetyClassifier) fyne.CanvasObject {
 	title := widget.NewLabelWithStyle(c.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	tone, label := toneWarning, "restart required"
+	tone, label := toneWarning, T("safety.restartRequired")
 	if c.Live {
-		tone, label = toneSuccess, "live"
+		tone, label = toneSuccess, T("safety.live")
 	}
 	mode := c.Mode
 	if mode == "" {
@@ -244,13 +231,13 @@ func (v *safetyView) classifierCard(c api.SafetyClassifier) fyne.CanvasObject {
 	top := container.NewBorder(nil, nil,
 		hstack(spaceS, vCenter(title), vCenter(chip(c.Model, toneAccent)), vCenter(chip(mode, modeTone)), vCenter(chip(label, tone))),
 		hstack(spaceXS,
-			vCenter(actionButton("Edit", theme.DocumentCreateIcon(), func() { v.editClassifier(&c) })),
-			vCenter(iconButton(theme.DeleteIcon(), "Delete", func() { v.confirmDeleteClassifier(c) })),
+			vCenter(actionButton(T("common.edit"), theme.DocumentCreateIcon(), func() { v.editClassifier(&c) })),
+			vCenter(iconButton(theme.DeleteIcon(), T("common.delete"), func() { v.confirmDeleteClassifier(c) })),
 		),
 		nil,
 	)
 
-	threshold := "0.7 (default)"
+	threshold := T("safety.thresholdDefault")
 	if c.Threshold != nil {
 		threshold = strconv.FormatFloat(*c.Threshold, 'f', -1, 64)
 	}
@@ -262,24 +249,24 @@ func (v *safetyView) classifierCard(c api.SafetyClassifier) fyne.CanvasObject {
 	if len(c.Sources) > 0 {
 		sources = strings.Join(c.Sources, ", ")
 	}
-	used := "unused"
+	used := T("safety.unused")
 	if len(c.UsedBy) > 0 {
 		used = strings.Join(c.UsedBy, ", ")
 	}
 	cells := []fyne.CanvasObject{
-		detailRow("model", detailText(c.Model)),
-		detailRow("threshold", detailText(threshold)),
-		detailRow("directions", detailText(directions)),
-		detailRow("sources", detailText(sources)),
-		detailRow("categories", detailText(categorySummary(c.Categories))),
-		detailRow("used by", detailText(used)),
+		detailRow(T("safety.row.model"), detailText(c.Model)),
+		detailRow(T("safety.row.threshold"), detailText(threshold)),
+		detailRow(T("safety.row.directions"), detailText(directions)),
+		detailRow(T("safety.row.sources"), detailText(sources)),
+		detailRow(T("safety.row.categories"), detailText(categorySummary(c.Categories))),
+		detailRow(T("safety.row.usedBy"), detailText(used)),
 	}
 	return panel(vstack(spaceS, top, widget.NewSeparator(), grid(2, cells...)))
 }
 
 func chainText(filters []string) string {
 	if len(filters) == 0 {
-		return "empty chain — the dispatcher runs and decides nothing"
+		return T("safety.emptyChain")
 	}
 	return strings.Join(filters, "  →  ")
 }
@@ -304,7 +291,7 @@ func categorySummary(categories map[string]string) string {
 
 func (v *safetyView) editProfile(existing *api.SafetyProfile) {
 	if !v.data.Editable {
-		showInfoPrompt(v.app.win, "Safety is read-only", v.readOnlyNote())
+		showInfoPrompt(v.app.win, T("safety.readOnlyTitle"), v.readOnlyNote())
 		return
 	}
 	creating := existing == nil
@@ -355,13 +342,13 @@ func (v *safetyView) editProfile(existing *api.SafetyProfile) {
 
 	errBanner := newBanner()
 	form := vstack(spaceM,
-		vstack(spaceXS, fieldLabel("Name"), name,
-			caption("Immutable after creation. \"default\" and \"none\" are reserved references.")),
-		vstack(spaceXS, fieldLabel("Filter chain"), filters,
-			caption("Comma-separated, left to right. Click a name below to append it.")),
-		vstack(spaceXS, fieldLabel("Preview"), subpanel(preview)),
-		vstack(spaceXS, fieldLabel("Available filters"), quick),
-		caption("Classifier filters need a saved classifier below; builtin names come from the running runtime."),
+		vstack(spaceXS, fieldLabel(T("common.name")), name,
+			caption(T("safety.profile.nameHint"))),
+		vstack(spaceXS, fieldLabel(T("safety.profile.chain")), filters,
+			caption(T("safety.profile.chainHintText"))),
+		vstack(spaceXS, fieldLabel(T("safety.profile.preview")), subpanel(preview)),
+		vstack(spaceXS, fieldLabel(T("safety.profile.available")), quick),
+		caption(T("safety.profile.previewHint")),
 	)
 	scroll := container.NewVScroll(panel(form))
 	scroll.SetMinSize(fyne.NewSize(760, 480))
@@ -369,7 +356,7 @@ func (v *safetyView) editProfile(existing *api.SafetyProfile) {
 	build := func() (api.SafetyProfileDraft, error) {
 		d := api.SafetyProfileDraft{Name: strings.TrimSpace(name.Text), Filters: splitList(filters.Text)}
 		if d.Name == "" {
-			return d, fmt.Errorf("a profile name is required")
+			return d, errors.New(T("safety.err.profileNameRequired"))
 		}
 		return d, nil
 	}
@@ -380,9 +367,9 @@ func (v *safetyView) editProfile(existing *api.SafetyProfile) {
 			popup.Hide()
 		}
 	}
-	cancel := widthBox(100, controlFrame(actionButton("Cancel", nil, closePopup)))
-	validate := actionButton("Validate", checkMarkIcon, nil)
-	save := primaryButton("Save", theme.UploadIcon(), nil)
+	cancel := widthBox(100, controlFrame(actionButton(T("common.cancel"), nil, closePopup)))
+	validate := actionButton(T("safety.validate"), checkMarkIcon, nil)
+	save := primaryButton(T("common.save"), theme.UploadIcon(), nil)
 	footer := container.NewBorder(nil, nil, nil,
 		hstack(spaceS, cancel, widthBox(108, controlFrame(validate)), widthBox(104, controlFrame(save))), nil)
 	busy := false
@@ -421,7 +408,7 @@ func (v *safetyView) editProfile(existing *api.SafetyProfile) {
 				case len(errs) > 0:
 					errBanner.Set(strings.Join(errs, "\n"), toneDanger)
 				default:
-					errBanner.Set("Valid. Save it to bind the chain on the next runtime start.", toneSuccess)
+					errBanner.Set(T("safety.profile.validText"), toneSuccess)
 				}
 			})
 		}()
@@ -452,33 +439,31 @@ func (v *safetyView) editProfile(existing *api.SafetyProfile) {
 				v.app.reloadCatalog()
 				note := list.SavedNote
 				if note == "" {
-					note = "safety profile saved · restart required"
+					note = T("safety.profileSaved")
 				}
 				v.app.setStatus(note, toneWarning)
 			})
 		}()
 	}
 
-	title := "New safety profile"
+	title := T("safety.profile.newTitle")
 	if existing != nil {
-		title = "Edit " + existing.Name
+		title = T("safety.editWhat", "name", existing.Name)
 	}
-	popup = showModalCard(v.app.win, title,
-		"Profiles are core-owned: a loop cannot uninstall the chain. Changes bind when agentflow starts.",
+	popup = showModalCard(v.app.win, title, T("safety.profile.subtitle"),
 		container.NewBorder(errBanner, nil, nil, nil, scroll), footer)
 }
 
 func (v *safetyView) confirmDeleteProfile(p api.SafetyProfile) {
 	if !v.data.Editable {
-		showInfoPrompt(v.app.win, "Safety is read-only", v.readOnlyNote())
+		showInfoPrompt(v.app.win, T("safety.readOnlyTitle"), v.readOnlyNote())
 		return
 	}
-	msg := fmt.Sprintf("Delete safety profile %q from the deployment config?", p.Name)
+	msg := T("safety.deleteProfileMessage", "name", p.Name)
 	if len(p.Agents) > 0 || len(p.SpawnProfiles) > 0 {
-		msg += "\n\nIt is still referenced by " + profileUsage(p) + "; remove those references first."
+		msg = T("safety.deleteProfileMessageInUse", "name", p.Name, "refs", profileUsage(p))
 	}
-	msg += "\n\nThe running instance keeps its current chain until the next restart."
-	showConfirmPrompt(v.app.win, "Delete safety profile", msg, "Delete", true, func(ok bool) {
+	showConfirmPrompt(v.app.win, T("safety.deleteProfileTitle"), msg, T("common.delete"), true, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -494,7 +479,7 @@ func (v *safetyView) confirmDeleteProfile(p api.SafetyProfile) {
 				v.data = list
 				v.render()
 				v.app.reloadCatalog()
-				v.app.setStatus("safety profile deleted · restart required", toneWarning)
+				v.app.setStatus(T("safety.profileDeleted"), toneWarning)
 			})
 		}()
 	})
@@ -515,28 +500,31 @@ func (v *safetyView) readOnlyNote() string {
 	if v.data.Note != "" {
 		return v.data.Note
 	}
-	return "This deployment has no editable config source, so safety profiles cannot be changed from Studio."
+	return T("safety.readOnlyMessage")
 }
 
 // ---- classifier editor -----------------------------------------------------
 
 func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 	if !v.data.Editable {
-		showInfoPrompt(v.app.win, "Safety is read-only", v.readOnlyNote())
+		showInfoPrompt(v.app.win, T("safety.readOnlyTitle"), v.readOnlyNote())
 		return
 	}
 	creating := existing == nil
 	name := widget.NewEntry()
 	name.SetPlaceHolder("moderation")
 	modelOpts := append([]string{}, v.data.Models...)
-	promptOpts := append([]string{"embedded default"}, v.data.Prompts...)
+	// The first prompt option stands for no prompt (the embedded default);
+	// its label is read once so build always recognises it.
+	embeddedDefault := T("safety.classifier.embeddedDefault")
+	promptOpts := append([]string{embeddedDefault}, v.data.Prompts...)
 	model := widget.NewSelect(modelOpts, nil)
 	prompt := widget.NewSelect(promptOpts, nil)
-	prompt.SetSelected("embedded default")
+	prompt.SetSelected(embeddedDefault)
 	mode := widget.NewSelect([]string{"enforce", "shadow"}, nil)
 	mode.SetSelected("enforce")
-	ingress := widget.NewCheck("Ingress (inbound messages)", nil)
-	egress := widget.NewCheck("Egress (outbound replies)", nil)
+	ingress := widget.NewCheck(T("safety.classifier.ingress"), nil)
+	egress := widget.NewCheck(T("safety.classifier.egress"), nil)
 	ingress.SetChecked(true)
 	egress.SetChecked(true)
 	srcChannel := widget.NewCheck("channel", nil)
@@ -546,7 +534,7 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 	srcChannel.SetChecked(true)
 	srcAgent.SetChecked(true)
 	threshold := widget.NewEntry()
-	threshold.SetPlaceHolder("0.7 (blank = runtime default)")
+	threshold.SetPlaceHolder(T("safety.classifier.thresholdPlaceholder"))
 	categories := widget.NewMultiLineEntry()
 	categories.SetPlaceHolder("safe: allow\nself_harm: block\nharassment: review")
 	categories.SetMinRowsVisible(4)
@@ -571,9 +559,9 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 	budget := widget.NewEntry()
 	budget.SetPlaceHolder("500000")
 	refusal := widget.NewEntry()
-	refusal.SetPlaceHolder("optional ingress refusal text")
+	refusal.SetPlaceHolder(T("safety.classifier.refusalPlaceholder"))
 	fallback := widget.NewEntry()
-	fallback.SetPlaceHolder("optional egress fallback text")
+	fallback.SetPlaceHolder(T("safety.classifier.fallbackPlaceholder"))
 
 	if existing != nil {
 		name.SetText(existing.Name)
@@ -632,37 +620,37 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 	}
 	form := vstack(spaceM,
 		grid(2,
-			field("Name", name),
-			field("Model", model),
+			field(T("common.name"), name),
+			field(T("safety.classifier.model"), model),
 		),
 		grid(2,
-			field("Mode", mode),
-			field("Prompt", prompt),
+			field(T("safety.classifier.mode"), mode),
+			field(T("safety.classifier.prompt"), prompt),
 		),
-		vstack(spaceXS, fieldLabel("Directions"), hstack(spaceM, ingress, egress)),
-		vstack(spaceXS, fieldLabel("Sources"), hstack(spaceM, srcChannel, srcAgent, srcScheduler, srcSystem)),
+		vstack(spaceXS, fieldLabel(T("safety.classifier.directions")), hstack(spaceM, ingress, egress)),
+		vstack(spaceXS, fieldLabel(T("safety.classifier.sources")), hstack(spaceM, srcChannel, srcAgent, srcScheduler, srcSystem)),
 		grid(2,
-			field("Threshold", threshold),
-			field("Timeout", timeout),
-			field("On error", onError),
-			field("On saturated", onSaturated),
-			field("On budget exhausted", onBudget),
-			field("Max tokens", maxTokens),
-			field("Max input chars", maxInput),
-			field("Max concurrency", maxConcurrency),
-			field("Cache size", cacheSize),
-			field("Cache TTL", cacheTTL),
-			field("Daily token budget", budget),
+			field(T("safety.classifier.threshold"), threshold),
+			field(T("safety.classifier.timeout"), timeout),
+			field(T("safety.classifier.onError"), onError),
+			field(T("safety.classifier.onSaturated"), onSaturated),
+			field(T("safety.classifier.onBudget"), onBudget),
+			field(T("safety.classifier.maxTokens"), maxTokens),
+			field(T("safety.classifier.maxInputChars"), maxInput),
+			field(T("safety.classifier.maxConcurrency"), maxConcurrency),
+			field(T("safety.classifier.cacheSize"), cacheSize),
+			field(T("safety.classifier.cacheTTL"), cacheTTL),
+			field(T("safety.classifier.budget"), budget),
 		),
-		vstack(spaceXS, fieldLabel("Categories"), categories,
-			caption("One per line, label: allow|review|block. At least one allow label is required.")),
+		vstack(spaceXS, fieldLabel(T("safety.classifier.categories")), categories,
+			caption(T("safety.classifier.categoriesHint"))),
 		grid(2,
-			field("Refusal (ingress block)", refusal),
-			field("Fallback (egress block)", fallback),
+			field(T("safety.classifier.refusal"), refusal),
+			field(T("safety.classifier.fallback"), fallback),
 		),
 	)
 	if len(modelOpts) == 0 {
-		form.Add(caption("No engine-keyed classifier models are configured. Add one on the Models screen and save it to config first."))
+		form.Add(caption(T("safety.classifier.noModels")))
 	}
 	scroll := container.NewVScroll(panel(form))
 	scroll.SetMinSize(fyne.NewSize(780, 560))
@@ -674,12 +662,12 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 			Mode:  mode.Selected,
 		}
 		if d.Name == "" {
-			return d, fmt.Errorf("a classifier name is required")
+			return d, errors.New(T("safety.err.classifierNameRequired"))
 		}
 		if d.Model == "" {
-			return d, fmt.Errorf("choose a classifier model")
+			return d, errors.New(T("safety.err.chooseModel"))
 		}
-		if prompt.Selected != "" && prompt.Selected != "embedded default" {
+		if prompt.Selected != "" && prompt.Selected != embeddedDefault {
 			d.Prompt = prompt.Selected
 		}
 		if ingress.Checked {
@@ -701,10 +689,10 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 			d.Sources = append(d.Sources, "system")
 		}
 		if len(d.Directions) == 0 {
-			return d, fmt.Errorf("choose at least one direction")
+			return d, errors.New(T("safety.err.chooseDirection"))
 		}
 		if len(d.Sources) == 0 {
-			return d, fmt.Errorf("choose at least one source")
+			return d, errors.New(T("safety.err.chooseSource"))
 		}
 		var err error
 		if d.Threshold, err = parseOptionalThreshold(threshold.Text); err != nil {
@@ -717,20 +705,20 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 		d.OnError = onError.Selected
 		d.OnSaturated = onSaturated.Selected
 		d.OnBudget = onBudget.Selected
-		if d.MaxTokens, err = optionalCount("max tokens", maxTokens.Text); err != nil {
+		if d.MaxTokens, err = optionalCount(T("safety.classifier.maxTokens"), maxTokens.Text); err != nil {
 			return d, err
 		}
-		if d.MaxInputChars, err = optionalCount("max input chars", maxInput.Text); err != nil {
+		if d.MaxInputChars, err = optionalCount(T("safety.classifier.maxInputChars"), maxInput.Text); err != nil {
 			return d, err
 		}
-		if d.MaxConcurrency, err = optionalCount("max concurrency", maxConcurrency.Text); err != nil {
+		if d.MaxConcurrency, err = optionalCount(T("safety.classifier.maxConcurrency"), maxConcurrency.Text); err != nil {
 			return d, err
 		}
-		if d.Cache.Size, err = optionalCount("cache size", cacheSize.Text); err != nil {
+		if d.Cache.Size, err = optionalCount(T("safety.classifier.cacheSize"), cacheSize.Text); err != nil {
 			return d, err
 		}
 		d.Cache.TTL = strings.TrimSpace(cacheTTL.Text)
-		if d.Budget.TokensPerDay, err = optionalCount64("daily token budget", budget.Text); err != nil {
+		if d.Budget.TokensPerDay, err = optionalCount64(T("safety.classifier.budget"), budget.Text); err != nil {
 			return d, err
 		}
 		d.Refusal = strings.TrimSpace(refusal.Text)
@@ -744,9 +732,9 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 			popup.Hide()
 		}
 	}
-	cancel := widthBox(100, controlFrame(actionButton("Cancel", nil, closePopup)))
-	validate := actionButton("Validate", checkMarkIcon, nil)
-	save := primaryButton("Save", theme.UploadIcon(), nil)
+	cancel := widthBox(100, controlFrame(actionButton(T("common.cancel"), nil, closePopup)))
+	validate := actionButton(T("safety.validate"), checkMarkIcon, nil)
+	save := primaryButton(T("common.save"), theme.UploadIcon(), nil)
 	footer := container.NewBorder(nil, nil, nil,
 		hstack(spaceS, cancel, widthBox(108, controlFrame(validate)), widthBox(104, controlFrame(save))), nil)
 	busy := false
@@ -785,7 +773,7 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 				case len(errs) > 0:
 					errBanner.Set(strings.Join(errs, "\n"), toneDanger)
 				default:
-					errBanner.Set("Valid. Save it, then reference classifier:"+d.Name+" from a profile.", toneSuccess)
+					errBanner.Set(T("safety.classifier.validText", "name", d.Name), toneSuccess)
 				}
 			})
 		}()
@@ -816,33 +804,31 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 				v.app.reloadCatalog()
 				note := list.SavedNote
 				if note == "" {
-					note = "safety classifier saved · restart required"
+					note = T("safety.classifierSaved")
 				}
 				v.app.setStatus(note, toneWarning)
 			})
 		}()
 	}
 
-	title := "New classifier"
+	title := T("safety.classifier.newTitle")
 	if existing != nil {
-		title = "Edit " + existing.Name
+		title = T("safety.editWhat", "name", existing.Name)
 	}
-	popup = showModalCard(v.app.win, title,
-		"Classifier spend is metered under __moderation_<name>; refusals and fallbacks are rate-limited per session.",
+	popup = showModalCard(v.app.win, title, T("safety.classifier.subtitle"),
 		container.NewBorder(errBanner, nil, nil, nil, scroll), footer)
 }
 
 func (v *safetyView) confirmDeleteClassifier(c api.SafetyClassifier) {
 	if !v.data.Editable {
-		showInfoPrompt(v.app.win, "Safety is read-only", v.readOnlyNote())
+		showInfoPrompt(v.app.win, T("safety.readOnlyTitle"), v.readOnlyNote())
 		return
 	}
-	msg := fmt.Sprintf("Delete classifier %q from the deployment config?", c.Name)
+	msg := T("safety.deleteClassifierMessage", "name", c.Name)
 	if len(c.UsedBy) > 0 {
-		msg += "\n\nIt is referenced by profile(s): " + strings.Join(c.UsedBy, ", ") + ". Remove those references first."
+		msg = T("safety.deleteClassifierMessageInUse", "name", c.Name, "n", len(c.UsedBy), "profiles", strings.Join(c.UsedBy, ", "))
 	}
-	msg += "\n\nThe running instance keeps using it until the next restart."
-	showConfirmPrompt(v.app.win, "Delete classifier", msg, "Delete", true, func(ok bool) {
+	showConfirmPrompt(v.app.win, T("safety.deleteClassifierTitle"), msg, T("common.delete"), true, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -858,7 +844,7 @@ func (v *safetyView) confirmDeleteClassifier(c api.SafetyClassifier) {
 				v.data = list
 				v.render()
 				v.app.reloadCatalog()
-				v.app.setStatus("safety classifier deleted · restart required", toneWarning)
+				v.app.setStatus(T("safety.classifierDeleted"), toneWarning)
 			})
 		}()
 	})
@@ -873,7 +859,7 @@ func parseOptionalThreshold(raw string) (*float64, error) {
 	}
 	f, err := strconv.ParseFloat(raw, 64)
 	if err != nil || f < 0 || f > 1 {
-		return nil, fmt.Errorf("threshold must be a number between 0 and 1")
+		return nil, errors.New(T("safety.err.thresholdRange"))
 	}
 	return &f, nil
 }
@@ -887,12 +873,12 @@ func parseCategoriesEntry(raw string) (map[string]string, error) {
 		}
 		label, action, ok := strings.Cut(line, ":")
 		if !ok {
-			return nil, fmt.Errorf("categories: %q needs label: action", line)
+			return nil, errors.New(T("safety.err.categoriesNoColon", "line", strconv.Quote(line)))
 		}
 		label = strings.TrimSpace(label)
 		action = strings.ToLower(strings.TrimSpace(action))
 		if label == "" {
-			return nil, fmt.Errorf("categories: %q has an empty label", line)
+			return nil, errors.New(T("safety.err.categoriesEmptyLabel", "line", strconv.Quote(line)))
 		}
 		out[label] = action
 	}
@@ -915,6 +901,8 @@ func formatCategories(categories map[string]string) string {
 	return strings.Join(lines, "\n")
 }
 
+// optionalCount parses an optional count: blank is 0 (unset), otherwise a
+// non-negative integer. label is the field's name, already translated.
 func optionalCount(label, raw string) (int, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -922,7 +910,7 @@ func optionalCount(label, raw string) (int, error) {
 	}
 	n, err := strconv.Atoi(raw)
 	if err != nil || n < 0 {
-		return 0, fmt.Errorf("%s must be a non-negative integer", label)
+		return 0, errors.New(T("safety.err.nonNegative", "what", label))
 	}
 	return n, nil
 }
@@ -934,7 +922,7 @@ func optionalCount64(label, raw string) (int64, error) {
 	}
 	n, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || n < 0 {
-		return 0, fmt.Errorf("%s must be a non-negative integer", label)
+		return 0, errors.New(T("safety.err.nonNegative", "what", label))
 	}
 	return n, nil
 }

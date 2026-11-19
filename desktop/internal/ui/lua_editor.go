@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -78,7 +77,7 @@ func newLuaEditor(app *App, title, hint, source string, prelude int, capsFn func
 	e.editor.onShortcut = e.forwardShortcut
 
 	e.statusDot = dot(toneSuccess)
-	e.status = oneLine("checking…")
+	e.status = oneLine(T("lua.status.checking"))
 	e.status.SizeName = theme.SizeNameCaptionText
 	e.actions = container.NewHBox()
 
@@ -87,7 +86,7 @@ func newLuaEditor(app *App, title, hint, source string, prelude int, capsFn func
 		vCenter(widthBox(168, e.status)),
 		hSpacer(4),
 		vCenter(e.actions),
-		vCenter(iconButton(theme.ListIcon(), "Prelude API (Ctrl+Space)", func() {
+		vCenter(iconButton(theme.ListIcon(), T("lua.preludeApi"), func() {
 			if e.app.win != nil && e.app.win.Canvas() != nil {
 				e.app.win.Canvas().Focus(e.editor)
 			}
@@ -119,7 +118,7 @@ func (e *luaEditor) addAction(obj fyne.CanvasObject) {
 func (e *luaEditor) startClient() {
 	client, err := lsp.FromServer()
 	if err != nil {
-		e.setStatus("language service unavailable", toneDanger)
+		e.setStatus(T("lua.status.unavailable"), toneDanger)
 		return
 	}
 	e.client = client
@@ -133,11 +132,11 @@ func (e *luaEditor) startClient() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := client.Initialize(ctx, e.prelude, e.capabilities()); err != nil {
-			onUI(func() { e.setStatus("language service error: "+err.Error(), toneDanger) })
+			onUI(func() { e.setStatus(T("lua.status.failed", "error", err.Error()), toneDanger) })
 			return
 		}
 		if err := client.Open(e.uri, e.Text(), e.version); err != nil {
-			onUI(func() { e.setStatus("language service error: "+err.Error(), toneDanger) })
+			onUI(func() { e.setStatus(T("lua.status.failed", "error", err.Error()), toneDanger) })
 		}
 	}()
 }
@@ -174,7 +173,7 @@ func (e *luaEditor) scheduleLint() {
 	if e.closed {
 		return
 	}
-	e.setStatus("checking…", toneNeutral)
+	e.setStatus(T("lua.status.checking"), toneNeutral)
 	if e.debounce != nil {
 		e.debounce.Stop()
 	}
@@ -243,23 +242,16 @@ func (e *luaEditor) applyDiagnostics(diags []lsp.Diagnostic) {
 	e.editor.SetDiagnostics(conv)
 	switch {
 	case errors > 0:
-		text := countLabel(errors, "error", "errors")
+		text := T("lua.status.errors", "errors", errors)
 		if warnings > 0 {
-			text += " · " + countLabel(warnings, "warning", "warnings")
+			text = T("lua.status.errorsAndWarnings", "errors", errors, "warnings", warnings)
 		}
 		e.setStatus(text, toneDanger)
 	case warnings > 0:
-		e.setStatus(countLabel(warnings, "warning", "warnings"), toneWarning)
+		e.setStatus(T("lua.status.warnings", "warnings", warnings), toneWarning)
 	default:
-		e.setStatus("no issues", toneSuccess)
+		e.setStatus(T("lua.status.noIssues"), toneSuccess)
 	}
-}
-
-func countLabel(n int, one, many string) string {
-	if n == 1 {
-		return fmt.Sprintf("1 %s", one)
-	}
-	return fmt.Sprintf("%d %s", n, many)
 }
 
 func (e *luaEditor) setStatus(text string, t tone) {
@@ -314,7 +306,7 @@ func (e *luaEditor) hoverAt(row, col int, overDiag bool) {
 		if len(msgs) > 3 {
 			msgs = append(msgs[:3], "• …")
 		}
-		e.editor.ShowHover(fmt.Sprintf("Line %d\n%s", row+1, strings.Join(msgs, "\n")))
+		e.editor.ShowHover(T("lua.hover.diagnosticsAt", "line", row+1) + "\n" + strings.Join(msgs, "\n"))
 		return
 	}
 	if e.client == nil {

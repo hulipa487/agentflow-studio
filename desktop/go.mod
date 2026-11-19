@@ -7,6 +7,9 @@ require (
 	// module, at ../docs. A Go embed cannot reach outside its module, so the docs
 	// directory is a small module of its own.
 	agentflow-studio-docs v0.0.0
+	// The message catalogues are shared with the web app in the same way, at
+	// ../i18n.
+	agentflow-studio-i18n v0.0.0
 	fyne.io/fyne/v2 v2.8.2
 	github.com/Microsoft/go-winio v0.6.3
 	github.com/yuin/goldmark v1.8.2
@@ -49,3 +52,5 @@ require (
 )
 
 replace agentflow-studio-docs => ../docs
+
+replace agentflow-studio-i18n => ../i18n

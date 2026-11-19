@@ -17,6 +17,7 @@ import (
 	"agentflow-studio/internal/api"
 	"agentflow-studio/internal/appconfig"
 	"agentflow-studio/internal/docs"
+	"agentflow-studio/internal/i18n"
 )
 
 const appVersion = "0.1.0"
@@ -67,6 +68,15 @@ type App struct {
 	// helpAction is F1 on screens with their own reference (the builder's
 	// docs dock); elsewhere F1 opens the documentation.
 	helpAction func()
+	// unsaved reports whether the current screen holds edits that building it
+	// again would lose (the builder, the config editor); nil means none.
+	// reshow opens the current screen again as it is now, for screens that
+	// take an argument (which agent, which page); nil means the rail's own
+	// entry is enough. relocalizeView rebuilds a view that lives outside the
+	// shell (login). A language change reads all three; see language.go.
+	unsaved        func() bool
+	reshow         func()
+	relocalizeView func()
 
 	shortcutsInstalled bool
 }
@@ -74,6 +84,7 @@ type App struct {
 func New(fyneApp fyne.App, win fyne.Window, cfg appconfig.Config) *App {
 	variant := themeFromConfig(cfg.Theme, fyneApp.Settings().ThemeVariant())
 	family := paletteFromConfig(cfg.Palette)
+	i18n.SetLanguage(languageFromConfig(cfg.Language))
 	applyStudioTheme(fyneApp, family, variant)
 	return &App{fyneApp: fyneApp, win: win, cfg: cfg, variant: variant, palette: family}
 }
@@ -188,6 +199,8 @@ func (a *App) clearActions() {
 	a.backAction = nil
 	a.refreshAction = nil
 	a.helpAction = nil
+	a.unsaved = nil
+	a.reshow = nil
 }
 
 func (a *App) lock() {
@@ -215,22 +228,22 @@ func (a *App) showProfileSwitcher(anchor fyne.CanvasObject) {
 			pop.Hide()
 		}
 	}
-	items.Add(container.New(layout.NewCustomPaddedLayout(2, 2, spaceS, spaceS), fieldLabel("CONNECTIONS")))
+	items.Add(container.New(layout.NewCustomPaddedLayout(2, 2, spaceS, spaceS), fieldLabel(strings.ToUpper(T("shell.connections")))))
 	for _, p := range a.cfg.Profiles {
 		p := p
 		active := p.Name == a.cfg.Active
 		name := widget.NewLabelWithStyle(p.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: active})
 		name.Truncation = fyne.TextTruncateEllipsis
-		t := toneNeutral
+		tn := toneNeutral
 		if active {
-			t = toneSuccess
+			tn = toneSuccess
 		}
 		var trail fyne.CanvasObject = hSpacer(spaceXS)
 		if active {
-			trail = container.NewCenter(chip("active", toneSuccess))
+			trail = container.NewCenter(chip(T("shell.activeConnection"), toneSuccess))
 		}
 		row := container.NewBorder(nil, nil,
-			container.New(layout.NewCustomPaddedLayout(0, 0, spaceS, 0), vCenter(dotBox(dot(t)))),
+			container.New(layout.NewCustomPaddedLayout(0, 0, spaceS, 0), vCenter(dotBox(dot(tn)))),
 			container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), trail),
 			vstack(0, compactLabel(name, false), compactLabel(oneLine(p.URL), false)))
 		surf := newTapSurface(container.New(layout.NewCustomPaddedLayout(spaceXS, spaceXS, 0, 0), row), 7, false, nil, func() {
@@ -242,7 +255,7 @@ func (a *App) showProfileSwitcher(anchor fyne.CanvasObject) {
 		items.Add(surf)
 	}
 	if len(a.cfg.Profiles) == 0 {
-		items.Add(container.New(layout.NewCustomPaddedLayout(2, 2, spaceS, spaceS), caption("No saved connections yet.")))
+		items.Add(container.New(layout.NewCustomPaddedLayout(2, 2, spaceS, spaceS), caption(T("shell.noConnections"))))
 	}
 	items.Add(widget.NewSeparator())
 	menuRow := func(label string, icon fyne.Resource, fn func()) fyne.CanvasObject {
@@ -256,7 +269,7 @@ func (a *App) showProfileSwitcher(anchor fyne.CanvasObject) {
 		})
 		return s
 	}
-	items.Add(menuRow("Use another connection…", theme.ContentAddIcon(), func() {
+	items.Add(menuRow(T("shell.useAnotherConnection"), theme.ContentAddIcon(), func() {
 		// Keep the saved profiles; clear only the active mirror so the login
 		// screen starts blank and a successful login appends a profile.
 		a.cfg.URL = ""
@@ -264,8 +277,8 @@ func (a *App) showProfileSwitcher(anchor fyne.CanvasObject) {
 		a.cfg.Active = ""
 		a.showLogin("")
 	}))
-	items.Add(menuRow("Connection settings", theme.SettingsIcon(), a.showSettings))
-	items.Add(menuRow("Lock (forget the token)", theme.LogoutIcon(), a.lock))
+	items.Add(menuRow(T("shell.connectionSettings"), theme.SettingsIcon(), a.showSettings))
+	items.Add(menuRow(T("shell.lockForgetToken"), theme.LogoutIcon(), a.lock))
 
 	body := widthBox(300, items)
 	pop = widget.NewPopUp(container.New(layout.NewCustomPaddedLayout(spaceXS, spaceXS, spaceXS, spaceXS), body), a.win.Canvas())
@@ -303,8 +316,25 @@ const (
 )
 
 func (a *App) showMain() {
-	a.railVisible = true
 	a.online = true
+	a.buildShell()
+	if !a.shortcutsInstalled {
+		a.installShortcuts()
+		a.shortcutsInstalled = true
+	}
+	a.win.Resize(fyne.NewSize(1280, 860))
+	a.showOverview()
+	if c := a.win.Canvas(); c != nil {
+		c.Refresh(a.shell)
+	}
+}
+
+// buildShell builds the chrome around an empty content area and makes it the
+// window's content. showMain calls it once after a login; a language change
+// calls it again, because the chrome's text is built into its widgets.
+func (a *App) buildShell() {
+	a.railVisible = true
+	a.relocalizeView = nil
 	a.nav = a.buildNav()
 
 	// ---- rail ---------------------------------------------------------------
@@ -317,7 +347,7 @@ func (a *App) showMain() {
 			}
 			if first {
 				if section != "Home" {
-					items.Add(railSection(section))
+					items.Add(railSection(sectionLabel(section)))
 				}
 				first = false
 			}
@@ -345,10 +375,10 @@ func (a *App) showMain() {
 	a.railPane = railPane
 
 	// ---- command bar ----------------------------------------------------------
-	a.breadcrumb = widget.NewLabel("Overview")
+	a.breadcrumb = widget.NewLabel(T("nav.overview"))
 	a.breadcrumb.SizeName = theme.SizeNameText
 
-	searchHint := widget.NewLabel("Go to…")
+	searchHint := widget.NewLabel(T("shell.goToHint"))
 	searchHint.Importance = widget.LowImportance
 	searchHint.Truncation = fyne.TextTruncateEllipsis
 	searchRow := container.NewBorder(nil, nil,
@@ -374,18 +404,19 @@ func (a *App) showMain() {
 	})
 	connPill.height = controlHeight
 
-	a.themeBtn = iconButton(a.themeToggleIcon(), "Toggle light/dark", a.toggleTheme)
+	a.themeBtn = iconButton(a.themeToggleIcon(), T("shell.toggleTheme"), a.toggleTheme)
 	cluster := hstack(spaceS,
 		vCenter(widthBox(256, search)),
 		vCenter(widthBox(190, connPill)),
+		vCenter(a.languageToggle()),
 		hstack(0,
-			vCenter(iconButton(theme.HelpIcon(), "Documentation (F1)", a.openDocs)),
+			vCenter(iconButton(theme.HelpIcon(), T("shell.withShortcut", "label", T("nav.docs"), "key", "F1"), a.openDocs)),
 			vCenter(a.themeBtn),
-			vCenter(iconButton(theme.SettingsIcon(), "Settings", a.showSettings)),
+			vCenter(iconButton(theme.SettingsIcon(), T("nav.settings"), a.showSettings)),
 		),
 	)
 	// 300 + 190 + three icon buttons and gaps: the part of the bar Fyne owns.
-	clusterWidth := float32(256 + 190 + 3*32 + 3*spaceS + spaceS)
+	clusterWidth := float32(256+190+3*32+4*spaceS+spaceS) + languageToggleWidth
 
 	var topActions, topCenter fyne.CanvasObject = container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), cluster), nil
 	if drag := a.dragHandle(); drag != nil {
@@ -419,15 +450,7 @@ func (a *App) showMain() {
 		newTipLayer(),
 	)
 	a.win.SetContent(a.shell)
-	if !a.shortcutsInstalled {
-		a.installShortcuts()
-		a.shortcutsInstalled = true
-	}
-	a.win.Resize(fyne.NewSize(1280, 860))
-	a.showOverview()
-	if c := a.win.Canvas(); c != nil {
-		c.Refresh(a.shell)
-	}
+	a.paintOnline(a.online)
 }
 
 // connectionName is what the command bar's pill shows: the saved profile's
@@ -439,7 +462,7 @@ func (a *App) connectionName() string {
 	if a.api != nil {
 		return strings.TrimPrefix(strings.TrimPrefix(a.api.DisplayURL, "http://"), "https://")
 	}
-	return "not connected"
+	return T("shell.notConnected")
 }
 
 func (a *App) themeToggleIcon() fyne.Resource {
@@ -530,6 +553,20 @@ func (a *App) stopHeartbeat() {
 // setOnline records a heartbeat result and announces transitions only.
 func (a *App) setOnline(err error) {
 	ok := err == nil
+	a.paintOnline(ok)
+	if ok == a.online {
+		return
+	}
+	a.online = ok
+	if ok {
+		a.setStatus(T("shell.runtimeReachable"), toneSuccess)
+	} else {
+		a.setStatus(T("shell.runtimeUnreachable", "message", err.Error()), toneDanger)
+	}
+}
+
+// paintOnline shows the connection state in the command bar and status bar.
+func (a *App) paintOnline(ok bool) {
 	if a.railDot != nil {
 		if ok {
 			a.railDot.FillColor = toneColor(toneSuccess)
@@ -542,19 +579,10 @@ func (a *App) setOnline(err error) {
 		if ok {
 			a.connLabel.SetText(a.connectionName())
 		} else {
-			a.connLabel.SetText("offline · " + a.connectionName())
+			a.connLabel.SetText(T("shell.offlineName", "name", a.connectionName()))
 		}
 	}
 	a.setStatusBarState(ok)
-	if ok == a.online {
-		return
-	}
-	a.online = ok
-	if ok {
-		a.setStatus("runtime reachable again", toneSuccess)
-	} else {
-		a.setStatus("runtime unreachable: "+err.Error(), toneDanger)
-	}
 }
 
 func (a *App) setBreadcrumb(text string) {
@@ -598,5 +626,5 @@ func (a *App) showError(err error) {
 	if err == nil {
 		return
 	}
-	a.setStatus("Error: "+err.Error(), toneDanger)
+	a.setStatus(T("common.error", "message", err.Error()), toneDanger)
 }

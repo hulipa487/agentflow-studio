@@ -7,6 +7,8 @@ import { CommandPalette } from '@/components/shell/CommandPalette'
 import { Shortcuts } from '@/components/shell/Shortcuts'
 import { useSession } from '@/state/session'
 import { useAppearance } from '@/state/appearance'
+import { t, useLang } from '@/i18n'
+import { LanguageToggle } from '@/components/shell/LanguageToggle'
 import Login from '@/screens/Login'
 import Overview from '@/screens/Overview'
 import Agents from '@/screens/Agents'
@@ -35,9 +37,9 @@ function Restoring() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4">
       <Logo size={56} />
-      <Loading text={step || 'Reconnecting to the runtime…'} className="py-0" />
+      <Loading text={step || t('shell.reconnecting')} className="py-0" />
       {/* Cancel opens the welcome screen, prefilled with this connection. */}
-      {active && <Button onClick={() => useSession.getState().cancelRestore()}>Cancel</Button>}
+      {active && <Button onClick={() => useSession.getState().cancelRestore()}>{t('common.cancel')}</Button>}
     </div>
   )
 }
@@ -48,6 +50,9 @@ export default function App() {
   const [booted, setBooted] = useState(false)
   // Subscribing keeps the document's theme attributes in step with the store.
   useAppearance((s) => s.mode)
+  // Subscribing re-renders the whole tree when the language changes; t() reads
+  // the store directly, so no screen has to subscribe on its own.
+  useLang()
 
   // Reconnect at once when a URL and token were remembered.
   useEffect(() => {
@@ -72,6 +77,8 @@ export default function App() {
     return (
       <>
         <Login />
+        {/* Before a connection there is no command bar to hold the switch. */}
+        <LanguageToggle className="fixed right-4 top-4 z-30" />
         <Overlays />
       </>
     )

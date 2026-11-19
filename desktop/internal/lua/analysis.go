@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"agentflow-studio/internal/i18n"
 )
 
 // Context is what the analyzer knows about the deployment and the agent.
@@ -117,7 +119,7 @@ func checkDirective(src string, want int) []Diagnostic {
 		return []Diagnostic{{
 			Line: 0, Col: 0, EndLine: 0, EndCol: 1,
 			Severity: SeverityError, Code: "prelude.missing-directive",
-			Message: fmt.Sprintf("missing -- af-prelude-version: %d; the runtime refuses chunks without it", want),
+			Message: i18n.T("lua.diag.missingDirective", "want", want),
 		}}
 	}
 	var out []Diagnostic
@@ -126,7 +128,7 @@ func checkDirective(src string, want int) []Diagnostic {
 			out = append(out, Diagnostic{
 				Line: h.line, Col: 0, EndLine: h.line, EndCol: 1,
 				Severity: SeverityError, Code: "prelude.duplicate-directive",
-				Message: "the prelude version may be declared exactly once",
+				Message: i18n.T("lua.diag.duplicateDirective"),
 			})
 		}
 	}
@@ -136,7 +138,7 @@ func checkDirective(src string, want int) []Diagnostic {
 				out = append(out, Diagnostic{
 					Line: h.line, Col: 0, EndLine: h.line, EndCol: 1,
 					Severity: SeverityError, Code: "prelude.version-mismatch",
-					Message: fmt.Sprintf("the chunk declares prelude version %d, but this runtime provides %d", h.version, want),
+					Message: i18n.T("lua.diag.versionMismatch", "got", h.version, "want", want),
 				})
 			}
 		}
@@ -182,9 +184,9 @@ func checkStructure(tokens []Token) []Diagnostic {
 			case ")", "]", "}":
 				want := map[string]string{")": "(", "]": "[", "}": "{"}[t.Lit]
 				if len(brackets) == 0 {
-					report(t, "syntax.unexpected-close", fmt.Sprintf("unexpected %q", t.Lit))
+					report(t, "syntax.unexpected-close", i18n.T("lua.diag.unexpectedClose", "token", strconv.Quote(t.Lit)))
 				} else if top := brackets[len(brackets)-1]; top.lit != want {
-					report(t, "syntax.mismatched-close", fmt.Sprintf("%q does not close %q", t.Lit, top.lit))
+					report(t, "syntax.mismatched-close", i18n.T("lua.diag.mismatchedClose", "token", strconv.Quote(t.Lit), "open", strconv.Quote(top.lit)))
 					brackets = brackets[:len(brackets)-1]
 				} else {
 					brackets = brackets[:len(brackets)-1]
@@ -219,22 +221,22 @@ func checkStructure(tokens []Token) []Diagnostic {
 			blocks = append(blocks, blockFrame{"repeat", t})
 		case "elseif", "else":
 			if len(blocks) == 0 || blocks[len(blocks)-1].kind != "if" {
-				report(t, "syntax.unexpected-else", fmt.Sprintf("%q without a matching if", t.Lit))
+				report(t, "syntax.unexpected-else", i18n.T("lua.diag.unexpectedElse", "token", strconv.Quote(t.Lit)))
 			}
 		case "until":
 			if len(blocks) == 0 || blocks[len(blocks)-1].kind != "repeat" {
-				report(t, "syntax.unexpected-until", "until without a matching repeat")
+				report(t, "syntax.unexpected-until", i18n.T("lua.diag.unexpectedUntil"))
 			} else {
 				blocks = blocks[:len(blocks)-1]
 			}
 		case "end":
 			if len(blocks) == 0 {
-				report(t, "syntax.unexpected-end", "end without a matching block")
+				report(t, "syntax.unexpected-end", i18n.T("lua.diag.unexpectedEnd"))
 				continue
 			}
 			top := blocks[len(blocks)-1]
 			if top.kind == "repeat" {
-				report(t, "syntax.mismatched-end", "repeat is closed by until, not end")
+				report(t, "syntax.mismatched-end", i18n.T("lua.diag.mismatchedEnd"))
 			}
 			blocks = blocks[:len(blocks)-1]
 		}
@@ -243,14 +245,14 @@ func checkStructure(tokens []Token) []Diagnostic {
 		diags = append(diags, Diagnostic{
 			Line: b.tok.Line, Col: b.tok.Col, EndLine: b.tok.EndLine, EndCol: b.tok.EndCol,
 			Severity: SeverityError, Code: "syntax.unclosed-block",
-			Message: fmt.Sprintf("unclosed %s block", b.kind),
+			Message: i18n.T("lua.diag.unclosedBlock", "kind", b.kind),
 		})
 	}
 	for _, b := range brackets {
 		diags = append(diags, Diagnostic{
 			Line: b.tok.Line, Col: b.tok.Col, EndLine: b.tok.EndLine, EndCol: b.tok.EndCol,
 			Severity: SeverityError, Code: "syntax.unclosed-bracket",
-			Message: fmt.Sprintf("unclosed %q", b.lit),
+			Message: i18n.T("lua.diag.unclosedBracket", "token", strconv.Quote(b.lit)),
 		})
 	}
 	return diags
@@ -363,7 +365,7 @@ func (a *analyzer) run() {
 			case "return":
 				if fn := a.nearestFunction(); fn != nil && fn.loop {
 					a.diag(t, SeverityWarning, "api.return-loop",
-						"returning from loop() restarts the loop; use session.exit() to end the session")
+						i18n.T("lua.diag.returnFromLoop"))
 				}
 				continue
 			case "type":
@@ -516,16 +518,16 @@ func (a *analyzer) checkRootUse(t Token) {
 		return
 	}
 	if msg, ok := unavailableGlobals[t.Lit]; ok {
-		a.diag(t, SeverityError, "sandbox.unavailable", msg)
+		a.diag(t, SeverityError, "sandbox.unavailable", i18n.T(msg))
 		return
 	}
 	if a.typeLine >= 0 {
 		return
 	}
 	suggestion := Suggest(t.Lit, a.knownNames())
-	msg := fmt.Sprintf("unknown global %q", t.Lit)
+	msg := i18n.T("lua.diag.unknownGlobal", "name", strconv.Quote(t.Lit))
 	if suggestion != "" {
-		msg += fmt.Sprintf("; did you mean %q?", suggestion)
+		msg = i18n.T("lua.diag.unknownGlobalSuggest", "name", strconv.Quote(t.Lit), "suggestion", strconv.Quote(suggestion))
 	}
 	a.diag(t, SeverityWarning, "global.unknown", msg)
 }
@@ -702,7 +704,7 @@ func (a *analyzer) parseForHeader(at int) ([]string, int) {
 	for j := at + 1; j < doAt; j++ {
 		if a.tokens[j].Is("llm") && j+2 < len(a.tokens) && a.tokens[j+1].Is(".") && a.tokens[j+2].Is("stream") {
 			a.diag(a.tokens[j], SeverityError, "api.stream-for",
-				"llm.stream cannot be used in a generic for: it yields across the bridge. Call next_delta() directly and close() on early exit")
+				i18n.T("lua.diag.streamFor"))
 			break
 		}
 	}
@@ -733,7 +735,7 @@ func (a *analyzer) handleName(at int) int {
 	}
 
 	if msg, bad := unavailableGlobals[t.Lit]; bad && !IsKnownGlobal(t.Lit) && !a.model.Globals[t.Lit] {
-		a.diag(t, SeverityError, "sandbox.unavailable", msg)
+		a.diag(t, SeverityError, "sandbox.unavailable", i18n.T(msg))
 		return j
 	}
 
@@ -743,9 +745,9 @@ func (a *analyzer) handleName(at int) int {
 		}
 		if at+1 < len(a.tokens) && a.tokens[at+1].Is("=") {
 			suggestion := Suggest(t.Lit, a.knownNames())
-			msg := fmt.Sprintf("assignment to undeclared global %q; add local", t.Lit)
+			msg := i18n.T("lua.diag.undeclaredAssignment", "name", strconv.Quote(t.Lit))
 			if suggestion != "" {
-				msg += fmt.Sprintf(" (did you mean %q?)", suggestion)
+				msg = i18n.T("lua.diag.undeclaredAssignmentSuggest", "name", strconv.Quote(t.Lit), "suggestion", strconv.Quote(suggestion))
 			}
 			a.diag(t, SeverityWarning, "global.assignment", msg)
 			return j
@@ -756,9 +758,9 @@ func (a *analyzer) handleName(at int) int {
 			return j
 		}
 		suggestion := Suggest(t.Lit, a.knownNames())
-		msg := fmt.Sprintf("unknown global %q", t.Lit)
+		msg := i18n.T("lua.diag.unknownGlobal", "name", strconv.Quote(t.Lit))
 		if suggestion != "" {
-			msg += fmt.Sprintf("; did you mean %q?", suggestion)
+			msg = i18n.T("lua.diag.unknownGlobalSuggest", "name", strconv.Quote(t.Lit), "suggestion", strconv.Quote(suggestion))
 		}
 		a.diag(t, SeverityWarning, "global.unknown", msg)
 		return j
@@ -777,11 +779,11 @@ func (a *analyzer) handleName(at int) int {
 			parent := strings.Join(parts[:k], ".")
 			fields := FieldNames(parent)
 			segTok := a.tokens[at+2*k]
-			msg := fmt.Sprintf("unknown field %q on %q", parts[k], parent)
+			msg := i18n.T("lua.diag.unknownField", "field", strconv.Quote(parts[k]), "parent", strconv.Quote(parent))
 			if s := Suggest(parts[k], fields); s != "" {
-				msg += fmt.Sprintf("; did you mean %q?", s)
+				msg = i18n.T("lua.diag.unknownFieldSuggest", "field", strconv.Quote(parts[k]), "parent", strconv.Quote(parent), "suggestion", strconv.Quote(s))
 			} else if len(fields) == 0 {
-				msg = fmt.Sprintf("%q has no public fields", parent)
+				msg = i18n.T("lua.diag.noPublicFields", "parent", strconv.Quote(parent))
 			}
 			a.diag(segTok, SeverityWarning, "field.unknown", msg)
 			ok = false
@@ -799,7 +801,7 @@ func (a *analyzer) handleName(at int) int {
 	}
 	if path == "af.op" {
 		a.diag(t, SeverityWarning, "api.af-op",
-			"af.op is an engine internal; use session.*, llm.* and the other public namespaces")
+			i18n.T("lua.diag.afOp"))
 	}
 	// A call is a path immediately followed by "(".
 	isCall := j+1 < len(a.tokens) && a.tokens[j+1].Is("(")
@@ -808,18 +810,18 @@ func (a *analyzer) handleName(at int) int {
 	}
 	if entry.Maintenance {
 		a.diag(t, SeverityWarning, "api.maintenance-only",
-			fmt.Sprintf("%s is limited to system and scheduler turns", path))
+			i18n.T("lua.diag.maintenanceOnly", "path", path))
 	}
 	if entry.Capability != "" && a.ctx.Capabilities != nil {
 		if !contains(a.ctx.Capabilities, entry.Capability) {
 			a.diag(t, SeverityWarning, "capability.missing",
-				fmt.Sprintf("%s requires capability %q, which this agent does not enable", path, entry.Capability))
+				i18n.T("lua.diag.capabilityMissing", "path", path, "capability", strconv.Quote(entry.Capability)))
 		}
 	}
 	if entry.Yields {
 		if fn := a.nearestFunction(); fn == nil {
 			a.diag(t, SeverityWarning, "api.top-level-yield",
-				fmt.Sprintf("%s yields, so it cannot run at chunk top level; call it inside loop()", path))
+				i18n.T("lua.diag.topLevelYield", "path", path))
 		}
 	}
 	return j
@@ -866,14 +868,14 @@ func (a *analyzer) entryPointDiagnostics() []Diagnostic {
 		return []Diagnostic{{
 			Line: 0, Col: 0, EndLine: 0, EndCol: 1,
 			Severity: SeverityError, Code: "entry.local-loop",
-			Message: "loop must be a global function; the engine calls function loop(), not a local one",
+			Message: i18n.T("lua.diag.localLoop"),
 		}}
 	}
 	line := len(strings.Split(a.src, "\n")) - 1
 	return []Diagnostic{{
 		Line: line, Col: 0, EndLine: line, EndCol: 1,
 		Severity: SeverityError, Code: "entry.missing-loop",
-		Message: "the chunk must define function loop(); the engine has nothing to start without it",
+		Message: i18n.T("lua.diag.missingLoop"),
 	}}
 }
 

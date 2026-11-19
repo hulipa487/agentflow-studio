@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -37,6 +36,7 @@ type configView struct {
 func (a *App) showConfig() {
 	a.enter("config")
 	v := a.newConfigView()
+	a.unsaved = func() bool { return v.dirty() }
 	a.setMain(v.s.root)
 	a.saveAction = v.save
 	a.refreshAction = func() { v.reload(true) }
@@ -51,20 +51,18 @@ func (a *App) newConfigView() *configView {
 	v.masked = maskedArea.editor
 	v.masked.SetReadOnly(true)
 
-	validate := actionButton("Validate", theme.ConfirmIcon(), v.validate)
-	v.saveBtn = primaryButton("Save", theme.DocumentSaveIcon(), v.save)
-	reload := actionButton("Reload", theme.ViewRefreshIcon(), func() { v.reload(true) })
+	validate := actionButton(T("config.validate"), theme.ConfirmIcon(), v.validate)
+	v.saveBtn = primaryButton(T("common.save"), theme.DocumentSaveIcon(), v.save)
+	reload := actionButton(T("config.reload"), theme.ViewRefreshIcon(), func() { v.reload(true) })
 	actions := hstack(spaceS, reload, validate, v.saveBtn)
 
 	tabs := container.NewAppTabs(
-		container.NewTabItemWithIcon("Edit", theme.DocumentCreateIcon(),
-			editorFrame("agentflow.yaml", "Env placeholders stay as written (${VAR}); secrets are never resolved into this text. Ctrl+S validates and saves.", editArea.root)),
-		container.NewTabItemWithIcon("Masked view", theme.VisibilityIcon(),
-			editorFrame("Parsed config", "What the runtime parsed from the file on disk, with sensitive keys masked. Read-only.", maskedArea.root)),
+		container.NewTabItemWithIcon(T("common.edit"), theme.DocumentCreateIcon(),
+			editorFrame("agentflow.yaml", T("config.editHint", "placeholder", "${VAR}", "mod", "Ctrl"), editArea.root)),
+		container.NewTabItemWithIcon(T("config.tabMasked"), theme.VisibilityIcon(),
+			editorFrame(T("config.parsedTitle"), T("config.maskedHint"), maskedArea.root)),
 	)
-	v.s = a.newPane("Config",
-		"The deployment's config file, for everything without its own screen: memory, prompts, tools, MCP, triggers, search, files, net and runtime settings. Saving keeps a .bak; topology changes apply at the next restart.",
-		actions, tabs)
+	v.s = a.newPane(T("config.title"), T("config.subtitle"), actions, tabs)
 	v.reload(false)
 	return v
 }
@@ -77,26 +75,26 @@ func (v *configView) updateMeta() {
 	}
 	parts := []string{v.path}
 	if v.mtime > 0 {
-		parts = append(parts, "modified "+time.Unix(v.mtime, 0).Local().Format("2006-01-02 15:04:05"))
+		parts = append(parts, T("config.modified", "time", time.Unix(v.mtime, 0).Local().Format("2006-01-02 15:04:05")))
 	}
 	lines := len(v.editor.lines)
-	parts = append(parts, fmt.Sprintf("%d lines", lines))
+	parts = append(parts, T("config.lines", "n", lines))
 	if v.dirty() {
-		parts = append(parts, "● unsaved changes")
+		parts = append(parts, T("config.unsaved"))
 	}
 	v.s.meta.SetText(strings.Join(parts, " · "))
 }
 
 func (v *configView) reload(confirm bool) {
 	if confirm && v.dirty() {
-		showConfirmPrompt(v.app.win, "Discard changes", "Reload the file from disk and discard your unsaved edits?", "Discard", true, func(ok bool) {
+		showConfirmPrompt(v.app.win, T("config.discardTitle"), T("config.reloadDiscard"), T("common.discard"), true, func(ok bool) {
 			if ok {
 				v.reload(false)
 			}
 		})
 		return
 	}
-	v.s.meta.SetText("loading…")
+	v.s.meta.SetText(T("config.loadingMeta"))
 	async(20*time.Second, v.app.api.Config, func(f api.ConfigFile, err error) {
 		if err != nil {
 			v.s.notice(err.Error(), toneDanger)
@@ -107,8 +105,8 @@ func (v *configView) reload(confirm bool) {
 			v.editor.SetText("")
 			v.editor.SetReadOnly(true)
 			v.saveBtn.Disable()
-			v.s.meta.SetText("config directory deployment")
-			v.s.notice(f.Error+"\n\nIn a directory deployment Studio edits the fragments through Agents, Channels, Models and Safety; other sections are edited in the files themselves.", toneWarning)
+			v.s.meta.SetText(T("config.directoryMeta"))
+			v.s.notice(f.Error+"\n\n"+T("config.directoryNote"), toneWarning)
 			return
 		}
 		v.s.banner.Clear()
@@ -132,7 +130,7 @@ func (v *configView) validate() {
 		return
 	}
 	raw := v.editor.Text()
-	v.s.notice("Validating…", toneNeutral)
+	v.s.notice(T("config.validating"), toneNeutral)
 	async(30*time.Second, func(ctx context.Context) (api.ConfigResult, error) {
 		return v.app.api.ValidateConfig(ctx, raw)
 	}, func(r api.ConfigResult, err error) {
@@ -140,9 +138,9 @@ func (v *configView) validate() {
 		case err != nil:
 			v.s.notice(err.Error(), toneDanger)
 		case !r.OK:
-			v.s.notice("Does not validate: "+r.Error, toneDanger)
+			v.s.notice(T("config.invalid", "error", r.Error), toneDanger)
 		default:
-			v.s.notice("Valid: the runtime would boot with this config (strict fields, env expansion and cross-references checked).", toneSuccess)
+			v.s.notice(T("config.valid"), toneSuccess)
 		}
 	})
 }
@@ -152,13 +150,13 @@ func (v *configView) save() {
 		return
 	}
 	if !v.dirty() {
-		v.app.setStatus("no changes to save", toneNeutral)
+		v.app.setStatus(T("config.noChanges"), toneNeutral)
 		return
 	}
 	raw, mtime := v.editor.Text(), v.mtime
-	showConfirmPrompt(v.app.win, "Save config",
-		"Validate and replace "+v.path+"? The current file is kept as .bak. Most changes apply when AgentFlow restarts.",
-		"Save", false, func(ok bool) {
+	showConfirmPrompt(v.app.win, T("config.saveTitle"),
+		T("config.saveMessage", "path", v.path),
+		T("common.save"), false, func(ok bool) {
 			if !ok {
 				return
 			}
@@ -170,7 +168,7 @@ func (v *configView) save() {
 				var ae *api.Error
 				switch {
 				case errors.As(err, &ae) && ae.Status == 409:
-					v.s.notice("The file changed on disk since it was loaded. Reload it (your edits are discarded) and apply them again.", toneWarning)
+					v.s.notice(T("config.conflict"), toneWarning)
 				case err != nil:
 					v.s.notice(err.Error(), toneDanger)
 				case !r.OK:
@@ -183,7 +181,7 @@ func (v *configView) save() {
 					v.updateMeta()
 					note := r.Note
 					if note == "" {
-						note = "saved; restart agentflow to apply"
+						note = T("config.saved")
 					}
 					v.s.notice(note, toneSuccess)
 					v.app.reloadCatalog()

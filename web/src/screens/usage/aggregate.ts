@@ -2,14 +2,22 @@
 // (internal/ui/usage.go): totals the tiles show, and the ledger rows folded by
 // tenant, agent or model.
 import { billable, type UsageDay, type UsageRow } from '@/api/types'
+import { t } from '@/i18n'
 
 export type GroupBy = 'tenant' | 'agent' | 'model' | 'slice'
 
-export const GROUP_LABEL: Record<GroupBy, string> = {
-  tenant: 'By tenant',
-  agent: 'By agent',
-  model: 'By model',
-  slice: 'Every slice',
+export const GROUP_LABEL_KEY: Record<GroupBy, string> = {
+  tenant: 'usage.groupTenant',
+  agent: 'usage.groupAgent',
+  model: 'usage.groupModel',
+  slice: 'usage.groupSlice',
+}
+
+/** What a leading column (a header of buildTable) is titled on screen. */
+export const COLUMN_TITLE_KEY: Record<string, string> = {
+  tenant: 'usage.col.tenant',
+  agent: 'usage.col.agent',
+  model: 'usage.col.model',
 }
 
 /** One table row: a group of ledger rows, or a single (tenant, agent, model) slice. */
@@ -29,7 +37,7 @@ export interface UsageLine {
 }
 
 export interface UsageTable {
-  /** Titles of the leading label columns. */
+  /** The leading label columns: tenant, agent or model (also the CSV header). */
   headers: string[]
   lines: UsageLine[]
 }
@@ -49,7 +57,7 @@ export function extraTotals(rows: UsageRow[]): { cached: number; reasoning: numb
 
 // Calls made outside any tenant (operator chat, daemons) carry an empty id.
 export function tenantLabel(id: string): string {
-  return id === '' || id == null ? '(no tenant)' : id
+  return id === '' || id == null ? t('usage.noTenant') : id
 }
 
 // Largest spender first. The desktop sorts on billable alone; the label breaks

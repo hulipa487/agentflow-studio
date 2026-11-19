@@ -1,3 +1,4 @@
+import { t as i18n } from '@/i18n'
 import {
   fieldNames,
   globalNames,
@@ -137,7 +138,7 @@ function checkDirective(src: string, want: number): Diagnostic[] {
         endCol: 1,
         severity: SeverityError,
         code: 'prelude.missing-directive',
-        message: `missing -- af-prelude-version: ${want}; the runtime refuses chunks without it`,
+        message: i18n('lua.diag.missingDirective', { want }),
       },
     ]
   }
@@ -150,7 +151,7 @@ function checkDirective(src: string, want: number): Diagnostic[] {
       endCol: 1,
       severity: SeverityError,
       code: 'prelude.duplicate-directive',
-      message: 'the prelude version may be declared exactly once',
+      message: i18n('lua.diag.duplicateDirective'),
     })
   }
   if (want > 0) {
@@ -163,7 +164,7 @@ function checkDirective(src: string, want: number): Diagnostic[] {
           endCol: 1,
           severity: SeverityError,
           code: 'prelude.version-mismatch',
-          message: `the chunk declares prelude version ${h.version}, but this runtime provides ${want}`,
+          message: i18n('lua.diag.versionMismatch', { got: h.version, want }),
         })
       }
     }
@@ -213,11 +214,11 @@ function checkStructure(tokens: Token[]): Diagnostic[] {
         case '}': {
           const want = closers[t.lit]
           if (brackets.length === 0) {
-            report(t, 'syntax.unexpected-close', `unexpected ${quote(t.lit)}`)
+            report(t, 'syntax.unexpected-close', i18n('lua.diag.unexpectedClose', { token: quote(t.lit) }))
           } else {
             const top = brackets[brackets.length - 1]
             if (top.lit !== want) {
-              report(t, 'syntax.mismatched-close', `${quote(t.lit)} does not close ${quote(top.lit)}`)
+              report(t, 'syntax.mismatched-close', i18n('lua.diag.mismatchedClose', { token: quote(t.lit), open: quote(top.lit) }))
             }
             brackets.pop()
           }
@@ -259,24 +260,24 @@ function checkStructure(tokens: Token[]): Diagnostic[] {
       case 'elseif':
       case 'else':
         if (blocks.length === 0 || blocks[blocks.length - 1].kind !== 'if') {
-          report(t, 'syntax.unexpected-else', `${quote(t.lit)} without a matching if`)
+          report(t, 'syntax.unexpected-else', i18n('lua.diag.unexpectedElse', { token: quote(t.lit) }))
         }
         break
       case 'until':
         if (blocks.length === 0 || blocks[blocks.length - 1].kind !== 'repeat') {
-          report(t, 'syntax.unexpected-until', 'until without a matching repeat')
+          report(t, 'syntax.unexpected-until', i18n('lua.diag.unexpectedUntil'))
         } else {
           blocks.pop()
         }
         break
       case 'end': {
         if (blocks.length === 0) {
-          report(t, 'syntax.unexpected-end', 'end without a matching block')
+          report(t, 'syntax.unexpected-end', i18n('lua.diag.unexpectedEnd'))
           break
         }
         const top = blocks[blocks.length - 1]
         if (top.kind === 'repeat') {
-          report(t, 'syntax.mismatched-end', 'repeat is closed by until, not end')
+          report(t, 'syntax.mismatched-end', i18n('lua.diag.mismatchedEnd'))
         }
         blocks.pop()
         break
@@ -291,7 +292,7 @@ function checkStructure(tokens: Token[]): Diagnostic[] {
       endCol: b.tok.endCol,
       severity: SeverityError,
       code: 'syntax.unclosed-block',
-      message: `unclosed ${b.kind} block`,
+      message: i18n('lua.diag.unclosedBlock', { kind: b.kind }),
     })
   }
   for (const b of brackets) {
@@ -302,7 +303,7 @@ function checkStructure(tokens: Token[]): Diagnostic[] {
       endCol: b.tok.endCol,
       severity: SeverityError,
       code: 'syntax.unclosed-bracket',
-      message: `unclosed ${quote(b.lit)}`,
+      message: i18n('lua.diag.unclosedBracket', { token: quote(b.lit) }),
     })
   }
   return diags
@@ -433,7 +434,7 @@ class Analyzer {
                 t,
                 SeverityWarning,
                 'api.return-loop',
-                'returning from loop() restarts the loop; use session.exit() to end the session',
+                i18n('lua.diag.returnFromLoop'),
               )
             }
             break
@@ -564,13 +565,15 @@ class Analyzer {
     if (isKnownGlobal(t.lit) || this.model.globals.has(t.lit)) return
     const unavailable = unavailableGlobals.get(t.lit)
     if (unavailable !== undefined) {
-      this.diag(t, SeverityError, 'sandbox.unavailable', unavailable)
+      this.diag(t, SeverityError, 'sandbox.unavailable', i18n(unavailable))
       return
     }
     if (this.typeLine >= 0) return
     const suggestion = suggest(t.lit, this.knownNames())
-    let msg = `unknown global ${quote(t.lit)}`
-    if (suggestion !== '') msg += `; did you mean ${quote(suggestion)}?`
+    const msg =
+      suggestion !== ''
+        ? i18n('lua.diag.unknownGlobalSuggest', { name: quote(t.lit), suggestion: quote(suggestion) })
+        : i18n('lua.diag.unknownGlobal', { name: quote(t.lit) })
     this.diag(t, SeverityWarning, 'global.unknown', msg)
   }
 
@@ -737,7 +740,7 @@ class Analyzer {
             tokens[j],
             SeverityError,
             'api.stream-for',
-            'llm.stream cannot be used in a generic for: it yields across the bridge. Call next_delta() directly and close() on early exit',
+            i18n('lua.diag.streamFor'),
           )
           break
         }
@@ -776,7 +779,7 @@ class Analyzer {
     const declared = isKnownGlobal(t.lit) || this.model.globals.has(t.lit)
     const unavailable = unavailableGlobals.get(t.lit)
     if (unavailable !== undefined && !declared) {
-      this.diag(t, SeverityError, 'sandbox.unavailable', unavailable)
+      this.diag(t, SeverityError, 'sandbox.unavailable', i18n(unavailable))
       return j
     }
 
@@ -784,8 +787,10 @@ class Analyzer {
       if (this.typeLine >= 0) return j
       if (is(tokens[at + 1], '=')) {
         const suggestion = suggest(t.lit, this.knownNames())
-        let msg = `assignment to undeclared global ${quote(t.lit)}; add local`
-        if (suggestion !== '') msg += ` (did you mean ${quote(suggestion)}?)`
+        const msg =
+          suggestion !== ''
+            ? i18n('lua.diag.undeclaredAssignmentSuggest', { name: quote(t.lit), suggestion: quote(suggestion) })
+            : i18n('lua.diag.undeclaredAssignment', { name: quote(t.lit) })
         this.diag(t, SeverityWarning, 'global.assignment', msg)
         return j
       }
@@ -795,8 +800,10 @@ class Analyzer {
         return j
       }
       const suggestion = suggest(t.lit, this.knownNames())
-      let msg = `unknown global ${quote(t.lit)}`
-      if (suggestion !== '') msg += `; did you mean ${quote(suggestion)}?`
+      const msg =
+        suggestion !== ''
+          ? i18n('lua.diag.unknownGlobalSuggest', { name: quote(t.lit), suggestion: quote(suggestion) })
+          : i18n('lua.diag.unknownGlobal', { name: quote(t.lit) })
       this.diag(t, SeverityWarning, 'global.unknown', msg)
       return j
     }
@@ -811,12 +818,12 @@ class Analyzer {
         const parent = parts.slice(0, k).join('.')
         const fields = fieldNames(parent)
         const segTok = tokens[at + 2 * k]
-        let msg = `unknown field ${quote(parts[k])} on ${quote(parent)}`
+        let msg = i18n('lua.diag.unknownField', { field: quote(parts[k]), parent: quote(parent) })
         const s = suggest(parts[k], fields)
         if (s !== '') {
-          msg += `; did you mean ${quote(s)}?`
+          msg = i18n('lua.diag.unknownFieldSuggest', { field: quote(parts[k]), parent: quote(parent), suggestion: quote(s) })
         } else if (fields.length === 0) {
-          msg = `${quote(parent)} has no public fields`
+          msg = i18n('lua.diag.noPublicFields', { parent: quote(parent) })
         }
         this.diag(segTok, SeverityWarning, 'field.unknown', msg)
         return j
@@ -831,13 +838,13 @@ class Analyzer {
         t,
         SeverityWarning,
         'api.af-op',
-        'af.op is an engine internal; use session.*, llm.* and the other public namespaces',
+        i18n('lua.diag.afOp'),
       )
     }
     // A call is a path immediately followed by "(".
     if (!is(tokens[j + 1], '(')) return j
     if (entry.maintenance) {
-      this.diag(t, SeverityWarning, 'api.maintenance-only', `${path} is limited to system and scheduler turns`)
+      this.diag(t, SeverityWarning, 'api.maintenance-only', i18n('lua.diag.maintenanceOnly', { path }))
     }
     const caps = this.ctx.capabilities
     if (entry.capability && caps !== null && caps !== undefined) {
@@ -846,7 +853,7 @@ class Analyzer {
           t,
           SeverityWarning,
           'capability.missing',
-          `${path} requires capability ${quote(entry.capability)}, which this agent does not enable`,
+          i18n('lua.diag.capabilityMissing', { path, capability: quote(entry.capability) }),
         )
       }
     }
@@ -855,7 +862,7 @@ class Analyzer {
         t,
         SeverityWarning,
         'api.top-level-yield',
-        `${path} yields, so it cannot run at chunk top level; call it inside loop()`,
+        i18n('lua.diag.topLevelYield', { path }),
       )
     }
     return j
@@ -887,7 +894,7 @@ class Analyzer {
           endCol: 1,
           severity: SeverityError,
           code: 'entry.local-loop',
-          message: 'loop must be a global function; the engine calls function loop(), not a local one',
+          message: i18n('lua.diag.localLoop'),
         },
       ]
     }
@@ -900,7 +907,7 @@ class Analyzer {
         endCol: 1,
         severity: SeverityError,
         code: 'entry.missing-loop',
-        message: 'the chunk must define function loop(); the engine has nothing to start without it',
+        message: i18n('lua.diag.missingLoop'),
       },
     ]
   }

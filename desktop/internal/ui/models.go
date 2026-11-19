@@ -2,7 +2,7 @@ package ui
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -53,15 +53,15 @@ func (a *App) newModelsView() *modelsView {
 	v.banner = newBanner()
 	v.count = oneLine("")
 	v.meta = oneLine("")
-	v.newBtn = primaryButton("New model", theme.ContentAddIcon(), func() { v.showEditor(nil) })
-	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh", v.load)
+	v.newBtn = primaryButton(T("models.newModel"), theme.ContentAddIcon(), func() { v.showEditor(nil) })
+	refresh := iconButton(theme.ViewRefreshIcon(), T("common.refresh"), v.load)
 
-	head := pageHeader("Models",
-		"LLM endpoints available to agents. Changes apply live; save them to the deployment config to keep them across restarts.",
+	head := pageHeader(T("models.title"),
+		T("models.subtitle"),
 		hstack(spaceS, widthBox(88, v.count), refresh, v.newBtn))
 	v.drift = hstack(spaceS,
-		actionButton("Save to config", theme.DocumentSaveIcon(), v.persist),
-		actionButton("Revert to config", theme.ViewRefreshIcon(), v.revert))
+		actionButton(T("models.saveToConfig"), theme.DocumentSaveIcon(), v.persist),
+		actionButton(T("models.revertToConfig"), theme.ViewRefreshIcon(), v.revert))
 	v.drift.Hide()
 
 	v.root = container.NewBorder(
@@ -75,7 +75,7 @@ func (a *App) newModelsView() *modelsView {
 
 func (v *modelsView) load() {
 	v.banner.Clear()
-	v.meta.SetText("loading…")
+	v.meta.SetText(T("models.loadingState"))
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
@@ -104,11 +104,7 @@ func (v *modelsView) render(fileErr string) {
 	} else {
 		v.newBtn.Show()
 	}
-	if n == 1 {
-		v.count.SetText("1 model")
-	} else {
-		v.count.SetText(fmt.Sprintf("%d models", n))
-	}
+	v.count.SetText(T("models.count", "n", n))
 
 	drift := 0
 	for _, m := range v.models {
@@ -116,19 +112,18 @@ func (v *modelsView) render(fileErr string) {
 			drift++
 		}
 	}
-	meta := "all changes saved to config"
-	if drift == 1 {
-		meta = "1 unsaved model change"
-	} else if drift > 1 {
-		meta = fmt.Sprintf("%d unsaved model changes", drift)
+	// The line is a list of separate facts, each a whole message.
+	meta := []string{T("models.allSaved")}
+	if drift > 0 {
+		meta[0] = T("models.unsavedChanges", "n", drift)
 	}
 	if fileErr != "" {
-		meta += " · config read failed"
+		meta = append(meta, T("models.configReadFailed"))
 	}
 	if v.topology == "regional" {
-		meta += " · regional fleet: edits apply to this instance only; save and roll the fleet"
+		meta = append(meta, T("models.regionalNote"))
 	}
-	v.meta.SetText(meta)
+	v.meta.SetText(strings.Join(meta, " · "))
 	if drift > 0 {
 		v.drift.Show()
 	} else {
@@ -155,62 +150,62 @@ func (v *modelsView) render(fileErr string) {
 
 func (v *modelsView) empty() fyne.CanvasObject {
 	return emptyStateCard(
-		"No models yet",
-		"Add an OpenAI, Anthropic or Gemini endpoint to give agents a model.",
-		"Add a model",
+		T("models.emptyTitle"),
+		T("models.emptyGuidance"),
+		T("models.emptyAction"),
 		func() { v.showEditor(nil) },
 	)
 }
 
 func (v *modelsView) card(m api.Model) fyne.CanvasObject {
 	title := widget.NewLabelWithStyle(m.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	tone, label := toneSuccess, "saved"
+	tone, label := toneSuccess, T("models.state.saved")
 	switch {
 	case m.InRuntime && !m.InFile:
-		tone, label = toneWarning, "runtime only"
+		tone, label = toneWarning, T("models.state.runtimeOnly")
 	case !m.InRuntime && m.InFile:
-		tone, label = toneWarning, "file only"
+		tone, label = toneWarning, T("models.state.fileOnly")
 	case m.Drift:
-		tone, label = toneWarning, "unsaved"
+		tone, label = toneWarning, T("models.state.unsaved")
 	}
 	top := container.NewBorder(nil, nil,
 		hstack(spaceS, vCenter(title), vCenter(chip(m.Provider, toneAccent)), vCenter(chip(label, tone))),
 		hstack(spaceXS,
-			vCenter(actionButton("Test", theme.MediaPlayIcon(), func() { v.test(m.Name) })),
-			vCenter(actionButton("Edit", theme.DocumentCreateIcon(), func() { v.showEditor(&m) })),
-			vCenter(iconButton(theme.DeleteIcon(), "Delete", func() { v.confirmDelete(m) })),
+			vCenter(actionButton(T("common.test"), theme.MediaPlayIcon(), func() { v.test(m.Name) })),
+			vCenter(actionButton(T("common.edit"), theme.DocumentCreateIcon(), func() { v.showEditor(&m) })),
+			vCenter(iconButton(theme.DeleteIcon(), T("common.delete"), func() { v.confirmDelete(m) })),
 		),
 		nil,
 	)
 
-	key := chip("not set", toneWarning)
+	key := chip(T("models.key.notSet"), toneWarning)
 	if m.HasKey {
-		value := "configured"
+		value := T("models.key.configured")
 		if m.KeyFingerprint != "" {
-			value += " · " + m.KeyFingerprint
+			value = T("models.key.configuredFingerprint", "fingerprint", m.KeyFingerprint)
 		}
 		key = chip(value, toneSuccess)
 	}
 	base := m.BaseURL
 	if base == "" {
-		base = "provider default"
+		base = T("models.providerDefault")
 	}
 	cells := []fyne.CanvasObject{
-		detailRow("model", detailText(m.Model)),
-		detailRow("api key", key),
+		detailRow(T("models.fact.model"), detailText(m.Model)),
+		detailRow(T("models.fact.apiKey"), key),
 	}
-	cells = append(cells, detailRow("base url", detailText(base)))
+	cells = append(cells, detailRow(T("models.fact.baseUrl"), detailText(base)))
 	if m.Timeout != "" {
-		cells = append(cells, detailRow("timeout", detailText(m.Timeout)))
+		cells = append(cells, detailRow(T("models.fact.timeout"), detailText(m.Timeout)))
 	} else if m.MaxTokens > 0 {
-		cells = append(cells, detailRow("max tokens", detailText(strconv.Itoa(m.MaxTokens))))
+		cells = append(cells, detailRow(T("models.fact.maxTokens"), detailText(strconv.Itoa(m.MaxTokens))))
 	}
 	details := grid(2, cells...)
 	return panel(vstack(spaceS, top, widget.NewSeparator(), details))
 }
 
 func (v *modelsView) test(name string) {
-	v.app.setStatus("testing "+name+"…", toneAccent)
+	v.app.setStatus(T("models.testing", "name", name), toneAccent)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 		defer cancel()
@@ -221,29 +216,29 @@ func (v *modelsView) test(name string) {
 				return
 			}
 			if res.OK {
-				v.app.setStatus(fmt.Sprintf("%s ok · %dms", name, res.LatencyMS), toneSuccess)
+				v.app.setStatus(T("models.testOk", "name", name, "ms", res.LatencyMS), toneSuccess)
 				return
 			}
 			msg := res.Error
 			if res.Class != "" {
 				msg = res.Class + ": " + msg
 			}
-			showInfoPrompt(v.app.win, "Model test failed", msg)
+			showInfoPrompt(v.app.win, T("models.testFailedTitle"), msg)
 		})
 	}()
 }
 
 func (v *modelsView) confirmDelete(m api.Model) {
 	if !m.InRuntime && m.InFile {
-		showInfoPrompt(v.app.win, "Model is only in the config",
-			"This model is not live on the running instance. Save the live model set to config to remove it, or revert to config to load it.")
+		showInfoPrompt(v.app.win, T("models.onlyInConfigTitle"),
+			T("models.onlyInConfigMessage"))
 		return
 	}
-	msg := fmt.Sprintf("Remove model %q from the running instance?", m.Name)
+	msg := T("models.removeConfirm", "name", m.Name)
 	if m.InFile {
-		msg += "\n\nIt stays in the config file until you save changes to the config."
+		msg = T("models.removeConfirmInFile", "name", m.Name)
 	}
-	showConfirmPrompt(v.app.win, "Delete model", msg, "Delete", true, func(ok bool) {
+	showConfirmPrompt(v.app.win, T("models.deleteTitle"), msg, T("common.delete"), true, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -255,7 +250,7 @@ func (v *modelsView) confirmDelete(m api.Model) {
 				return
 			}
 			onUI(func() {
-				v.app.setStatus("model removed · live", toneWarning)
+				v.app.setStatus(T("models.removed"), toneWarning)
 				v.load()
 				v.app.reloadCatalog()
 			})
@@ -272,16 +267,16 @@ func (v *modelsView) persist() {
 			return
 		}
 		onUI(func() {
-			v.app.setStatus("models saved to config", toneSuccess)
+			v.app.setStatus(T("models.savedToConfig"), toneSuccess)
 			v.load()
 		})
 	}()
 }
 
 func (v *modelsView) revert() {
-	showConfirmPrompt(v.app.win, "Revert model changes?",
-		"Discard live model changes and reload the deployment config's models?",
-		"Revert", true,
+	showConfirmPrompt(v.app.win, T("models.revertTitle"),
+		T("models.revertMessage"),
+		T("common.revert"), true,
 		func(ok bool) {
 			if !ok {
 				return
@@ -294,7 +289,7 @@ func (v *modelsView) revert() {
 					return
 				}
 				onUI(func() {
-					v.app.setStatus("models reverted to config", toneSuccess)
+					v.app.setStatus(T("models.reverted"), toneSuccess)
 					v.load()
 					v.app.reloadCatalog()
 				})
@@ -319,28 +314,31 @@ func (v *modelsView) showEditor(existing *api.Model) {
 	key := widget.NewPasswordEntry()
 	key.SetPlaceHolder("sk-…")
 	baseURL := widget.NewEntry()
-	baseURL.SetPlaceHolder("optional")
+	baseURL.SetPlaceHolder(T("common.optional"))
 	timeout := widget.NewEntry()
 	timeout.SetPlaceHolder("60s")
 	retry := widget.NewEntry()
 	retry.SetPlaceHolder("0")
 	maxTokens := widget.NewEntry()
 	maxTokens.SetPlaceHolder("0")
-	thinking := widget.NewSelect([]string{"provider default", "off", "low", "medium", "high", "xhigh", "max"}, nil)
-	thinking.SetSelected("provider default")
+	// The first option stands for "no level"; its label is translated, so the
+	// draft compares against the same string.
+	providerDefault := T("models.providerDefault")
+	thinking := widget.NewSelect([]string{providerDefault, "off", "low", "medium", "high", "xhigh", "max"}, nil)
+	thinking.SetSelected(providerDefault)
 	tools := widget.NewEntry()
 	tools.SetPlaceHolder("web_search, google_search")
 
-	title := "New model"
+	title := T("models.newModel")
 	if existing != nil {
-		title = "Edit " + existing.Name
+		title = T("models.editNamed", "name", existing.Name)
 		name.SetText(existing.Name)
 		name.Disable()
 		if existing.Provider != "" {
 			provider.SetSelected(existing.Provider)
 		}
 		modelID.SetText(existing.Model)
-		key.SetPlaceHolder("leave blank to keep the stored key")
+		key.SetPlaceHolder(T("models.keepStoredKey"))
 		baseURL.SetText(existing.BaseURL)
 		timeout.SetText(existing.Timeout)
 		if existing.Retry > 0 {
@@ -358,20 +356,20 @@ func (v *modelsView) showEditor(existing *api.Model) {
 	errBanner := newBanner()
 	form := vstack(spaceS,
 		grid(2,
-			labeled("Name", name),
-			labeled("Provider", provider),
-			labeled("Model", modelID),
-			labeled("API key", key),
+			labeled(T("common.name"), name),
+			labeled(T("models.field.provider"), provider),
+			labeled(T("models.field.model"), modelID),
+			labeled(T("models.field.apiKey"), key),
 		),
 		grid(2,
-			labeled("Base URL", baseURL),
-			labeled("Timeout", timeout),
-			labeled("Retry", retry),
-			labeled("Max tokens", maxTokens),
+			labeled(T("models.field.baseUrl"), baseURL),
+			labeled(T("models.field.timeout"), timeout),
+			labeled(T("models.field.retry"), retry),
+			labeled(T("models.field.maxTokens"), maxTokens),
 		),
 		grid(2,
-			labeled("Thinking", thinking),
-			labeled("Server tools", tools),
+			labeled(T("models.field.thinking"), thinking),
+			labeled(T("models.field.serverTools"), tools),
 		),
 	)
 	scroll := container.NewVScroll(container.New(
@@ -389,37 +387,37 @@ func (v *modelsView) showEditor(existing *api.Model) {
 			Timeout:  strings.TrimSpace(timeout.Text),
 			Thinking: thinking.Selected,
 		}
-		if d.Thinking == "provider default" {
+		if d.Thinking == providerDefault {
 			d.Thinking = ""
 		}
 		d.ServerTools = splitList(tools.Text)
 		if n := strings.TrimSpace(name.Text); n == "" || !modelNameRe.MatchString(n) {
-			return d, fmt.Errorf("name must be 1-64 of letters, digits, _ . : -")
+			return d, errors.New(T("models.error.name"))
 		}
 		if d.Provider == "" {
-			return d, fmt.Errorf("choose a provider")
+			return d, errors.New(T("models.error.chooseProvider"))
 		}
 		if d.Model == "" {
-			return d, fmt.Errorf("model is required")
+			return d, errors.New(T("models.error.modelRequired"))
 		}
 		if s := strings.TrimSpace(retry.Text); s != "" {
 			n, err := strconv.Atoi(s)
 			if err != nil || n < 0 {
-				return d, fmt.Errorf("retry must be a non-negative number")
+				return d, errors.New(T("models.error.retry"))
 			}
 			d.Retry = n
 		}
 		if s := strings.TrimSpace(maxTokens.Text); s != "" {
 			n, err := strconv.Atoi(s)
 			if err != nil || n < 0 {
-				return d, fmt.Errorf("max tokens must be a non-negative number")
+				return d, errors.New(T("models.error.maxTokens"))
 			}
 			d.MaxTokens = n
 		}
 		return d, nil
 	}
 
-	saveBtn := primaryButton("Save", nil, nil)
+	saveBtn := primaryButton(T("common.save"), nil, nil)
 	saveBtn.OnTapped = func() {
 		draft, err := build()
 		if err != nil {
@@ -427,22 +425,22 @@ func (v *modelsView) showEditor(existing *api.Model) {
 			return
 		}
 		saveBtn.Disable()
-		saveBtn.SetText("Saving…")
+		saveBtn.SetText(T("common.saving"))
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			err := v.app.api.PutModel(ctx, strings.TrimSpace(name.Text), draft)
 			onUI(func() {
 				saveBtn.Enable()
-				saveBtn.SetText("Save")
+				saveBtn.SetText(T("common.save"))
 				if err != nil {
 					errBanner.Set(err.Error(), toneDanger)
 					return
 				}
 				closePopup()
-				msg := "model " + strings.TrimSpace(name.Text) + " applied · save to config to keep"
+				msg := T("models.applied", "name", strings.TrimSpace(name.Text))
 				if v.topology == "regional" {
-					msg = "model " + strings.TrimSpace(name.Text) + " applied to this instance only · save to config and roll the fleet"
+					msg = T("models.appliedRegional", "name", strings.TrimSpace(name.Text))
 				}
 				v.app.setStatus(msg, toneWarning)
 				v.load()
@@ -453,15 +451,15 @@ func (v *modelsView) showEditor(existing *api.Model) {
 
 	var testBtn fyne.CanvasObject
 	if existing != nil {
-		testBtn = actionButton("Test live", theme.MediaPlayIcon(), func() { v.test(existing.Name) })
+		testBtn = actionButton(T("models.testLive"), theme.MediaPlayIcon(), func() { v.test(existing.Name) })
 	}
-	cancel := widthBox(104, actionButton("Cancel", nil, closePopup))
+	cancel := widthBox(104, actionButton(T("common.cancel"), nil, closePopup))
 	footer := container.NewBorder(nil, nil, testBtn, hstack(spaceS, cancel, widthBox(104, saveBtn)), nil)
 
 	head := container.NewBorder(nil, nil,
 		insetLeading(titleText(title, theme.SizeNameHeadingText)),
-		vCenter(iconButton(theme.CancelIcon(), "Close", closePopup)), nil)
-	subtitle := muted("Secrets are write-only: leave the API key blank to keep the stored value.")
+		vCenter(iconButton(theme.CancelIcon(), T("common.close"), closePopup)), nil)
+	subtitle := muted(T("models.editorSubtitle"))
 	body := vstack(spaceL, vstack(spaceXS, head, subtitle), scroll, footer)
 	bg := canvas.NewRectangle(colorSurface)
 	bg.CornerRadius = 12

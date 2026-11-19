@@ -7,6 +7,7 @@ import (
 	studiodocs "agentflow-studio-docs"
 
 	"agentflow-studio/internal/appconfig"
+	"agentflow-studio/internal/i18n"
 	"agentflow-studio/internal/ui"
 )
 
@@ -17,11 +18,20 @@ func main() {
 	defer releaseSingleInstance()
 
 	fyneApp := app.NewWithID("io.agentflow.studio")
-	win := fyneApp.NewWindow("AgentFlow Studio")
+	// The title is the product name in every language; the borderless frame
+	// on Windows finds the window by it.
+	win := fyneApp.NewWindow(i18n.T("shell.windowTitle"))
 	win.Resize(fyne.NewSize(1280, 860))
 	win.CenterOnScreen()
 
-	studio := ui.New(fyneApp, win, appconfig.Load())
+	cfg := appconfig.Load()
+	if cfg.Language == "" {
+		// First launch: follow the OS. Nothing is saved until the operator
+		// picks a language, so a later change of the OS language is followed
+		// too.
+		cfg.Language = string(i18n.Detect(ui.SystemLocales()...))
+	}
+	studio := ui.New(fyneApp, win, cfg)
 	if err := studio.SetDocs(studiodocs.FS); err != nil {
 		println("documentation:", err.Error())
 	}

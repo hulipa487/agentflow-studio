@@ -37,12 +37,13 @@ import {
 } from '@codemirror/language'
 import { acceptCompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
 import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search'
-import { lintKeymap } from '@codemirror/lint'
+import { forceLinting, lintKeymap } from '@codemirror/lint'
 import { lua } from '@codemirror/legacy-modes/mode/lua'
 import { yaml } from '@codemirror/lang-yaml'
 import { markdown } from '@codemirror/lang-markdown'
 import { json } from '@codemirror/lang-json'
 import { tags as t } from '@lezer/highlight'
+import { t as i18n, useLang } from '@/i18n'
 import { cx } from './index'
 
 export type CodeLanguage = 'lua' | 'yaml' | 'markdown' | 'json' | 'text'
@@ -70,9 +71,9 @@ const highlight = HighlightStyle.define([
 // than stylesheet rules because CodeMirror injects its base styles unlayered,
 // where Tailwind's layered CSS cannot override them.
 const chrome = EditorView.theme({
-  '&': { height: '100%', fontSize: '12.5px', backgroundColor: 'var(--af-bg)', color: 'var(--af-text)' },
+  '&': { height: '100%', minHeight: '0', minWidth: '0', fontSize: '12.5px', backgroundColor: 'var(--af-bg)', color: 'var(--af-text)' },
   '&.cm-focused': { outline: 'none' },
-  '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.6' },
+  '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.6', overflow: 'auto' },
   '.cm-content': { caretColor: 'var(--af-accent)' },
   '.cm-gutters': { backgroundColor: 'var(--af-bg)', color: 'var(--af-faint)', borderRight: '1px solid var(--af-line)' },
   '.cm-activeLineGutter': { backgroundColor: 'var(--af-surface2)', color: 'var(--af-muted)' },
@@ -234,7 +235,53 @@ const joinLines: Command = (view) => {
   return true
 }
 
-const LANGUAGE_LABEL: Record<CodeLanguage, string> = { lua: 'Luau', yaml: 'YAML', markdown: 'Markdown', json: 'JSON', text: 'Plain text' }
+const LANGUAGE_LABEL: Record<Exclude<CodeLanguage, 'text'>, string> = { lua: 'Luau', yaml: 'YAML', markdown: 'Markdown', json: 'JSON' }
+
+function languageLabel(lang: CodeLanguage): string {
+  return lang === 'text' ? i18n('editor.lang.plain') : LANGUAGE_LABEL[lang]
+}
+
+// CodeMirror's own words (the search and go-to-line panels, folding, lint and
+// completion chrome, screen-reader announcements), by the phrase CodeMirror
+// asks for. "$" is CodeMirror's placeholder for a number it fills in.
+const PHRASE_KEYS: Record<string, string> = {
+  'Control character': 'editor.cm.controlCharacter',
+  'Selection deleted': 'editor.cm.selectionDeleted',
+  'Folded lines': 'editor.cm.foldedLines',
+  'Unfolded lines': 'editor.cm.unfoldedLines',
+  to: 'editor.cm.to',
+  'folded code': 'editor.cm.foldedCode',
+  unfold: 'editor.cm.unfold',
+  'Fold line': 'editor.cm.foldLine',
+  'Unfold line': 'editor.cm.unfoldLine',
+  'Go to line': 'editor.cm.gotoLine',
+  go: 'editor.cm.go',
+  Find: 'editor.cm.find',
+  Replace: 'editor.cm.replace',
+  next: 'editor.cm.next',
+  previous: 'editor.cm.previous',
+  all: 'editor.cm.all',
+  'match case': 'editor.cm.matchCase',
+  regexp: 'editor.cm.regexp',
+  'by word': 'editor.cm.byWord',
+  replace: 'editor.cm.replaceOne',
+  'replace all': 'editor.cm.replaceAll',
+  close: 'editor.cm.close',
+  'current match': 'editor.cm.currentMatch',
+  'replaced $ matches': 'editor.cm.replacedMatches',
+  'replaced match on line $': 'editor.cm.replacedMatchOnLine',
+  'on line': 'editor.cm.onLine',
+  Completions: 'editor.cm.completions',
+  Diagnostics: 'editor.cm.diagnostics',
+  'No diagnostics': 'editor.cm.noDiagnostics',
+}
+
+/** CodeMirror's phrases in the current language. */
+function phrases(): Extension {
+  const map: Record<string, string> = {}
+  for (const [phrase, key] of Object.entries(PHRASE_KEYS)) map[phrase] = i18n(key)
+  return EditorState.phrases.of(map)
+}
 
 interface Caret {
   line: number
@@ -295,6 +342,7 @@ export function CodeEditor({
   status,
   className,
 }: CodeEditorProps) {
+  const lang = useLang()
   const showStatus = status ?? !readOnly
   const [caret, setCaret] = useState<Caret>({ line: 1, col: 1, selections: 1, selected: 0 })
   // Alt+Z flips soft wrap; a new lineWrapping prop resets it.
@@ -311,6 +359,8 @@ export function CodeEditor({
     readOnly: new Compartment(),
     extra: new Compartment(),
     wrap: new Compartment(),
+    phrases: new Compartment(),
+    placeholder: new Compartment(),
   })
 
   useEffect(() => {
@@ -365,7 +415,8 @@ export function CodeEditor({
             },
           },
         ]),
-        placeholder ? cmPlaceholder(placeholder) : [],
+        c.placeholder.of(placeholder ? cmPlaceholder(placeholder) : []),
+        c.phrases.of(phrases()),
         c.lang.of(languageExtension(language)),
         c.readOnly.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
         c.wrap.of(lineWrapping ? EditorView.lineWrapping : []),
@@ -419,15 +470,33 @@ export function CodeEditor({
     view.current?.dispatch({ effects: compartments.current.extra.reconfigure(extensions ?? []) })
   }, [extensions])
 
-  const facts = [`Ln ${caret.line}, Col ${caret.col}`]
-  if (caret.selections > 1) facts.push(`${caret.selections} selections`)
-  else if (caret.selected > 0) facts.push(`${caret.selected} selected`)
-  facts.push(LANGUAGE_LABEL[language], 'Spaces: 2')
-  if (wrap) facts.push('Wrap')
+  useEffect(() => {
+    view.current?.dispatch({ effects: compartments.current.placeholder.reconfigure(placeholder ? cmPlaceholder(placeholder) : []) })
+  }, [placeholder])
+
+  // A language change rewords CodeMirror's panels and lints again, so
+  // diagnostics follow the new language without waiting for an edit.
+  const shownLang = useRef(lang)
+  useEffect(() => {
+    const v = view.current
+    if (!v || shownLang.current === lang) return
+    shownLang.current = lang
+    v.dispatch({ effects: compartments.current.phrases.reconfigure(phrases()) })
+    forceLinting(v)
+  }, [lang])
+
+  const facts = [i18n('editor.status.position', { line: caret.line, col: caret.col })]
+  if (caret.selections > 1) facts.push(i18n('editor.status.selections', { n: caret.selections }))
+  else if (caret.selected > 0) facts.push(i18n('editor.status.selected', { n: caret.selected }))
+  facts.push(languageLabel(language), i18n('editor.status.spaces', { n: 2 }))
+  if (wrap) facts.push(i18n('editor.status.wrap'))
 
   return (
     <div className={cx('flex min-h-0 flex-col overflow-hidden rounded-ctl border border-line bg-bg', className)}>
-      <div ref={host} className="grid min-h-0 flex-1" />
+      {/* The single track is minmax(0, 1fr), not auto: an auto track grows to
+          the document's height, so the editor would never be shorter than its
+          content and its scroller would have nothing to scroll. */}
+      <div ref={host} className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]" />
       {showStatus && (
         <div className="shrink-0 truncate border-t border-line px-2.5 py-0.5 text-right font-mono text-xs text-faint" aria-live="off">
           {facts.join('  ·  ')}

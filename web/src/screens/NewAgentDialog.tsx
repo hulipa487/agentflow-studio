@@ -5,6 +5,7 @@ import { ArrowRight } from 'lucide-react'
 import { Button, Chip, Modal } from '@/components/ui'
 import { useCatalog } from '@/state/session'
 import { useUI } from '@/state/ui'
+import { t } from '@/i18n'
 
 /** The builder route for a new agent, optionally seeded from a template. */
 export function newAgentPath(template?: string): string {
@@ -30,7 +31,7 @@ export function NewAgentDialog() {
         <p className="mt-0.5 text-sm leading-snug text-muted">{description}</p>
       </div>
       <Button variant="primary" icon={ArrowRight} onClick={() => use(template)}>
-        Use
+        {t('agents.use')}
       </Button>
     </div>
   )
@@ -38,14 +39,14 @@ export function NewAgentDialog() {
     <Modal
       open={open}
       onClose={() => setOpen(false)}
-      title="New agent"
-      subtitle="Start from a template. Everything can be edited in the builder."
+      title={t('agents.newTitle')}
+      subtitle={t('agents.newSubtitle')}
       width={680}
-      footer={<Button onClick={() => setOpen(false)}>Cancel</Button>}
+      footer={<Button onClick={() => setOpen(false)}>{t('common.cancel')}</Button>}
     >
       <div className="flex flex-col gap-2">
-        {card('blank', 'Blank agent', 'custom', 'neutral', 'Start from an empty loop. No model is selected; choose one in the builder.')}
-        {(catalog.templates ?? []).map((t) => card(t.name, t.title, t.name, 'accent', t.description, t.name))}
+        {card('blank', t('agents.blankTitle'), t('agents.blankTag'), 'neutral', t('agents.blankDescription'))}
+        {(catalog.templates ?? []).map((tpl) => card(tpl.name, tpl.title, tpl.name, 'accent', tpl.description, tpl.name))}
       </div>
     </Modal>
   )

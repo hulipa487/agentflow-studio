@@ -8,6 +8,7 @@ import type { Invite } from '@/api/types'
 import { AsyncView, Banner, Button, IconButton, Loading, Page, SearchBox } from '@/components/ui'
 import { Split } from '@/components/ui/Split'
 import { useAsync, useScreenActions } from '@/lib/hooks'
+import { t } from '@/i18n'
 import { useClient } from '@/state/session'
 import { info, toastError } from '@/state/ui'
 import { InviteDialog } from './users/dialogs'
@@ -61,7 +62,7 @@ export default function Users() {
       if (alive.current) setInvite(inv)
     } catch (err) {
       const off = featureOff(err)
-      if (off) void info({ title: 'Invites unavailable', message: off })
+      if (off) void info({ title: t('users.invitesUnavailable'), message: off })
       else toastError(err)
     } finally {
       inFlight.current = false
@@ -88,16 +89,16 @@ export default function Users() {
   }, [wantInvite])
 
   const total = users.length
-  const count = total === 0 ? 'no profiles yet' : shown.length === 0 ? 'no match' : `${shown.length} of ${total}`
+  const count = total === 0 ? t('users.countNone') : shown.length === 0 ? t('users.countNoMatch') : t('users.countShown', { shown: shown.length, total })
   // The detail on screen must be the selected profile's, not the previous one's.
   const current = id && detail.data?.profile?.user_id === id ? detail.data : undefined
 
   const left = (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <SearchBox value={filter} onChange={setFilter} placeholder="Filter by name, email or id" />
+      <SearchBox value={filter} onChange={setFilter} placeholder={t('users.filterPlaceholder')} />
       <div className="px-1 font-mono text-xs text-faint">{count}</div>
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
-        {total === 0 && <PaneNote>Nobody has registered. Issue an invite, or let users register through /v1/users.</PaneNote>}
+        {total === 0 && <PaneNote>{t('users.emptyList')}</PaneNote>}
         {shown.map((u) => (
           <RailRow
             key={u.user_id}
@@ -115,7 +116,7 @@ export default function Users() {
   const right = (
     <div className="min-h-0 flex-1 overflow-y-auto">
       {!id ? (
-        total > 0 && <PaneNote lowered>Select a profile to see its handles, usage and audit trail.</PaneNote>
+        total > 0 && <PaneNote lowered>{t('users.selectHint')}</PaneNote>
       ) : current ? (
         <UserDetail
           key={id}
@@ -138,21 +139,19 @@ export default function Users() {
       ) : detail.error && !detail.loading ? (
         <Banner tone="danger">{errorMessage(detail.error)}</Banner>
       ) : (
-        <Loading text="Loading profile…" />
+        <Loading text={t('users.loadingProfile')} />
       )}
     </div>
   )
 
   return (
     <Page
-      title="Users"
-      subtitle="Profiles behind the identity layer: linked channel handles, today's quota, and the per-user model and instruction layer. Requires runtime.identity.enabled."
+      title={t('users.title')}
+      subtitle={t('users.subtitle')}
       scroll={false}
       meta={
         list.data ? (
-          <span>
-            {total} profiles · quota day {list.data.day} (UTC)
-          </span>
+          <span>{t('users.meta', { n: total, day: list.data.day })}</span>
         ) : null
       }
       banner={
@@ -164,14 +163,14 @@ export default function Users() {
       }
       actions={
         <>
-          <IconButton icon={RotateCw} label="Refresh" onClick={refresh} />
+          <IconButton icon={RotateCw} label={t('common.refresh')} onClick={refresh} />
           <Button variant="primary" icon={Send} loading={inviting} onClick={issueInvite}>
-            Invite
+            {t('users.invite')}
           </Button>
         </>
       }
     >
-      <AsyncView loading={list.loading} error={list.error} hasData={!!list.data} retry={() => list.reload()} loadingText="Loading…" offTitle="The identity layer is off">
+      <AsyncView loading={list.loading} error={list.error} hasData={!!list.data} retry={() => list.reload()} loadingText={t('common.loading')} offTitle={t('users.identityOff')}>
         <Split fixed="left" initial={340} min={260} max={560} storageKey="users" left={left} right={right} />
       </AsyncView>
       <InviteDialog invite={invite} onClose={() => setInvite(null)} />

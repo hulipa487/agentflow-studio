@@ -6,6 +6,7 @@ import { Upload } from 'lucide-react'
 import { errorMessage, type Client } from '@/api/client'
 import type { Credential, CredentialDraft, CredentialList } from '@/api/types'
 import { Banner, Button, Chip, ComboInput, Field, Input, Modal, Select } from '@/components/ui'
+import { t } from '@/i18n'
 import { KINDS, bucketPhrase, buildCredentialDraft, credentialForm, type CredentialForm } from './helpers'
 
 /** True until the component unmounts, so a late answer is not applied. */
@@ -70,15 +71,15 @@ export function CredentialEditor({
       onClose={onClose}
       dismissable={!saving}
       width={600}
-      title={creating ? 'New credential' : 'Edit ' + existing.service}
-      subtitle="Stored encrypted, resolved by the runtime at request time, and never shown again."
+      title={creating ? t('credentials.newCredential') : t('credentials.editNamed', { name: existing.service })}
+      subtitle={t('credentials.editorSubtitle')}
       footer={
         <>
           <Button onClick={onClose} disabled={saving}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" icon={Upload} loading={saving} onClick={() => void save()}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </>
       }
@@ -90,20 +91,20 @@ export function CredentialEditor({
       )}
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2 text-xs text-muted">
-          <span>Bucket</span>
+          <span>{t('credentials.bucket')}</span>
           <Chip tone={bucket === '' ? 'neutral' : 'accent'}>{bucketPhrase(bucket)}</Chip>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Service">
+          <Field label={t('credentials.field.service')}>
             <Input mono value={form.service} onChange={set('service')} placeholder="github_token" disabled={!creating} autoFocus={creating} />
           </Field>
-          <Field label="Kind">
+          <Field label={t('credentials.field.kind')}>
             <Select mono value={form.kind} onChange={(kind) => setForm((f) => ({ ...f, kind }))} options={kinds} />
           </Field>
         </div>
         <Field
-          label="Secret value"
-          hint="Write-only: the stored value is encrypted at rest and never returned by the API. Leave blank on an edit to keep it."
+          label={t('credentials.field.secret')}
+          hint={t('credentials.hint.secret')}
         >
           {/* A password field with no reveal control; new-password keeps the browser from filling a saved login into it. */}
           <Input
@@ -114,20 +115,20 @@ export function CredentialEditor({
             data-lpignore="true"
             value={form.secret}
             onChange={set('secret')}
-            placeholder={creating ? 'the value (never returned again)' : 'leave blank to keep the stored value'}
+            placeholder={creating ? t('credentials.placeholder.secretNew') : t('credentials.placeholder.secretKeep')}
             autoFocus={!creating}
           />
         </Field>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Header">
+          <Field label={t('credentials.field.header')}>
             <Input mono value={form.header} onChange={set('header')} />
           </Field>
-          <Field label="Scheme">
+          <Field label={t('credentials.field.scheme')}>
             <Input mono value={form.scheme} onChange={set('scheme')} />
           </Field>
         </div>
         <p className="-mt-2 text-xs leading-snug text-faint">
-          Sent as &lt;header&gt;: &lt;scheme&gt; &lt;value&gt;. Defaults are Authorization: Bearer &lt;value&gt;.
+          {t('credentials.hint.sentAs')}
         </p>
       </div>
     </Modal>
@@ -156,7 +157,7 @@ export function BucketDialog({ client, onClose, onOpen }: { client: Client; onCl
   const choose = () => {
     const user = value.trim()
     if (user === '') {
-      setError('Enter a user UUID, or cancel and use the Engine-wide bucket.')
+      setError(t('credentials.bucketDialog.error'))
       return
     }
     onOpen(user)
@@ -167,25 +168,25 @@ export function BucketDialog({ client, onClose, onOpen }: { client: Client; onCl
       open
       onClose={onClose}
       width={520}
-      title="Open a user bucket"
-      subtitle="Credentials are keyed by (user uuid, service). A user without a stored credential still needs to be named to add one."
+      title={t('credentials.bucketDialog.title')}
+      subtitle={t('credentials.bucketDialog.subtitle')}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="primary" onClick={choose}>
-            Open bucket
+            {t('credentials.bucketDialog.open')}
           </Button>
         </>
       }
     >
-      <Field label="User UUID" hint="Per-user credentials resolve only for that tenant. Leave empty to use the engine-wide bucket." error={error || undefined}>
+      <Field label={t('credentials.bucketDialog.field')} hint={t('credentials.bucketDialog.hint')} error={error || undefined}>
         <ComboInput
           mono
           autoFocus
           options={ids}
           value={value}
           invalid={error !== ''}
-          placeholder="user uuid"
+          placeholder={t('credentials.bucketDialog.placeholder')}
           onChange={(e) => {
             setValue(e.target.value)
             setError('')

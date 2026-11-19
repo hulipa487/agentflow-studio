@@ -2,16 +2,34 @@
 // app's playground.go: trace filters, row tones, cost and detail lines.
 import type { TraceEvent } from '@/api/types'
 import type { Tone } from '@/components/ui'
+import { t, type Params } from '@/i18n'
 
 export interface Status {
-  text: string
+  /** Text shown as is: already translated, or the runtime's own words. */
+  text?: string
+  /** A message key, read when drawn so a language change re-reads it. */
+  key?: string
+  params?: Params
   tone: Tone
 }
 
-export const READY: Status = { text: 'ready', tone: 'success' }
+/** What a status says, in the current language. */
+export function statusText(s: Status): string {
+  return s.key ? t(s.key, s.params) : (s.text ?? '')
+}
 
+export const READY: Status = { key: 'playground.statusReady', tone: 'success' }
+
+// The filter values are identifiers (the builder's run panel names them too);
+// FILTER_LABEL_KEY says what each one shows.
 export const FILTERS = ['All events', 'Ops only', 'Errors only'] as const
 export type TraceFilter = (typeof FILTERS)[number]
+
+export const FILTER_LABEL_KEY: Record<TraceFilter, string> = {
+  'All events': 'playground.filterAll',
+  'Ops only': 'playground.filterOps',
+  'Errors only': 'playground.filterErrors',
+}
 
 export type Role = 'you' | 'agent' | 'error'
 
@@ -56,14 +74,14 @@ export function traceCost(ev: TraceEvent): string {
   if ((ev.duration_ms ?? 0) > 0) parts.push(`${ev.duration_ms}ms`)
   const tin = ev.tokens_in || 0
   const tout = ev.tokens_out || 0
-  if (tin + tout > 0) parts.push(`${tin}→${tout} tok`)
+  if (tin + tout > 0) parts.push(t('playground.costTokens', { in: tin, out: tout }))
   return parts.join(' · ')
 }
 
 /** The op, tool, model and tool-call count, in that order. */
 export function traceDetail(ev: TraceEvent): string {
   const parts = [ev.op, ev.tool, ev.model].filter(Boolean)
-  if ((ev.tool_calls ?? 0) > 0) parts.push(`${ev.tool_calls} call(s)`)
+  if ((ev.tool_calls ?? 0) > 0) parts.push(t('playground.toolCalls', { n: ev.tool_calls ?? 0 }))
   return parts.join('  ')
 }
 
@@ -95,8 +113,8 @@ export function joinReply(current: string, text: string): string {
 }
 
 function eventTime(ev: TraceEvent): Date {
-  const t = new Date(ev.ts)
-  return Number.isNaN(t.getTime()) ? new Date() : t
+  const at = new Date(ev.ts)
+  return Number.isNaN(at.getTime()) ? new Date() : at
 }
 
 /**

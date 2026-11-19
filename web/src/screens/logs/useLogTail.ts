@@ -3,11 +3,14 @@
 // (1s doubling to 16s) when the stream ends.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { errorMessage, type Client } from '@/api/client'
+import type { Params } from '@/i18n'
 import type { Tone } from '@/state/ui'
 import { LogBuffer } from './buffer'
 
 export interface TailStatus {
-  text: string
+  /** A message key, read when drawn so a language change re-reads it. */
+  key: string
+  params?: Params
   tone: Tone
   /** True while lines can arrive. */
   live: boolean
@@ -44,7 +47,7 @@ export function useLogTail(client: Client) {
   const buffer = useMemo(() => new LogBuffer(), [client])
   // The buffer is mutable; this counter is what tells React it changed.
   const [version, setVersion] = useState(0)
-  const [status, setStatus] = useState<TailStatus>({ text: 'connecting…', tone: 'neutral', live: false })
+  const [status, setStatus] = useState<TailStatus>({ key: 'logs.connecting', tone: 'neutral', live: false })
   /** Why the last attempt failed; cleared once a stream opens. */
   const [error, setError] = useState<unknown>(undefined)
   const [generation, setGeneration] = useState(0)
@@ -68,7 +71,7 @@ export function useLogTail(client: Client) {
     const run = async () => {
       let backoff = BACKOFF_START
       while (!signal.aborted) {
-        setStatus({ text: 'connecting…', tone: 'neutral', live: false })
+        setStatus({ key: 'logs.connecting', tone: 'neutral', live: false })
         let openedAt = 0
         let failure: unknown
         try {
@@ -83,7 +86,7 @@ export function useLogTail(client: Client) {
                 buffer.reset()
                 refresh()
                 setError(undefined)
-                setStatus({ text: 'streaming · ' + client.displayURL, tone: 'success', live: true })
+                setStatus({ key: 'logs.streaming', params: { url: client.displayURL }, tone: 'success', live: true })
               },
               line: (line) => {
                 if (signal.aborted) return
@@ -99,9 +102,10 @@ export function useLogTail(client: Client) {
         if (signal.aborted) return
         if (openedAt > 0 && Date.now() - openedAt >= HEALTHY_AFTER) backoff = BACKOFF_START
         if (failure !== undefined) setError(failure)
-        const msg = failure !== undefined ? errorMessage(failure) : 'stream ended'
+        const seconds = backoff / 1000
         setStatus({
-          text: `${msg} · reconnecting in ${backoff / 1000}s`,
+          key: failure !== undefined ? 'logs.reconnecting' : 'logs.endedReconnecting',
+          params: failure !== undefined ? { message: errorMessage(failure), seconds } : { seconds },
           tone: failure !== undefined ? 'danger' : 'warning',
           live: false,
         })

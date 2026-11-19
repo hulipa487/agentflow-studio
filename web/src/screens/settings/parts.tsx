@@ -1,6 +1,7 @@
 // Small layout pieces shared by the Settings sections.
 import { useEffect, useState, type ReactNode } from 'react'
 import { PALETTES, useAppearance, type Mode } from '@/state/appearance'
+import { t } from '@/i18n'
 
 /** A two-column fact line: a fixed caption column and a value that fills the rest. */
 export function Fact({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
@@ -41,6 +42,5 @@ export function useShownTheme(): 'light' | 'dark' {
 /** "Trans Pride · Dark mode", as the desktop app's About section words it. */
 export function themeSummary(palette: string, mode: Mode, shown: 'light' | 'dark'): string {
   const title = PALETTES.find((p) => p.id === palette)?.title ?? palette
-  const label = shown === 'light' ? 'Light mode' : 'Dark mode'
-  return `${title} · ${label}${mode === 'system' ? ' (following the system)' : ''}`
+  return t(mode === 'system' ? 'settings.themeSummarySystem' : 'settings.themeSummary', { palette: title, mode: shown })
 }

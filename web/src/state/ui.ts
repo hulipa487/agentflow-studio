@@ -2,6 +2,7 @@
 // and the keyboard actions the current screen has registered.
 import { create } from 'zustand'
 import type { ReactNode } from 'react'
+import { t } from '@/i18n'
 
 export type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger'
 
@@ -114,7 +115,7 @@ export function toast(text: string, tone: Tone = 'neutral'): void {
 }
 
 export function toastError(err: unknown): void {
-  toast('Error: ' + (err instanceof Error ? err.message : String(err)), 'danger')
+  toast(t('common.error', { message: err instanceof Error ? err.message : String(err) }), 'danger')
 }
 
 /** Asks a yes/no question in a modal. Resolves false on cancel or Esc. */
@@ -165,6 +166,7 @@ export function info(opts: InfoOptions): Promise<void> {
   })
 }
 
+/** A validator for a field that must be filled in; `what` is its translated name. */
 export function requireNonEmpty(what: string) {
-  return (v: string) => (v.trim() === '' ? `${what} is required` : null)
+  return (v: string) => (v.trim() === '' ? t('common.required', { what }) : null)
 }

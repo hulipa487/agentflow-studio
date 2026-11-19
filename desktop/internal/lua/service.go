@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"agentflow-studio/internal/i18n"
 )
 
 // CompletionItem is one suggestion for the editor.
@@ -131,10 +133,10 @@ func Complete(m *Model, line, col int) []CompletionItem {
 			name == "bit32" || name == "coroutine" || name == "buffer" || name == "vector" {
 			kind = "module"
 		}
-		add(CompletionItem{Label: name, Kind: kind, Detail: "Luau standard library", Insert: name})
+		add(CompletionItem{Label: name, Kind: kind, Detail: i18n.T("lua.completion.stdlib"), Insert: name})
 	}
 	for name := range m.Globals {
-		add(CompletionItem{Label: name, Kind: "function", Detail: "declared in this chunk", Insert: name})
+		add(CompletionItem{Label: name, Kind: "function", Detail: i18n.T("lua.completion.chunkFunction"), Insert: name})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Label < items[j].Label })
 	return items
@@ -156,10 +158,10 @@ func completionFromEntry(e *APIEntry) CompletionItem {
 	}
 	doc := e.Summary
 	if e.Capability != "" {
-		doc += "\n\ncapability: " + e.Capability
+		doc += "\n\n" + i18n.T("lua.doc.capability", "capability", e.Capability)
 	}
 	if e.Maintenance {
-		doc += "\n\nmaintenance provenance only"
+		doc += "\n\n" + i18n.T("lua.doc.maintenanceShort")
 	}
 	insert := e.Insert
 	if insert == "" {
@@ -248,18 +250,18 @@ func HoverAt(m *Model, line, col int) *Hover {
 	if localNamed(m, root, line, col) {
 		for _, l := range m.Locals {
 			if l != nil && l.Name == root && inScope(l, line, col) {
-				kind := "local variable"
+				kind := "lua.hover.localVariable"
 				switch l.Kind {
 				case "param":
-					kind = "parameter"
+					kind = "lua.hover.parameter"
 				case "loop":
-					kind = "loop variable"
+					kind = "lua.hover.loopVariable"
 				case "self":
-					kind = "implicit method receiver"
+					kind = "lua.hover.methodReceiver"
 				case "function":
-					kind = "local function"
+					kind = "lua.hover.localFunction"
 				}
-				h.Markdown = fmt.Sprintf("**%s**\n\n%s, declared at line %d.", l.Name, kind, l.Decl.Line+1)
+				h.Markdown = fmt.Sprintf("**%s**\n\n%s", l.Name, i18n.T("lua.hover.declaredAt", "kind", i18n.T(kind), "line", l.Decl.Line+1))
 				return h
 			}
 		}
@@ -273,11 +275,11 @@ func HoverAt(m *Model, line, col int) *Hover {
 		return h
 	}
 	if m.Globals[root] {
-		h.Markdown = fmt.Sprintf("**%s**\n\nfunction declared in this chunk.", root)
+		h.Markdown = fmt.Sprintf("**%s**\n\n%s", root, i18n.T("lua.hover.chunkFunction"))
 		return h
 	}
 	if IsKnownGlobal(root) {
-		h.Markdown = fmt.Sprintf("**%s**\n\nLuau standard library.", root)
+		h.Markdown = fmt.Sprintf("**%s**\n\n%s", root, i18n.T("lua.hover.stdlib"))
 		return h
 	}
 	return nil
@@ -287,10 +289,10 @@ func entryMarkdown(e *APIEntry) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "**%s**\n\n%s", e.Signature, e.Summary)
 	if e.Capability != "" {
-		fmt.Fprintf(&b, "\n\n*capability:* `%s`", e.Capability)
+		b.WriteString("\n\n" + i18n.T("lua.doc.capabilityMarkdown", "capability", e.Capability))
 	}
 	if e.Maintenance {
-		b.WriteString("\n\n*maintenance provenance only (system or scheduler turns)*")
+		b.WriteString("\n\n*" + i18n.T("lua.doc.maintenance") + "*")
 	}
 	if e.Path == "llm.stream" {
 		b.WriteString("\n\nCall `next_delta()` directly; a generic `for` fails across the bridge.")

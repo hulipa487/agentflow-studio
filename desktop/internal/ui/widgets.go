@@ -211,7 +211,7 @@ func newSearchBox(placeholder string, onChanged func(string)) *searchBox {
 	entry.SetPlaceHolder(placeholder)
 	entry.SetMinRowsVisible(1)
 
-	clearBtn := iconButton(theme.CancelIcon(), "Clear search", func() {
+	clearBtn := iconButton(theme.CancelIcon(), T("common.clear"), func() {
 		entry.SetText("")
 	})
 	clearBtn.Hide()
@@ -258,7 +258,7 @@ func showModalCard(win fyne.Window, title, subtitle string, content fyne.CanvasO
 	}
 
 	titleObj := insetLeading(titleText(title, theme.SizeNameHeadingText))
-	closeBtn := iconButton(theme.CancelIcon(), "Close", closePopup)
+	closeBtn := iconButton(theme.CancelIcon(), T("common.close"), closePopup)
 	headRow := container.NewBorder(nil, nil, vCenter(titleObj), vCenter(closeBtn), nil)
 
 	headBlock := vstack(spaceXS, headRow)
@@ -304,7 +304,7 @@ func showConfirmPrompt(win fyne.Window, title, message, confirmLabel string, dan
 	msgLabel := wrapLabel(message)
 	content := widthBox(420, msgLabel)
 
-	cancelBtn := widthBox(100, controlFrame(actionButton("Cancel", nil, func() { closeWith(false) })))
+	cancelBtn := widthBox(100, controlFrame(actionButton(T("common.cancel"), nil, func() { closeWith(false) })))
 	confirmBtnWidget := primaryButton(confirmLabel, nil, func() { closeWith(true) })
 	if danger {
 		confirmBtnWidget.Importance = widget.DangerImportance
@@ -313,7 +313,7 @@ func showConfirmPrompt(win fyne.Window, title, message, confirmLabel string, dan
 	footer := container.NewBorder(nil, nil, nil, hstack(spaceS, cancelBtn, confirmBtn), nil)
 
 	titleObj := insetLeading(titleText(title, theme.SizeNameSubHeadingText))
-	closeBtn := iconButton(theme.CancelIcon(), "Close", func() { closeWith(false) })
+	closeBtn := iconButton(theme.CancelIcon(), T("common.close"), func() { closeWith(false) })
 	headRow := container.NewBorder(nil, nil, vCenter(titleObj), vCenter(closeBtn), nil)
 
 	body := vstack(spaceM, headRow, widget.NewSeparator(), content, footer)
@@ -344,11 +344,11 @@ func showInfoPrompt(win fyne.Window, title, message string) {
 
 	msgLabel := wrapLabel(message)
 	content := widthBox(420, msgLabel)
-	okBtn := widthBox(100, controlFrame(primaryButton("Done", nil, closePopup)))
+	okBtn := widthBox(100, controlFrame(primaryButton(T("common.done"), nil, closePopup)))
 	footer := container.NewBorder(nil, nil, nil, okBtn, nil)
 
 	titleObj := insetLeading(titleText(title, theme.SizeNameSubHeadingText))
-	closeBtn := iconButton(theme.CancelIcon(), "Close", closePopup)
+	closeBtn := iconButton(theme.CancelIcon(), T("common.close"), closePopup)
 	headRow := container.NewBorder(nil, nil, vCenter(titleObj), vCenter(closeBtn), nil)
 
 	body := vstack(spaceM, headRow, widget.NewSeparator(), content, footer)

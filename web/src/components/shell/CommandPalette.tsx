@@ -9,6 +9,7 @@ import { ALT, NAV, digitShortcut } from '@/nav'
 import { useAppearance } from '@/state/appearance'
 import { useSession } from '@/state/session'
 import { useUI } from '@/state/ui'
+import { t, useLang } from '@/i18n'
 
 interface Command {
   title: string
@@ -23,7 +24,10 @@ export function paletteMatch(c: Pick<Command, 'title' | 'hint'>, q: string): num
   if (q === '') return 0
   const title = c.title.toLowerCase()
   const hint = c.hint.toLowerCase()
-  if (title.replace(/^go to /, '').startsWith(q)) return 0
+  // "Go to Users" matches "use" by the screen's name, in any language.
+  const goTo = t('shell.palette.goTo', { screen: '' }).toLowerCase()
+  const name = title.startsWith(goTo) ? title.slice(goTo.length) : title
+  if (name.startsWith(q)) return 0
   if (title.includes(q)) return 1
   if (hint.includes(q)) return 2
   for (const w of q.split(/\s+/).filter(Boolean)) {
@@ -41,6 +45,7 @@ export function CommandPalette() {
   const [selected, setSelected] = useState(0)
   const [agents, setAgents] = useState<string[]>([])
   const list = useRef<HTMLDivElement>(null)
+  const lang = useLang()
 
   useEffect(() => {
     if (!open) return
@@ -60,26 +65,27 @@ export function CommandPalette() {
 
   const commands = useMemo<Command[]>(() => {
     const out: Command[] = NAV.map((it) => ({
-      title: 'Go to ' + it.label,
-      hint: it.hint,
+      title: t('shell.palette.goTo', { screen: t(it.labelKey) }),
+      hint: t(it.hintKey),
       shortcut: it.digit ? digitShortcut(it.digit) : it.id === 'docs' ? 'F1' : undefined,
       icon: it.icon,
       run: () => navigate(it.path),
     }))
     for (const name of agents) {
-      out.push({ title: 'Edit ' + name, hint: 'Open this agent in the builder', icon: Bot, run: () => navigate('/agents/' + encodeURIComponent(name)) })
-      out.push({ title: 'Chat with ' + name, hint: 'Open the playground on this agent', icon: FlaskConical, run: () => navigate('/playground?agent=' + encodeURIComponent(name)) })
+      out.push({ title: t('shell.palette.editAgent', { name }), hint: t('shell.palette.editAgentHint', { name }), icon: Bot, run: () => navigate('/agents/' + encodeURIComponent(name)) })
+      out.push({ title: t('shell.palette.chatWith', { name }), hint: t('shell.palette.chatWithHint', { name }), icon: FlaskConical, run: () => navigate('/playground?agent=' + encodeURIComponent(name)) })
     }
     out.push(
-      { title: 'New agent', hint: 'Create an agent from a template', shortcut: `${ALT}+N`, icon: Plus, run: () => useUI.getState().setNewAgent(true) },
-      { title: 'Refresh this screen', hint: 'Reload the current view from the runtime', shortcut: `${ALT}+R`, icon: RotateCw, run: () => useUI.getState().actions.refresh?.() },
-      { title: 'Toggle light / dark', hint: 'Switch the appearance', icon: Moon, run: () => useAppearance.getState().toggle() },
-      { title: 'Toggle navigation rail', hint: 'Collapse or restore the sidebar', icon: PanelLeft, run: () => useUI.getState().toggleRail() },
-      { title: 'Issue a registration invite', hint: 'Mint a single-use invite code (Users)', icon: Send, run: () => navigate('/users?invite=1') },
-      { title: 'Lock', hint: 'Forget the admin token and return to the welcome screen', icon: Lock, run: () => useSession.getState().lock() },
+      { title: t('shell.newAgent'), hint: t('shell.palette.newAgentHint'), shortcut: `${ALT}+N`, icon: Plus, run: () => useUI.getState().setNewAgent(true) },
+      { title: t('shell.palette.refresh'), hint: t('shell.palette.refreshHint'), shortcut: `${ALT}+R`, icon: RotateCw, run: () => useUI.getState().actions.refresh?.() },
+      { title: t('shell.toggleTheme'), hint: t('shell.palette.toggleThemeHint'), icon: Moon, run: () => useAppearance.getState().toggle() },
+      { title: t('shell.toggleRail'), hint: t('shell.palette.toggleRailHint'), icon: PanelLeft, run: () => useUI.getState().toggleRail() },
+      { title: t('shell.palette.invite'), hint: t('shell.palette.inviteHint'), icon: Send, run: () => navigate('/users?invite=1') },
+      { title: t('shell.palette.lock'), hint: t('shell.palette.lockHint'), icon: Lock, run: () => useSession.getState().lock() },
     )
     return out
-  }, [agents, navigate])
+    // lang is a dependency: the titles and hints are translated text.
+  }, [agents, navigate, lang])
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -112,14 +118,14 @@ export function CommandPalette() {
         if (e.target === e.currentTarget) setOpen(false)
       }}
     >
-      <div role="dialog" aria-label="Go to" className="flex max-h-[70vh] w-[600px] max-w-full animate-pop-in flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-float">
+      <div role="dialog" aria-label={t('shell.palette.title')} className="flex max-h-[70vh] w-[600px] max-w-full animate-pop-in flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-float">
         <div className="flex items-center gap-2 border-b border-line px-3.5">
           <Search className="size-4 shrink-0 text-faint" />
           <input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Type a screen, an agent or an action…"
+            placeholder={t('shell.palette.placeholder')}
             spellCheck={false}
             className="h-11 min-w-0 flex-1 bg-transparent text-md text-text placeholder:text-faint focus:outline-none"
             onKeyDown={(e) => {
@@ -142,7 +148,7 @@ export function CommandPalette() {
           <Kbd>Esc</Kbd>
         </div>
         <div ref={list} className="min-h-0 flex-1 overflow-y-auto p-1.5">
-          {shown.length === 0 && <div className="px-3 py-6 text-center text-sm text-muted">Nothing matches “{query}”.</div>}
+          {shown.length === 0 && <div className="px-3 py-6 text-center text-sm text-muted">{t('shell.palette.noMatchQuery', { query })}</div>}
           {shown.map((c, i) => (
             <button
               key={c.title}
@@ -163,9 +169,9 @@ export function CommandPalette() {
           ))}
         </div>
         <div className="flex items-center gap-3 border-t border-line px-3.5 py-1.5 font-mono text-xs text-faint">
-          <span className="inline-flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span>
-          <span className="inline-flex items-center gap-1"><Kbd>Enter</Kbd> run</span>
-          <span className="ml-auto">{shown.length} of {commands.length}</span>
+          <span className="inline-flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> {t('shell.palette.move')}</span>
+          <span className="inline-flex items-center gap-1"><Kbd>Enter</Kbd> {t('shell.palette.run')}</span>
+          <span className="ml-auto">{t('shell.palette.count', { shown: shown.length, total: commands.length })}</span>
         </div>
       </div>
     </div>,

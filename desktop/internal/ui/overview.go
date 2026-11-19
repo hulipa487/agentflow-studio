@@ -15,12 +15,13 @@ import (
 	"agentflow-studio/internal/api"
 )
 
-// overviewCounters are the sampled counters the Overview charts, in order.
-var overviewCounters = []struct{ name, label string }{
-	{"agentflow_llm_calls", "LLM calls"},
-	{"agentflow_llm_tokens", "LLM tokens"},
-	{"agentflow_ingress_total", "Inbound messages"},
-	{"agentflow_safety_drops", "Safety drops"},
+// overviewCounters are the sampled counters the Overview charts, in order,
+// each with the catalogue key of its label.
+var overviewCounters = []struct{ name, labelKey string }{
+	{"agentflow_llm_calls", "overview.counterLlmCalls"},
+	{"agentflow_llm_tokens", "overview.counterLlmTokens"},
+	{"agentflow_ingress_total", "overview.counterIngress"},
+	{"agentflow_safety_drops", "overview.counterSafetyDrops"},
 }
 
 type overviewView struct {
@@ -61,9 +62,9 @@ func (a *App) showOverview() {
 
 func (a *App) newOverviewView() *overviewView {
 	v := &overviewView{app: a}
-	actions := iconButton(theme.ViewRefreshIcon(), "Refresh", func() { v.load(true) })
-	v.s = a.newScreen("Overview", "What this runtime is doing right now. Refreshes every 5 seconds while open.", actions)
-	v.s.loading("Contacting the runtime…")
+	actions := iconButton(theme.ViewRefreshIcon(), T("common.refresh"), func() { v.load(true) })
+	v.s = a.newScreen(T("overview.title"), T("overview.subtitle"), actions)
+	v.s.loading(T("overview.loading"))
 	v.load(true)
 	return v
 }
@@ -88,7 +89,7 @@ func (v *overviewView) load(show bool) {
 				v.built = false
 				v.s.fail(err, func() { v.load(true) })
 			} else {
-				v.s.notice("refresh failed: "+err.Error(), toneWarning)
+				v.s.notice(T("overview.refreshFailed", "message", err.Error()), toneWarning)
 			}
 			return
 		}
@@ -101,23 +102,23 @@ func (v *overviewView) render(d overviewData) {
 	st := d.state
 	parts := []string{}
 	if st.Instance != "" {
-		parts = append(parts, "instance "+shortID(st.Instance))
+		parts = append(parts, T("overview.metaInstance", "id", shortID(st.Instance)))
 	}
 	if st.Region != "" {
-		parts = append(parts, "region "+st.Region)
+		parts = append(parts, T("overview.metaRegion", "region", st.Region))
 	}
 	if st.Zone != "" {
-		parts = append(parts, "zone "+st.Zone)
+		parts = append(parts, T("overview.metaZone", "zone", st.Zone))
 	}
 	if st.Topology != "" {
-		parts = append(parts, "topology "+st.Topology)
+		parts = append(parts, T("overview.metaTopology", "topology", st.Topology))
 	}
 	if n := len(st.Instances); n > 1 {
-		parts = append(parts, fmt.Sprintf("%d instances", n))
+		parts = append(parts, T("overview.metaInstances", "n", n))
 	}
-	parts = append(parts, "version "+orDash(st.Version), "up "+humanDuration(st.UptimeS))
+	parts = append(parts, T("overview.metaVersion", "version", orDash(st.Version)), T("overview.metaUptime", "duration", humanDuration(st.UptimeS)))
 	if st.ConfigEpoch != "" {
-		parts = append(parts, "epoch "+st.ConfigEpoch)
+		parts = append(parts, T("overview.metaEpoch", "epoch", st.ConfigEpoch))
 	}
 	if st.ConfigPath != "" {
 		parts = append(parts, st.ConfigPath)
@@ -131,12 +132,12 @@ func (v *overviewView) render(d overviewData) {
 		v.agents = vstack(spaceS)
 		v.channels = vstack(spaceS)
 		v.instances = vstack(spaceS)
-		left := section("Live sessions", "One actor per (agent, session key). Busy means a turn is running.", v.sessions)
+		left := section(T("overview.liveSessions"), T("overview.sessionsSubtitle"), v.sessions)
 		right := vstack(spaceM,
-			sectionAction("Agents", "Configured at boot; Studio-applied agents appear under Agents.",
-				actionButton("Open", theme.NavigateNextIcon(), v.app.showAgents), v.agents),
-			sectionAction("Channels", "Bound when the runtime started.",
-				actionButton("Open", theme.NavigateNextIcon(), v.app.showChannels), v.channels),
+			sectionAction(T("overview.agents"), T("overview.agentsSubtitle"),
+				actionButton(T("common.open"), theme.NavigateNextIcon(), v.app.showAgents), v.agents),
+			sectionAction(T("overview.channels"), T("overview.channelsSubtitle"),
+				actionButton(T("common.open"), theme.NavigateNextIcon(), v.app.showChannels), v.channels),
 		)
 		// Instances has six fixed columns: on its own row it cannot push the
 		// two-column grid wider than the page.
@@ -144,7 +145,7 @@ func (v *overviewView) render(d overviewData) {
 			v.tiles,
 			v.counters,
 			grid(2, left, right),
-			section("Instances", "Every process currently heartbeating on this runtime store. An epoch that differs means two instances run different configs.", v.instances),
+			section(T("overview.instances"), T("overview.instancesSubtitle"), v.instances),
 		)
 		v.built = true
 	}
@@ -155,15 +156,15 @@ func (v *overviewView) render(d overviewData) {
 	if st.SessionsActive > 0 {
 		sessTone = toneAccent
 	}
-	v.tiles.Add(statTile("Live sessions", fmt.Sprint(st.SessionsActive+st.SessionsIdle),
-		fmt.Sprintf("%d busy · %d idle", st.SessionsActive, st.SessionsIdle), sessTone, nil))
-	v.tiles.Add(statTile("Agents", fmt.Sprint(len(st.Agents)), persistentSummary(st.Agents), toneNeutral, nil))
-	v.tiles.Add(statTile("Channels", fmt.Sprint(len(st.Channels)), channelSummary(st.Channels), toneNeutral, nil))
-	credTone, credText := toneWarning, "disabled"
+	v.tiles.Add(statTile(T("overview.liveSessions"), fmt.Sprint(st.SessionsActive+st.SessionsIdle),
+		T("overview.sessionsSub", "busy", st.SessionsActive, "idle", st.SessionsIdle), sessTone, nil))
+	v.tiles.Add(statTile(T("overview.agents"), fmt.Sprint(len(st.Agents)), persistentSummary(st.Agents), toneNeutral, nil))
+	v.tiles.Add(statTile(T("overview.channels"), fmt.Sprint(len(st.Channels)), channelSummary(st.Channels), toneNeutral, nil))
+	credTone, credText := toneWarning, T("common.disabled")
 	if st.CredentialsEnabled {
-		credTone, credText = toneSuccess, "enabled"
+		credTone, credText = toneSuccess, T("common.enabled")
 	}
-	v.tiles.Add(statTile("Credential store", credText, "runtime.credentials", credTone, nil))
+	v.tiles.Add(statTile(T("overview.credentialStore"), credText, "runtime.credentials", credTone, nil))
 	v.tiles.Refresh()
 
 	// Counter sparklines.
@@ -177,19 +178,19 @@ func (v *overviewView) render(d overviewData) {
 			}
 			delta := ""
 			if len(vals) > 1 {
-				delta = fmt.Sprintf("+%s in the sampled window", humanCount(vals[len(vals)-1]-vals[0]))
+				delta = T("overview.counterDelta", "delta", humanCount(vals[len(vals)-1]-vals[0]))
 			}
-			v.counters.Add(statTile(c.label, humanCount(d.metrics.Latest[c.name]), delta, toneNeutral, newSparkline(vals, 28)))
+			v.counters.Add(statTile(T(c.labelKey), humanCount(d.metrics.Latest[c.name]), delta, toneNeutral, newSparkline(vals, 28)))
 		}
 	} else {
-		v.counters.Add(panel(caption("Counters unavailable: " + d.merr.Error())))
+		v.counters.Add(panel(caption(T("overview.countersUnavailable", "message", d.merr.Error()))))
 	}
 	v.counters.Refresh()
 
 	// Sessions.
 	clearBox(v.sessions)
 	if len(st.Sessions) == 0 {
-		v.sessions.Add(centerNote("No live sessions. A session starts on its agent's first message."))
+		v.sessions.Add(centerNote(T("overview.sessionsEmpty")))
 	} else {
 		rows := append([]api.StateSession(nil), st.Sessions...)
 		sort.Slice(rows, func(i, j int) bool {
@@ -200,16 +201,16 @@ func (v *overviewView) render(d overviewData) {
 		})
 		var cells [][]fyne.CanvasObject
 		for _, s := range rows {
-			state := statusChip("idle", toneNeutral)
+			state := statusChip(T("overview.idle"), toneNeutral)
 			if s.Busy {
-				state = statusChip("busy", toneAccent)
+				state = statusChip(T("overview.busy"), toneAccent)
 			}
 			cells = append(cells, []fyne.CanvasObject{
 				vCenter(state), cellText(s.Agent), cellMono(s.SessionID), cellMono(orDash(shortID(s.ParentID))),
 			})
 		}
 		v.sessions.Add(simpleTable([]tableColumn{
-			{title: "state", width: 70}, {title: "agent", width: 110}, {title: "session"}, {title: "parent", width: 90},
+			{title: T("overview.colState"), width: 70}, {title: T("overview.colAgent"), width: 110}, {title: T("overview.colSession")}, {title: T("overview.colParent"), width: 90},
 		}, cells))
 	}
 	v.sessions.Refresh()
@@ -217,7 +218,7 @@ func (v *overviewView) render(d overviewData) {
 	// Agents.
 	clearBox(v.agents)
 	if len(st.Agents) == 0 {
-		v.agents.Add(centerNote("No agents in the config. Create one from Agents."))
+		v.agents.Add(centerNote(T("overview.agentsEmpty")))
 	}
 	agents := append([]api.StateAgent(nil), st.Agents...)
 	sort.Slice(agents, func(i, j int) bool { return agents[i].Name < agents[j].Name })
@@ -228,13 +229,13 @@ func (v *overviewView) render(d overviewData) {
 			badges.Add(vCenter(chip(ag.Model, toneAccent)))
 		}
 		if ag.Persistent {
-			badges.Add(vCenter(chip("daemon", toneSuccess)))
+			badges.Add(vCenter(chip(T("overview.daemon"), toneSuccess)))
 		}
 		row := container.NewBorder(nil, nil,
 			hstack(spaceS, vCenter(widget.NewLabelWithStyle(name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})), badges),
 			hstack(spaceXS,
-				iconButton(theme.MediaPlayIcon(), "Chat", func() { v.app.showPlayground(name) }),
-				iconButton(theme.DocumentCreateIcon(), "Edit", func() { v.app.showBuilder(name, nil) })),
+				iconButton(theme.MediaPlayIcon(), T("overview.chat"), func() { v.app.showPlayground(name) }),
+				iconButton(theme.DocumentCreateIcon(), T("common.edit"), func() { v.app.showBuilder(name, nil) })),
 			nil)
 		v.agents.Add(row)
 	}
@@ -243,7 +244,7 @@ func (v *overviewView) render(d overviewData) {
 	// Channels.
 	clearBox(v.channels)
 	if len(st.Channels) == 0 {
-		v.channels.Add(centerNote("No channels. Add one from Channels; it binds at the next start."))
+		v.channels.Add(centerNote(T("overview.channelsEmpty")))
 	}
 	for _, ch := range st.Channels {
 		detail := "→ " + orDash(ch.Agent)
@@ -251,7 +252,7 @@ func (v *overviewView) render(d overviewData) {
 			detail += " · " + ch.Path
 		}
 		if ch.MediaEnabled {
-			detail += " · media"
+			detail += " · " + T("overview.media")
 		}
 		v.channels.Add(container.NewBorder(nil, nil,
 			hstack(spaceS, vCenter(chip(ch.Type, toneNeutral)), vCenter(widget.NewLabelWithStyle(ch.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))),
@@ -264,21 +265,21 @@ func (v *overviewView) render(d overviewData) {
 	// the fleet is running two configurations.
 	clearBox(v.instances)
 	if len(st.Instances) == 0 {
-		v.instances.Add(centerNote("No live instances reported. This runtime may predate the instance registry."))
+		v.instances.Add(centerNote(T("overview.instancesEmpty")))
 	} else {
 		var cells [][]fyne.CanvasObject
 		for _, in := range st.Instances {
-			who := chip("peer", toneNeutral)
+			who := chip(T("overview.peer"), toneNeutral)
 			if in.Self {
-				who = chip("this instance", toneAccent)
+				who = chip(T("overview.thisInstance"), toneAccent)
 			}
-			last := "now"
+			last := T("overview.seenNow")
 			if age := time.Now().Unix() - in.LastSeen; age > 5 {
-				last = humanDuration(age) + " ago"
+				last = T("overview.seenAgo", "duration", humanDuration(age))
 			}
 			epoch := orDash(shortID(in.ConfigEpoch))
 			if in.ConfigEpochDiffers {
-				epoch += " (differs)"
+				epoch = T("overview.epochDiffers", "epoch", epoch)
 			}
 			cells = append(cells, []fyne.CanvasObject{
 				vCenter(who), cellMono(shortID(in.Owner)), cellText(orDash(in.Zone)),
@@ -286,8 +287,8 @@ func (v *overviewView) render(d overviewData) {
 			})
 		}
 		v.instances.Add(simpleTable([]tableColumn{
-			{title: "state", width: 110}, {title: "owner", width: 110}, {title: "zone", width: 100},
-			{title: "version", width: 80}, {title: "config epoch", width: 140}, {title: "last seen"},
+			{title: T("overview.colState"), width: 110}, {title: T("overview.colOwner"), width: 110}, {title: T("overview.colZone"), width: 100},
+			{title: T("overview.colVersion"), width: 80}, {title: T("overview.colEpoch"), width: 140}, {title: T("overview.colLastSeen")},
 		}, cells))
 	}
 	v.instances.Refresh()
@@ -302,14 +303,14 @@ func persistentSummary(agents []api.StateAgent) string {
 		}
 	}
 	if n == 0 {
-		return "none run as daemons"
+		return T("overview.noDaemons")
 	}
-	return fmt.Sprintf("%d daemon", n)
+	return T("overview.daemonCount", "n", n)
 }
 
 func channelSummary(chs []api.StateChannel) string {
 	if len(chs) == 0 {
-		return "no front door yet"
+		return T("overview.noChannels")
 	}
 	count := map[string]int{}
 	for _, c := range chs {
@@ -322,7 +323,7 @@ func channelSummary(chs []api.StateChannel) string {
 	sort.Strings(keys)
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%d %s", count[k], k))
+		parts = append(parts, T("overview.channelCount", "n", count[k], "type", k))
 	}
 	return strings.Join(parts, " · ")
 }

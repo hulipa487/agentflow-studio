@@ -283,7 +283,7 @@ func newCodeArea(ed *codeEditor) *codeArea {
 		a.updateStatus()
 	}
 
-	a.find = newBarEntry("Find")
+	a.find = newBarEntry(T("editor.find.placeholder"))
 	a.find.OnChanged = func(string) { a.runSearch(true) }
 	a.find.OnSubmitted = func(string) { a.next(false) }
 	a.find.onShiftEnter = func() { a.next(true) }
@@ -292,7 +292,7 @@ func newCodeArea(ed *codeEditor) *codeArea {
 		a.editor.selectAllMatches()
 		a.focusEditor()
 	}
-	a.repl = newBarEntry("Replace")
+	a.repl = newBarEntry(T("editor.find.replacePlaceholder"))
 	a.repl.OnSubmitted = func(string) { a.replaceOne() }
 	a.repl.onEsc = a.close
 	a.gotoLine = newBarEntry("")
@@ -310,28 +310,28 @@ func newCodeArea(ed *codeEditor) *codeArea {
 		})
 		return t
 	}
-	a.caseBtn = opt("Aa", "Match case")
-	a.wordBtn = opt("ab", "Whole word")
-	a.regexBtn = opt(".*", "Regular expression")
+	a.caseBtn = opt("Aa", T("editor.find.matchCase"))
+	a.wordBtn = opt("ab", T("editor.find.wholeWord"))
+	a.regexBtn = opt(".*", T("editor.find.regex"))
 
 	small := func(w float32, o fyne.CanvasObject) fyne.CanvasObject { return widthBox(w, o) }
-	prevBtn := iconButton(theme.MoveUpIcon(), "Previous match (Shift+Enter)", func() { a.next(true) })
-	nextBtn := iconButton(theme.MoveDownIcon(), "Next match (Enter)", func() { a.next(false) })
-	allBtn := iconButton(theme.ListIcon(), "Select every match (Alt+Enter)", func() {
+	prevBtn := iconButton(theme.MoveUpIcon(), T("editor.find.previous"), func() { a.next(true) })
+	nextBtn := iconButton(theme.MoveDownIcon(), T("editor.find.next"), func() { a.next(false) })
+	allBtn := iconButton(theme.ListIcon(), T("editor.find.selectAll"), func() {
 		a.editor.selectAllMatches()
 		a.focusEditor()
 	})
-	closeBtn := iconButton(theme.CancelIcon(), "Close (Esc)", a.close)
+	closeBtn := iconButton(theme.CancelIcon(), T("editor.find.close"), a.close)
 	toggles := container.NewHBox(small(38, a.caseBtn), small(38, a.wordBtn), small(38, a.regexBtn))
 	findTools := container.NewHBox(toggles, widthBox(78, a.count), prevBtn, nextBtn, allBtn, closeBtn)
 	a.findRow = container.NewBorder(nil, nil, nil, findTools, a.find)
 
-	replOne := actionButton("Replace", nil, a.replaceOne)
-	replAll := actionButton("All", nil, a.replaceAll)
+	replOne := actionButton(T("editor.find.replace"), nil, a.replaceOne)
+	replAll := actionButton(T("editor.find.replaceAll"), nil, a.replaceAll)
 	a.replRow = container.NewBorder(nil, nil, nil, container.NewHBox(widthBox(84, replOne), widthBox(56, replAll)), a.repl)
 
-	gotoClose := iconButton(theme.CancelIcon(), "Close (Esc)", a.close)
-	a.gotoRow = container.NewBorder(nil, nil, vCenter(caption("Go to line")), gotoClose, a.gotoLine)
+	gotoClose := iconButton(theme.CancelIcon(), T("editor.find.close"), a.close)
+	a.gotoRow = container.NewBorder(nil, nil, vCenter(caption(T("editor.goto.label"))), gotoClose, a.gotoLine)
 
 	a.barSlot = container.NewVBox()
 	a.barSlot.Hide()
@@ -386,7 +386,7 @@ func (a *codeArea) openFind(replace bool) {
 
 func (a *codeArea) openGoto() {
 	a.gotoLine.SetText("")
-	a.gotoLine.SetPlaceHolder(fmt.Sprintf("Line or line:column (1–%d)", len(a.editor.lines)))
+	a.gotoLine.SetPlaceHolder(T("editor.goto.placeholder", "n", len(a.editor.lines)))
 	a.show(a.gotoRow)
 	a.focus(a.gotoLine)
 }
@@ -422,20 +422,20 @@ func (a *codeArea) updateCount() {
 	e := a.editor
 	switch {
 	case e.searchErr != nil:
-		a.count.SetText("Bad pattern")
+		a.count.SetText(T("editor.find.badPattern"))
 	case a.find.Text == "":
 		a.count.SetText("")
 	case len(e.matches) == 0:
-		a.count.SetText("No results")
+		a.count.SetText(T("editor.find.noResults"))
 	default:
 		total := strconv.Itoa(len(e.matches))
 		if len(e.matches) >= maxMatches {
 			total += "+"
 		}
 		if i := e.currentMatch(); i >= 0 {
-			a.count.SetText(fmt.Sprintf("%d of %s", i+1, total))
+			a.count.SetText(T("editor.find.current", "current", i+1, "total", total))
 		} else {
-			a.count.SetText(total + " found")
+			a.count.SetText(T("editor.find.found", "total", total))
 		}
 	}
 }
@@ -454,7 +454,7 @@ func (a *codeArea) replaceAll() {
 	n := a.editor.replaceAll(a.repl.Text)
 	a.updateCount()
 	if n > 0 {
-		a.count.SetText(fmt.Sprintf("Replaced %d", n))
+		a.count.SetText(T("editor.find.replaced", "n", n))
 	}
 }
 
@@ -478,15 +478,15 @@ func (a *codeArea) jump() {
 // updateStatus writes the caret position and the document facts.
 func (a *codeArea) updateStatus() {
 	e := a.editor
-	parts := []string{fmt.Sprintf("Ln %d, Col %d", e.row+1, e.col+1)}
+	parts := []string{T("editor.status.position", "line", e.row+1, "col", e.col+1)}
 	if n := len(e.extra) + 1; n > 1 {
-		parts = append(parts, fmt.Sprintf("%d selections", n))
+		parts = append(parts, T("editor.status.selections", "n", n))
 	} else if t := e.selectionText(); t != "" {
-		parts = append(parts, fmt.Sprintf("%d selected", runeLen(t)))
+		parts = append(parts, T("editor.status.selected", "n", runeLen(t)))
 	}
-	parts = append(parts, langLabel(e.lang.name), fmt.Sprintf("Spaces: %d", e.lang.unit))
+	parts = append(parts, langLabel(e.lang.name), T("editor.status.spaces", "n", e.lang.unit))
 	if e.wrap {
-		parts = append(parts, "Wrap")
+		parts = append(parts, T("editor.status.wrap"))
 	}
 	if editorZoom != 1 {
 		parts = append(parts, fmt.Sprintf("%d%%", int(editorZoom*100+0.5)))
@@ -505,5 +505,5 @@ func langLabel(name string) string {
 	case "markdown":
 		return "Markdown"
 	}
-	return "Plain text"
+	return T("editor.lang.plain")
 }

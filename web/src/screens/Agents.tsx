@@ -6,7 +6,8 @@ import { FlaskConical, Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import type { AgentRow } from '@/api/types'
 import { AsyncView, Button, Chip, Chips, EmptyState, IconButton, Page, Panel, SearchBox, Section, StatusChip } from '@/components/ui'
 import { useAsync, useScreenActions } from '@/lib/hooks'
-import { pathTail, plural } from '@/lib/format'
+import { pathTail } from '@/lib/format'
+import { t } from '@/i18n'
 import { useClient } from '@/state/session'
 import { useUI } from '@/state/ui'
 import { deleteAgentFlow } from './agentActions'
@@ -36,40 +37,40 @@ export default function Agents() {
 
   return (
     <Page
-      title="Agents"
-      subtitle="Prototype a loop, apply it live, and keep the definition in your deployment config."
+      title={t('agents.title')}
+      subtitle={t('agents.subtitle')}
       actions={
         <>
-          {total > 0 && <span className="font-mono text-xs text-faint">{plural(total, 'agent')}</span>}
-          <SearchBox value={filter} onChange={setFilter} placeholder="Filter agents…" className="w-56" />
-          <IconButton icon={RotateCw} label="Refresh" onClick={() => reload()} />
+          {total > 0 && <span className="font-mono text-xs text-faint">{t('agents.count', { n: total })}</span>}
+          <SearchBox value={filter} onChange={setFilter} placeholder={t('agents.filterPlaceholder')} className="w-56" />
+          <IconButton icon={RotateCw} label={t('common.refresh')} onClick={() => reload()} />
           {total > 0 && (
             <Button variant="primary" icon={Plus} onClick={newAgent}>
-              New agent
+              {t('agents.newAgent')}
             </Button>
           )}
         </>
       }
     >
-      <AsyncView loading={loading} error={error} hasData={!!rows} retry={() => reload()} loadingText="Loading agents…">
+      <AsyncView loading={loading} error={error} hasData={!!rows} retry={() => reload()} loadingText={t('agents.loading')}>
         {total === 0 ? (
           <EmptyState
-            title="No agents yet"
-            guidance="Start from a template: an echo agent needs no model."
-            actionLabel="Create your first agent"
+            title={t('agents.emptyTitle')}
+            guidance={t('agents.emptyGuidance')}
+            actionLabel={t('agents.emptyAction')}
             onAction={newAgent}
           />
         ) : (
           <div className="flex flex-col gap-3">
             {agents.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted">No agents match this filter.</div>
+              <div className="py-8 text-center text-sm text-muted">{t('agents.noMatch')}</div>
             ) : (
               <Panel flush className="overflow-hidden">
                 <div className={`${GRID} border-b border-line px-3 py-1.5 text-xs font-semibold text-faint`}>
-                  <span>Agent</span>
-                  <span>Loop</span>
-                  <span>Capabilities</span>
-                  <span>State</span>
+                  <span>{t('agents.colAgent')}</span>
+                  <span>{t('agents.colLoop')}</span>
+                  <span>{t('agents.colCapabilities')}</span>
+                  <span>{t('agents.colState')}</span>
                   <span />
                 </div>
                 {agents.map((row) => {
@@ -88,29 +89,29 @@ export default function Agents() {
                     >
                       <div className="min-w-0">
                         <div className="truncate text-base font-medium">{row.name}</div>
-                        <div className="truncate text-xs text-muted">{row.model || 'default model'}</div>
+                        <div className="truncate text-xs text-muted">{row.model || t('agents.defaultModel')}</div>
                       </div>
                       <div className="truncate font-mono text-sm text-muted" title={row.loop}>
-                        {row.loop ? pathTail(row.loop) : 'in-memory loop'}
+                        {row.loop ? pathTail(row.loop) : t('agents.inMemoryLoop')}
                       </div>
                       <div className="min-w-0">
-                        {caps.length === 0 ? <span className="font-mono text-xs text-faint">deployment defaults</span> : <Chips items={caps} tone="accent" max={3} />}
+                        {caps.length === 0 ? <span className="font-mono text-xs text-faint">{t('agents.deploymentDefaults')}</span> : <Chips items={caps} tone="accent" max={3} />}
                       </div>
                       <div className="flex flex-wrap items-center gap-1">
-                        {row.persisted ? <StatusChip tone="success">persisted</StatusChip> : <StatusChip tone="warning">runtime only</StatusChip>}
+                        {row.persisted ? <StatusChip tone="success">{t('agents.persisted')}</StatusChip> : <StatusChip tone="warning">{t('agents.runtimeOnly')}</StatusChip>}
                         {row.sessions > 0 && (
                           <StatusChip tone="accent" pulse>
-                            {row.sessions} live
+                            {t('agents.liveSessions', { n: row.sessions })}
                           </StatusChip>
                         )}
-                        {row.persistent && <Chip tone="success">daemon</Chip>}
+                        {row.persistent && <Chip tone="success">{t('agents.daemon')}</Chip>}
                       </div>
                       <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
-                        <IconButton icon={FlaskConical} label={`Chat with ${row.name}`} onClick={() => navigate('/playground?agent=' + encodeURIComponent(row.name))} />
-                        <IconButton icon={Pencil} label={`Edit ${row.name}`} onClick={open} />
+                        <IconButton icon={FlaskConical} label={t('agents.chatWith', { name: row.name })} onClick={() => navigate('/playground?agent=' + encodeURIComponent(row.name))} />
+                        <IconButton icon={Pencil} label={t('agents.editWhat', { name: row.name })} onClick={open} />
                         <IconButton
                           icon={Trash2}
-                          label={`Delete ${row.name}`}
+                          label={t('agents.deleteWhat', { name: row.name })}
                           tone="danger"
                           onClick={async () => {
                             if (await deleteAgentFlow(client, row.name)) reload(true)
@@ -123,7 +124,7 @@ export default function Agents() {
               </Panel>
             )}
             {spawn.length > 0 && (
-              <Section title="Spawn profiles" subtitle="Templates used by agent.spawn; read-only in Studio.">
+              <Section title={t('agents.spawnTitle')} subtitle={t('agents.spawnSubtitle')}>
                 <Chips items={spawn.map((r) => r.name)} />
               </Section>
             )}

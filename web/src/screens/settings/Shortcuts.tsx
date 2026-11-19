@@ -3,25 +3,29 @@
 // the keys do.
 import { Kbd, Section } from '@/components/ui'
 import { ALT, MOD, NAV, digitShortcut } from '@/nav'
+import { t } from '@/i18n'
 
 interface Shortcut {
   keys: string[]
   what: string
 }
 
-const DESTINATIONS: Shortcut[] = NAV.filter((it) => it.digit !== undefined)
-  .sort((a, b) => (a.digit ?? 0) - (b.digit ?? 0))
-  .map((it) => ({ keys: [digitShortcut(it.digit!)], what: 'Go to ' + it.label }))
+// Built at render: the descriptions are translated text.
+function destinations(): Shortcut[] {
+  return NAV.filter((it) => it.digit !== undefined)
+    .sort((a, b) => (a.digit ?? 0) - (b.digit ?? 0))
+    .map((it) => ({ keys: [digitShortcut(it.digit!)], what: t('shell.palette.goTo', { screen: t(it.labelKey) }) }))
+}
 
-const ACTIONS: Shortcut[] = [
-  { keys: [`${MOD}+K`, `${MOD}+Shift+P`], what: 'Open the command palette' },
-  { keys: [`${ALT}+N`], what: 'Create a new agent' },
-  { keys: [`${ALT}+R`], what: 'Refresh the current screen' },
-  { keys: [`${MOD}+S`], what: 'Save: apply changes in Builder, validate and save in Config' },
-  { keys: [`${MOD}+Enter`], what: 'Send message in Playground' },
-  { keys: ['Ctrl+Space'], what: 'Trigger Luau completion' },
-  { keys: ['F1'], what: 'Open docs' },
-  { keys: ['Esc'], what: 'Return to previous view' },
+const ACTIONS: { keys: string[]; whatKey: string }[] = [
+  { keys: [`${MOD}+K`, `${MOD}+Shift+P`], whatKey: 'settings.shortcutPalette' },
+  { keys: [`${ALT}+N`], whatKey: 'settings.shortcutNewAgent' },
+  { keys: [`${ALT}+R`], whatKey: 'settings.shortcutRefresh' },
+  { keys: [`${MOD}+S`], whatKey: 'settings.shortcutSaveWeb' },
+  { keys: [`${MOD}+Enter`], whatKey: 'settings.shortcutSend' },
+  { keys: ['Ctrl+Space'], whatKey: 'settings.shortcutCompletion' },
+  { keys: ['F1'], whatKey: 'settings.shortcutDocs' },
+  { keys: ['Esc'], whatKey: 'settings.shortcutBack' },
 ]
 
 function Rows({ title, rows }: { title: string; rows: Shortcut[] }) {
@@ -36,7 +40,7 @@ function Rows({ title, rows }: { title: string; rows: Shortcut[] }) {
                 <span className="inline-flex items-center gap-1">
                   {r.keys.map((k, i) => (
                     <span key={k} className="inline-flex items-center gap-1">
-                      {i > 0 && <span className="text-xs text-faint">or</span>}
+                      {i > 0 && <span className="text-xs text-faint">{t('settings.shortcutOr')}</span>}
                       <Kbd>{k}</Kbd>
                     </span>
                   ))}
@@ -53,15 +57,12 @@ function Rows({ title, rows }: { title: string; rows: Shortcut[] }) {
 
 export function ShortcutsSection() {
   return (
-    <Section title="Keyboard shortcuts" subtitle="Navigate workspaces and trigger common editor actions from the keyboard.">
+    <Section title={t('settings.shortcuts')} subtitle={t('settings.shortcutsHint')}>
       <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
-        <Rows title="Workspace views" rows={DESTINATIONS} />
-        <Rows title="Actions" rows={ACTIONS} />
+        <Rows title={t('settings.shortcutViews')} rows={destinations()} />
+        <Rows title={t('settings.shortcutActions')} rows={ACTIONS.map((a) => ({ keys: a.keys, what: t(a.whatKey) }))} />
       </div>
-      <p className="mt-3 border-t border-line pt-2.5 text-xs leading-snug text-muted">
-        These differ from the desktop app, which uses Ctrl+N, Ctrl+1…9 and F5. A browser keeps those for a new window, switching tabs and reloading
-        the page, so here a new agent is {ALT}+N, the views are {ALT}+1…9 and refresh is {ALT}+R.
-      </p>
+      <p className="mt-3 border-t border-line pt-2.5 text-xs leading-snug text-muted">{t('settings.shortcutsBrowserNote', { alt: ALT })}</p>
     </Section>
   )
 }

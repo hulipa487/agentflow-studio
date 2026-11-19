@@ -28,7 +28,7 @@ func (a *App) agentsView() fyne.CanvasObject {
 	banner := newBanner()
 
 	var render func()
-	sbox := newSearchBox("Filter agents…", func(string) {
+	sbox := newSearchBox(T("agents.filterPlaceholder"), func(string) {
 		if render != nil {
 			render()
 		}
@@ -36,7 +36,7 @@ func (a *App) agentsView() fyne.CanvasObject {
 	search := sbox.Entry
 	searchWrap := widthBox(220, sbox.Root)
 	countLabel := oneLine("")
-	newBtn := primaryButton("New agent", theme.ContentAddIcon(), a.showNewAgent)
+	newBtn := primaryButton(T("agents.newAgent"), theme.ContentAddIcon(), a.showNewAgent)
 
 	render = func() {
 		clearBox(list)
@@ -67,13 +67,9 @@ func (a *App) agentsView() fyne.CanvasObject {
 			return
 		}
 		newBtn.Show()
-		if len(rows) == 1 {
-			countLabel.SetText("1 agent")
-		} else {
-			countLabel.SetText(fmt.Sprintf("%d agents", len(rows)))
-		}
+		countLabel.SetText(T("agents.count", "n", len(rows)))
 		if len(static) == 0 {
-			list.Add(centerNote("No agents match this filter."))
+			list.Add(centerNote(T("agents.noMatch")))
 		}
 		if len(static) > 0 {
 			table := vstack(0, agentListHeader(), widget.NewSeparator())
@@ -90,7 +86,7 @@ func (a *App) agentsView() fyne.CanvasObject {
 			for _, r := range spawn {
 				names = append(names, r.Name)
 			}
-			list.Add(section("Spawn profiles", "Templates used by agent.spawn; read-only in Studio.", chips(names, toneNeutral)))
+			list.Add(section(T("agents.spawnTitle"), T("agents.spawnSubtitle"), chips(names, toneNeutral)))
 		}
 		list.Refresh()
 	}
@@ -100,7 +96,7 @@ func (a *App) agentsView() fyne.CanvasObject {
 		clearBox(list)
 		loading := widget.NewActivity()
 		loading.Start()
-		list.Add(container.NewCenter(container.NewVBox(loading, muted("Loading agents…"))))
+		list.Add(container.NewCenter(container.NewVBox(loading, muted(T("agents.loading")))))
 		banner.Clear()
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -112,7 +108,7 @@ func (a *App) agentsView() fyne.CanvasObject {
 					a.showError(err)
 					clearBox(list)
 					banner.Set(err.Error(), toneDanger)
-					list.Add(container.NewCenter(widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), load)))
+					list.Add(container.NewCenter(widget.NewButtonWithIcon(T("common.retry"), theme.ViewRefreshIcon(), load)))
 					return
 				}
 				rows = got
@@ -120,10 +116,10 @@ func (a *App) agentsView() fyne.CanvasObject {
 			})
 		}()
 	}
-	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh", load)
+	refresh := iconButton(theme.ViewRefreshIcon(), T("common.refresh"), load)
 	actions := hstack(spaceS, vCenter(widthBox(76, countLabel)), vCenter(searchWrap), vCenter(refresh), vCenter(newBtn))
-	head := pageHeader("Agents",
-		"Prototype a loop, apply it live, and keep the definition in your deployment config.",
+	head := pageHeader(T("agents.title"),
+		T("agents.subtitle"),
 		actions)
 	load()
 
@@ -152,9 +148,9 @@ func agentListHeader() fyne.CanvasObject {
 		return widthBox(w, t)
 	}
 	row := container.NewBorder(nil, nil,
-		h("agent", agentColName),
-		hstack(spaceS, h("capabilities", agentColCaps), h("state", agentColState), h("", agentColActs)),
-		h("loop", 0))
+		h(T("agents.colAgent"), agentColName),
+		hstack(spaceS, h(T("agents.colCapabilities"), agentColCaps), h(T("agents.colState"), agentColState), h("", agentColActs)),
+		h(T("agents.colLoop"), 0))
 	return container.New(layout.NewCustomPaddedLayout(spaceS, spaceS, spaceM, spaceM), row)
 }
 
@@ -163,7 +159,7 @@ func agentListHeader() fyne.CanvasObject {
 func agentRow(a *App, row api.AgentRow) fyne.CanvasObject {
 	model := row.Model
 	if model == "" {
-		model = "default model"
+		model = T("agents.defaultModel")
 	}
 	name := widget.NewLabel(row.Name)
 	name.Truncation = fyne.TextTruncateEllipsis
@@ -173,14 +169,14 @@ func agentRow(a *App, row api.AgentRow) fyne.CanvasObject {
 
 	loop := row.Loop
 	if loop == "" {
-		loop = "in-memory loop"
+		loop = T("agents.inMemoryLoop")
 	}
 	loopLabel := mono(loop, theme.SizeNameCaptionText)
 	loopLabel.Importance = widget.LowImportance
 
 	var capRow fyne.CanvasObject
 	if len(row.Capabilities) == 0 {
-		capRow = vLeft(monoText("deployment defaults", 10.5, colorFaint))
+		capRow = vLeft(monoText(T("agents.deploymentDefaults"), 10.5, colorFaint))
 	} else {
 		shown, extra := row.Capabilities, 0
 		if len(shown) > 3 {
@@ -196,18 +192,18 @@ func agentRow(a *App, row api.AgentRow) fyne.CanvasObject {
 
 	state := hstack(spaceXS)
 	if row.Persisted {
-		state.Add(vCenter(statusChip("persisted", toneSuccess)))
+		state.Add(vCenter(statusChip(T("agents.persisted"), toneSuccess)))
 	} else {
-		state.Add(vCenter(statusChip("runtime only", toneWarning)))
+		state.Add(vCenter(statusChip(T("agents.runtimeOnly"), toneWarning)))
 	}
 	if row.Sessions > 0 {
-		state.Add(vCenter(statusChip(fmt.Sprintf("%d live", row.Sessions), toneAccent)))
+		state.Add(vCenter(statusChip(T("agents.liveSessions", "n", row.Sessions), toneAccent)))
 	}
 
 	actions := hstack(0,
-		vCenter(iconButton(theme.MailSendIcon(), "Chat", func() { a.showPlayground(row.Name) })),
-		vCenter(iconButton(theme.DocumentCreateIcon(), "Edit", func() { a.showBuilder(row.Name, nil) })),
-		vCenter(iconButton(theme.DeleteIcon(), "Delete", func() { a.confirmDelete(row.Name, false, "") })),
+		vCenter(iconButton(theme.MailSendIcon(), T("agents.chat"), func() { a.showPlayground(row.Name) })),
+		vCenter(iconButton(theme.DocumentCreateIcon(), T("common.edit"), func() { a.showBuilder(row.Name, nil) })),
+		vCenter(iconButton(theme.DeleteIcon(), T("common.delete"), func() { a.confirmDelete(row.Name, false, "") })),
 	)
 
 	line := container.NewBorder(nil, nil,
@@ -223,9 +219,9 @@ func agentRow(a *App, row api.AgentRow) fyne.CanvasObject {
 
 func emptyAgents(a *App) fyne.CanvasObject {
 	return emptyStateCard(
-		"No agents yet",
-		"Start from a template: an echo agent needs no model.",
-		"Create your first agent",
+		T("agents.emptyTitle"),
+		T("agents.emptyGuidance"),
+		T("agents.emptyAction"),
 		a.showNewAgent,
 	)
 }
@@ -242,21 +238,21 @@ func (a *App) showNewAgent() {
 		}
 	}
 
-	blankUse := primaryButton("Use", theme.NavigateNextIcon(), func() {
+	blankUse := primaryButton(T("agents.use"), theme.NavigateNextIcon(), func() {
 		closePopup()
 		a.showBuilder("", nil)
 	})
 	content.Add(subpanel(container.NewBorder(nil, nil, nil,
 		vCenter(widthBox(96, blankUse)),
 		vstack(spaceXS,
-			hstack(spaceS, vCenter(subheading("Blank agent")), vCenter(chip("custom", toneNeutral))),
-			muted("Start from an empty loop. No model is selected; choose one in the builder."),
+			hstack(spaceS, vCenter(subheading(T("agents.blankTitle"))), vCenter(chip(T("agents.blankTag"), toneNeutral))),
+			muted(T("agents.blankDescription")),
 		),
 	)))
 
 	for _, tpl := range a.catalog.Templates {
 		tpl := tpl
-		useBtn := primaryButton("Use", theme.NavigateNextIcon(), func() {
+		useBtn := primaryButton(T("agents.use"), theme.NavigateNextIcon(), func() {
 			closePopup()
 			a.showBuilder("", &tpl)
 		})
@@ -273,13 +269,13 @@ func (a *App) showNewAgent() {
 	scroll := container.NewVScroll(content)
 	scroll.SetMinSize(fyne.NewSize(640, 340))
 
-	title := insetLeading(titleText("New agent", theme.SizeNameHeadingText))
-	closeBtn := iconButton(theme.CancelIcon(), "Close", closePopup)
+	title := insetLeading(titleText(T("agents.newTitle"), theme.SizeNameHeadingText))
+	closeBtn := iconButton(theme.CancelIcon(), T("common.close"), closePopup)
 	header := container.NewBorder(nil, nil, vCenter(title), vCenter(closeBtn), nil)
-	subtitle := muted("Start from a template. Everything can be edited in the builder.")
+	subtitle := muted(T("agents.newSubtitle"))
 	headerBlock := vstack(spaceXS, header, subtitle)
 
-	cancel := widthBox(104, actionButton("Cancel", nil, closePopup))
+	cancel := widthBox(104, actionButton(T("common.cancel"), nil, closePopup))
 	footer := container.NewBorder(nil, nil, nil, cancel, nil)
 
 	body := vstack(spaceM, headerBlock, widget.NewSeparator(), scroll, footer)
@@ -296,14 +292,14 @@ func (a *App) showNewAgent() {
 }
 
 func (a *App) confirmDelete(name string, force bool, reason string) {
-	msg := fmt.Sprintf("Delete agent %q and its persisted files?", name)
+	msg := T("agents.deleteMessage", "name", name)
 	if force {
-		msg = fmt.Sprintf("%s\n\nForce the delete?", reason)
+		msg = T("agents.forceMessage", "reason", reason)
 		if reason == "" {
-			msg = fmt.Sprintf("Agent %q has live sessions. Stop them and delete it?", name)
+			msg = T("agents.liveSessionsMessage", "name", name)
 		}
 	}
-	showConfirmPrompt(a.win, "Delete agent", msg, "Delete", true, func(ok bool) {
+	showConfirmPrompt(a.win, T("agents.deleteTitle"), msg, T("common.delete"), true, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -325,7 +321,7 @@ func (a *App) deleteAgent(name string, force bool) {
 			return
 		}
 		onUI(func() {
-			a.setStatus("deleted "+name, toneSuccess)
+			a.setStatus(T("agents.deleted", "name", name), toneSuccess)
 			a.showAgents()
 		})
 	}()

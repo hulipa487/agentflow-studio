@@ -89,7 +89,8 @@ Secrets are write-only everywhere: a field left blank keeps the stored value, an
 - **Config** - the raw config file for everything without its own screen, with validate, an atomic save that keeps a `.bak`, and a masked view of what the runtime parsed.
 
 **🪟 The shell**
-- **Command bar** - the breadcrumb, a search field that opens the go-to palette, the connection pill (saved profiles, switch, lock) and the theme toggle.
+- **Command bar** - the breadcrumb, a search field that opens the go-to palette, the connection pill (saved profiles, switch, lock), the language switch and the theme toggle.
+- **Language** - English, 简体中文 and 繁體中文. The **EN / 简体 / 繁體** switch is in the command bar, on the sign-in screen and in Settings; it applies at once and is remembered. The first launch follows the OS (desktop) or the browser (web).
 - **Rail** - flat and compact, so every screen fits the default window without scrolling. The logo collapses it.
 - **Status bar** - which runtime this is, on every screen: address, instance, region, topology, version, uptime and busy or idle sessions.
 
@@ -187,6 +188,8 @@ make docs-sync   # refresh the OpenAPI spec and Luau stubs from the runtime repo
 
 **The two apps are kept in step by hand.** They share no code, only facts: the admin API types (`desktop/internal/api` and `web/src/api`), the Lua API table behind editor completion (`desktop/internal/lua/api.go` and `web/src/lua/api.ts`), and the screens themselves. A change to one belongs in the same commit as the change to the other.
 
+**So are the message catalogues.** Every string either app shows lives in `i18n/<language>/<namespace>.json` (`en`, `zh-Hans`, `zh-Hant`), one copy that the desktop app embeds and the web app bundles, so the two cannot drift apart in wording. English is the source and the fallback. `i18n/README.md` has the message syntax, the style rules and the glossary; each app has a test that fails when the three languages do not hold the same keys and parameters, or when code asks for a key that does not exist. In Chinese the desktop app draws text with a CJK font it finds on the system (Fyne's bundled font has none).
+
 **The docs are shared for real.** The desktop app embeds `docs/` (it is a small Go module so the embed can reach it) and the web app bundles the same files at build time. A new page needs a manifest entry in both `desktop/internal/docs/docs.go` and `web/src/docs/library.ts`, and each app has a test that fails if its entry is missing. `docs/openapi/users.yaml` and `docs/luau/af.d.luau` are copies of files versioned with the runtime; `make docs-sync` expects that checkout next to this one, or at `AGENTFLOW_DIR`.
 
 To see every desktop screen without clicking through them, render them to PNGs in both themes:
@@ -195,6 +198,8 @@ To see every desktop screen without clicking through them, render them to PNGs i
 cd desktop
 STUDIO_SNAPSHOT_DIR=./snapshots go test ./internal/ui -run TestSnapshots
 ```
+
+`STUDIO_SNAPSHOT_LANG=zh-Hans` (or `zh-Hant`) renders them in Chinese; give each language its own `STUDIO_SNAPSHOT_DIR`.
 
 Packaging the desktop app is optional; the binary runs as it is. For an installable app, from `desktop/`:
 

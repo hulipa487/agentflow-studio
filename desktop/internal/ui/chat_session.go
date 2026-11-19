@@ -80,13 +80,13 @@ func newChatSession(a *App, agent string, opts chatOptions) *chatSession {
 	s.onSend = s.send
 
 	if opts.hint == "" {
-		opts.hint = "Ctrl+Enter sends · Enter adds a newline"
+		opts.hint = T("playground.sendHint", "mod", "Ctrl")
 	}
 	if opts.emptyTitle == "" {
-		opts.emptyTitle = "Say hello"
+		opts.emptyTitle = T("playground.emptyTitle")
 	}
 	if opts.emptyNote == "" {
-		opts.emptyNote = "The turn streams into the trace panel."
+		opts.emptyNote = T("playground.emptyHint")
 	}
 
 	s.messages = vstack(spaceS)
@@ -99,8 +99,8 @@ func newChatSession(a *App, agent string, opts chatOptions) *chatSession {
 
 	s.input = widget.NewMultiLineEntry()
 	s.input.SetMinRowsVisible(3)
-	s.input.SetPlaceHolder("Message the agent…")
-	s.sendBtn = primaryButton("Send", theme.MailSendIcon(), func() { s.onSend() })
+	s.input.SetPlaceHolder(T("playground.messagePlaceholder"))
+	s.sendBtn = primaryButton(T("common.send"), theme.MailSendIcon(), func() { s.onSend() })
 	hint := caption(opts.hint)
 	hint.Truncation = fyne.TextTruncateEllipsis
 	composerBar := container.New(layout.NewCustomPaddedLayout(2, 4, spaceS, 4),
@@ -114,7 +114,7 @@ func newChatSession(a *App, agent string, opts chatOptions) *chatSession {
 	composer := inputFrame(container.NewBorder(nil, composerBar, nil, nil, cleanInput))
 
 	s.statusDot = dot(toneSuccess)
-	s.status = widget.NewLabel("ready")
+	s.status = widget.NewLabel(T("playground.statusReady"))
 	s.status.SizeName = theme.SizeNameCaptionText
 	s.status.Wrapping = fyne.TextWrapOff
 	s.status.Truncation = fyne.TextTruncateEllipsis
@@ -124,10 +124,10 @@ func newChatSession(a *App, agent string, opts chatOptions) *chatSession {
 	s.headerName = widget.NewLabelWithStyle(agent, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	s.headerName.SizeName = theme.SizeNameSubHeadingText
 	s.headerName.Truncation = fyne.TextTruncateEllipsis
-	s.headerThread = mono("thread · "+shortID(s.thread), theme.SizeNameCaptionText)
+	s.headerThread = mono(T("playground.threadHeader", "id", shortID(s.thread)), theme.SizeNameCaptionText)
 	s.tokens = caption("")
 
-	s.stopBtn = iconButton(theme.MediaStopIcon(), "Stop session", s.stop)
+	s.stopBtn = iconButton(theme.MediaStopIcon(), T("playground.stopSession"), s.stop)
 	titleStack := vstack(0, compactLabel(s.headerName, false), compactLabel(s.headerThread, false))
 	if opts.statusWidth == 0 {
 		opts.statusWidth = 110
@@ -147,14 +147,15 @@ func newChatSession(a *App, agent string, opts chatOptions) *chatSession {
 
 	s.traceBox = vstack(spaceXS)
 	s.traceScroll = container.NewVScroll(s.traceBox)
-	s.filter = widget.NewSelect([]string{"All events", "Ops only", "Errors only"}, func(string) {
+	// renderTrace reads the filter by index: all events, ops only, errors only.
+	s.filter = widget.NewSelect([]string{T("playground.filterAll"), T("playground.filterOps"), T("playground.filterErrors")}, func(string) {
 		s.renderTrace()
 	})
-	s.filter.SetSelected("All events")
-	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh trace", s.refreshTrace)
+	s.filter.SetSelectedIndex(0)
+	refresh := iconButton(theme.ViewRefreshIcon(), T("playground.refreshTrace"), s.refreshTrace)
 	s.tokens.Wrapping = fyne.TextWrapOff
 	traceHead := container.NewBorder(nil, nil,
-		hstack(spaceS, vCenter(insetLeading(titleText("Trace", theme.SizeNameSubHeadingText))), vCenter(compactLabel(s.tokens, false))),
+		hstack(spaceS, vCenter(insetLeading(titleText(T("playground.trace"), theme.SizeNameSubHeadingText))), vCenter(compactLabel(s.tokens, false))),
 		hstack(spaceXS, vCenter(widthBox(124, controlFrame(s.filter))), vCenter(refresh)),
 	)
 	s.tracePanel = panel(container.NewBorder(
@@ -180,7 +181,7 @@ func (s *chatSession) switchTo(agent, thread string, status string, t tone) {
 
 func (s *chatSession) updateHeader() {
 	s.headerName.SetText(s.agent)
-	s.headerThread.SetText("thread · " + shortID(s.thread))
+	s.headerThread.SetText(T("playground.threadHeader", "id", shortID(s.thread)))
 }
 
 func (s *chatSession) setStatus(text string, t tone) {
@@ -248,7 +249,7 @@ func (s *chatSession) stop() {
 	}
 	s.app.cancelChat()
 	agent, thread := s.agent, s.thread
-	s.setStatus("stopping…", toneWarning)
+	s.setStatus(T("playground.statusStopping"), toneWarning)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -259,10 +260,10 @@ func (s *chatSession) stop() {
 			}
 			if err != nil {
 				s.app.showError(err)
-				s.setStatus("error", toneDanger)
+				s.setStatus(T("playground.statusError"), toneDanger)
 				return
 			}
-			s.setStatus("stop requested", toneWarning)
+			s.setStatus(T("playground.statusStopRequested"), toneWarning)
 		})
 	}()
 }
@@ -283,12 +284,12 @@ func (s *chatSession) sendText(text string) bool {
 	s.sending = true
 	s.last = text
 	s.sendBtn.Disable()
-	s.setStatus("running…", toneAccent)
+	s.setStatus(T("playground.statusRunning"), toneAccent)
 	clearBox(s.traceBox)
 	s.events = nil
 
-	s.addBubble("You", text, true)
-	s.assistant = s.addBubble("Agent", "…", false)
+	s.addBubble(T("playground.roleYou"), text, true)
+	s.assistant = s.addBubble(T("playground.roleAgent"), "…", false)
 
 	actAs := ""
 	if s.actAs != nil {
@@ -322,10 +323,10 @@ func (s *chatSession) sendText(text string) bool {
 						s.appendReply(s.assistant, ev.Reply.Text)
 					}
 				case "error":
-					s.setStatus("error: "+ev.Error, toneDanger)
+					s.setStatus(T("playground.statusErrorWith", "message", ev.Error), toneDanger)
 				case "done":
 					if ev.Done != nil && ev.Done.TimedOut {
-						s.setStatus("turn timed out; the loop is still running", toneWarning)
+						s.setStatus(T("playground.statusTimedOut"), toneWarning)
 					}
 				}
 			})
@@ -339,11 +340,11 @@ func (s *chatSession) sendText(text string) bool {
 			s.sendBtn.Enable()
 			switch {
 			case canceled:
-				s.setStatus("turn canceled", toneWarning)
+				s.setStatus(T("playground.statusCanceled"), toneWarning)
 			case err != nil:
-				s.setStatus("error: "+err.Error(), toneDanger)
-			case strings.HasPrefix(s.status.Text, "running"):
-				s.setStatus("done", toneSuccess)
+				s.setStatus(T("playground.statusErrorWith", "message", err.Error()), toneDanger)
+			case s.status.Text == T("playground.statusRunning"):
+				s.setStatus(T("playground.statusDone"), toneSuccess)
 			}
 			if s.onTurnEnd != nil {
 				s.onTurnEnd()
@@ -414,27 +415,28 @@ func (s *chatSession) appendReply(label *widget.Label, text string) {
 
 func (s *chatSession) renderTrace() {
 	clearBox(s.traceBox)
-	filter := ""
+	// 0 all events, 1 ops only, 2 errors only.
+	filter := 0
 	if s.filter != nil {
-		filter = s.filter.Selected
+		filter = s.filter.SelectedIndex()
 	}
 	shown := 0
 	for _, ev := range s.events {
-		if filter == "Ops only" && ev.Op == "" {
+		if filter == 1 && ev.Op == "" {
 			continue
 		}
-		if filter == "Errors only" && ev.Err == "" && ev.Kind != "error" {
+		if filter == 2 && ev.Err == "" && ev.Kind != "error" {
 			continue
 		}
 		s.traceBox.Add(s.traceRow(ev))
 		shown++
 	}
 	if shown == 0 {
-		s.traceBox.Add(muted("No events match this filter yet."))
+		s.traceBox.Add(muted(T("playground.noEventsMatch")))
 	}
 	s.traceBox.Refresh()
 	s.traceScroll.ScrollToBottom()
-	s.tokens.SetText(fmt.Sprintf("%d tok", traceTokens(s.events)))
+	s.tokens.SetText(T("playground.traceTokens", "n", traceTokens(s.events)))
 }
 
 // traceRow is one event as a two-line entry: sequence and kind on the first
@@ -464,7 +466,7 @@ func (s *chatSession) traceRow(ev api.TraceEvent) fyne.CanvasObject {
 		cost = append(cost, strconv.FormatInt(ev.DurationMS, 10)+"ms")
 	}
 	if ev.TokensIn+ev.TokensOut > 0 {
-		cost = append(cost, fmt.Sprintf("%d→%d tok", ev.TokensIn, ev.TokensOut))
+		cost = append(cost, T("playground.costTokens", "in", ev.TokensIn, "out", ev.TokensOut))
 	}
 	top := container.NewBorder(nil, nil,
 		hstack(spaceS, container.NewCenter(dotBox(dot(rowTone))), container.NewCenter(seq), container.NewCenter(kind)),
@@ -477,7 +479,7 @@ func (s *chatSession) traceRow(ev api.TraceEvent) fyne.CanvasObject {
 		}
 	}
 	if ev.ToolCalls > 0 {
-		detail = append(detail, fmt.Sprintf("%d call(s)", ev.ToolCalls))
+		detail = append(detail, T("playground.toolCalls", "n", ev.ToolCalls))
 	}
 	body := vstack(3, top)
 	if len(detail) > 0 {
@@ -504,5 +506,5 @@ func (s *chatSession) showEvent(ev api.TraceEvent) {
 	body.Selectable = true
 	scroll := container.NewVScroll(body)
 	scroll.SetMinSize(fyne.NewSize(560, 400))
-	showModalCard(s.app.win, "Trace event #"+strconv.FormatInt(ev.Seq, 10), ev.Kind, inputFrame(scroll), nil)
+	showModalCard(s.app.win, T("playground.eventTitle", "seq", ev.Seq), ev.Kind, inputFrame(scroll), nil)
 }

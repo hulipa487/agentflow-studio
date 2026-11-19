@@ -7,10 +7,11 @@ import type { Group, Membership } from '@/api/types'
 import { Banner, Button, Chip, ComboInput, Field, IconButton, Input, KV, Loading, Panel, Section, StatusChip, Table } from '@/components/ui'
 import { Split } from '@/components/ui/Split'
 import { useAsync } from '@/lib/hooks'
+import { t } from '@/i18n'
 import { relTime, shortID } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { confirm, toast } from '@/state/ui'
-import { quoted, useAlive } from '../users/helpers'
+import { useAlive } from '../users/helpers'
 import { PaneNote, RailRow } from '../users/rail'
 import { FormModal, Ident, type Directory, type PaneProps } from './shared'
 
@@ -22,18 +23,18 @@ export function GroupsPane({ dir, selected, onSelect, rev, reloadAll, notify }: 
   const left = (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <Button icon={Plus} className="self-start" onClick={() => setCreating(true)}>
-        New group
+        {t('tenancy.groups.new')}
       </Button>
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
         {dir.groups.length === 0 && (
-          <PaneNote>No groups. A group has one master and any number of members; a chat enters it with /group &lt;uuid&gt;.</PaneNote>
+          <PaneNote>{t('tenancy.groups.empty')}</PaneNote>
         )}
         {dir.groups.map((g) => (
           <RailRow
             key={g.uuid}
             icon={Users}
             title={g.name}
-            caption={shortID(g.uuid) + (disbandedAt(g) > 0 ? ' · disbanded ' + relTime(disbandedAt(g)) : '')}
+            caption={shortID(g.uuid) + (disbandedAt(g) > 0 ? ' · ' + t('tenancy.groups.disbandedWhen', { when: relTime(disbandedAt(g)) }) : '')}
             active={g.uuid === selected}
             onClick={() => onSelect(g.uuid)}
           />
@@ -45,7 +46,7 @@ export function GroupsPane({ dir, selected, onSelect, rev, reloadAll, notify }: 
   const right = (
     <div className="min-h-0 flex-1 overflow-y-auto">
       {selected === '' ? (
-        <PaneNote lowered>Select a group to manage its members.</PaneNote>
+        <PaneNote lowered>{t('tenancy.groups.selectHint')}</PaneNote>
       ) : (
         <GroupDetail key={selected} id={selected} dir={dir} rev={rev} reloadAll={reloadAll} notify={notify} />
       )}
@@ -62,7 +63,7 @@ export function GroupsPane({ dir, selected, onSelect, rev, reloadAll, notify }: 
           onCreated={(g) => {
             setCreating(false)
             onSelect(g.uuid)
-            toast(`group ${g.name} created`, 'success')
+            toast(t('tenancy.groups.created', { name: g.name }), 'success')
             reloadAll()
           }}
         />
@@ -82,7 +83,7 @@ function GroupDetail({ id, dir, rev, reloadAll, notify }: { id: string; dir: Dir
 
   if (!data) {
     if (error && !loading) return <Banner tone="danger">{errorMessage(error)}</Banner>
-    return <Loading text="Loading group…" />
+    return <Loading text={t('tenancy.groups.loading')} />
   }
 
   const g = data.group
@@ -111,42 +112,42 @@ function GroupDetail({ id, dir, rev, reloadAll, notify }: { id: string; dir: Dir
   const addMember = () => {
     const user = adding.trim()
     if (user === '') {
-      notify({ text: 'Enter the tenant uuid to add.', tone: 'warning' })
+      notify({ text: t('tenancy.groups.enterUuid'), tone: 'warning' })
       return
     }
-    void run('add', () => client.addMember(g.uuid, user), 'member added', 'success', 'detail').then((ok) => {
+    void run('add', () => client.addMember(g.uuid, user), t('tenancy.groups.memberAdded'), 'success', 'detail').then((ok) => {
       if (ok && alive.current) setAdding('')
     })
   }
 
   const setMaster = async (user: string) => {
     const ok = await confirm({
-      title: 'Change master',
-      message: `Hand ${quoted(g.name)} from ${who(g.master)} to ${who(user)}?`,
-      confirmLabel: 'Change master',
+      title: t('tenancy.groups.changeMaster'),
+      message: t('tenancy.groups.changeMasterMessage', { name: g.name, from: who(g.master), to: who(user) }),
+      confirmLabel: t('tenancy.groups.changeMaster'),
     })
-    if (ok) await run('master:' + user, () => client.setMaster(g.uuid, g.master, user), 'master changed', 'success', 'all')
+    if (ok) await run('master:' + user, () => client.setMaster(g.uuid, g.master, user), t('tenancy.groups.masterChanged'), 'success', 'all')
   }
 
   const removeMember = async (user: string) => {
     const ok = await confirm({
-      title: 'Remove member',
-      message: `Remove ${who(user)} from ${quoted(g.name)}? Their turns stop acting in this group immediately.`,
-      confirmLabel: 'Remove',
+      title: t('tenancy.groups.removeMember'),
+      message: t('tenancy.groups.removeMemberMessage', { who: who(user), name: g.name }),
+      confirmLabel: t('common.remove'),
       danger: true,
     })
-    if (ok) await run('remove:' + user, () => client.removeMember(g.uuid, user), 'member removed', 'warning', 'detail')
+    if (ok) await run('remove:' + user, () => client.removeMember(g.uuid, user), t('tenancy.groups.memberRemoved'), 'warning', 'detail')
   }
 
   const disband = async () => {
     const ok = await confirm({
-      title: 'Disband group',
-      message: `Disband ${quoted(g.name)}? Access ends now for every member; its rows are deleted when the disband retention elapses. This is done as the master (${who(g.master)}).`,
-      confirmLabel: 'Disband',
+      title: t('tenancy.groups.disbandTitle'),
+      message: t('tenancy.groups.disbandMessage', { name: g.name, master: who(g.master) }),
+      confirmLabel: t('tenancy.groups.disbandConfirm'),
       danger: true,
     })
     // The runtime only accepts a disband from the current master.
-    if (ok) await run('disband', () => client.disbandGroup(g.uuid, g.master), 'group disbanded', 'warning', 'all')
+    if (ok) await run('disband', () => client.disbandGroup(g.uuid, g.master), t('tenancy.groups.disbandDone'), 'warning', 'all')
   }
 
   return (
@@ -154,33 +155,33 @@ function GroupDetail({ id, dir, rev, reloadAll, notify }: { id: string; dir: Dir
       <Panel className="flex flex-col gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-md font-semibold">{g.name}</span>
-          {disbanded ? <StatusChip tone="danger">disbanded</StatusChip> : <StatusChip tone="success">active</StatusChip>}
+          {disbanded ? <StatusChip tone="danger">{t('tenancy.groups.stateDisbanded')}</StatusChip> : <StatusChip tone="success">{t('tenancy.groups.stateActive')}</StatusChip>}
           <span className="flex-1" />
           <Button variant="danger" icon={Trash2} loading={busy === 'disband'} disabled={disbanded || busy !== ''} onClick={disband}>
-            Disband…
+            {t('tenancy.groups.disbandButton')}
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-          <KV label="group uuid" value={g.uuid} copy={g.uuid} />
-          <KV label="master" value={who(g.master)} copy={g.master} />
-          <KV label="created" value={relTime(g.created_at)} />
-          {disbanded && <KV label="disbanded" value={relTime(disbandedAt(g))} />}
+          <KV label={t('tenancy.groups.kvUuid')} value={g.uuid} copy={g.uuid} />
+          <KV label={t('tenancy.groups.master')} value={who(g.master)} copy={g.master} />
+          <KV label={t('tenancy.kvCreated')} value={relTime(g.created_at)} />
+          {disbanded && <KV label={t('tenancy.groups.kvDisbanded')} value={relTime(disbandedAt(g))} />}
         </div>
       </Panel>
 
       <Section
-        title="Members"
-        subtitle="A turn acts in the group only when the sender is an active member; the engine validates it, the route only proposes."
+        title={t('tenancy.groups.membersTitle')}
+        subtitle={t('tenancy.groups.membersSubtitle')}
         flush
       >
         <Table<Membership>
           rows={members}
           rowKey={(m) => m.user}
-          empty="No members."
+          empty={t('tenancy.groups.noMembers')}
           columns={[
-            { key: 'role', title: 'role', width: 86, render: (m) => (m.user === g.master ? <Chip tone="accent">master</Chip> : <Chip>member</Chip>) },
-            { key: 'tenant', title: 'tenant', render: (m) => <Ident label={who(m.user)} id={m.user} what="tenant uuid" /> },
-            { key: 'joined', title: 'joined', width: 100, render: (m) => relTime(m.joined_at) },
+            { key: 'role', title: t('tenancy.groups.colRole'), width: 86, render: (m) => (m.user === g.master ? <Chip tone="accent">{t('tenancy.groups.master')}</Chip> : <Chip>{t('tenancy.groups.member')}</Chip>) },
+            { key: 'tenant', title: t('tenancy.colTenant'), render: (m) => <Ident label={who(m.user)} id={m.user} what={t('tenancy.whatTenantUuid')} /> },
+            { key: 'joined', title: t('tenancy.groups.colJoined'), width: 100, render: (m) => relTime(m.joined_at) },
             {
               key: 'master',
               title: '',
@@ -188,7 +189,7 @@ function GroupDetail({ id, dir, rev, reloadAll, notify }: { id: string; dir: Dir
               align: 'right',
               render: (m) => (
                 <Button size="sm" loading={busy === 'master:' + m.user} disabled={m.user === g.master || disbanded || busy !== ''} onClick={() => setMaster(m.user)}>
-                  Make master
+                  {t('tenancy.groups.makeMaster')}
                 </Button>
               ),
             },
@@ -202,7 +203,7 @@ function GroupDetail({ id, dir, rev, reloadAll, notify }: { id: string; dir: Dir
                   icon={X}
                   size="sm"
                   tone="danger"
-                  label="Remove"
+                  label={t('common.remove')}
                   loading={busy === 'remove:' + m.user}
                   disabled={m.user === g.master || disbanded || busy !== ''}
                   onClick={() => removeMember(m.user)}
@@ -222,15 +223,15 @@ function GroupDetail({ id, dir, rev, reloadAll, notify }: { id: string; dir: Dir
             <div className="min-w-0 flex-1">
               <ComboInput
                 mono
-                aria-label="Tenant uuid to add"
+                aria-label={t('tenancy.groups.addAria')}
                 options={dir.userIDs}
-                placeholder="tenant uuid to add"
+                placeholder={t('tenancy.groups.addPlaceholder')}
                 value={adding}
                 onChange={(e) => setAdding(e.target.value)}
               />
             </div>
             <Button type="submit" icon={Plus} loading={busy === 'add'} disabled={busy !== ''}>
-              Add member
+              {t('tenancy.groups.addMember')}
             </Button>
           </form>
         )}
@@ -251,7 +252,7 @@ function NewGroupDialog({ dir, onClose, onCreated }: { dir: Directory; onClose: 
     const n = name.trim()
     const c = creator.trim()
     if (n === '' || c === '') {
-      setError('A name and a creator are required.')
+      setError(t('tenancy.groups.required'))
       return
     }
     setBusy(true)
@@ -271,22 +272,22 @@ function NewGroupDialog({ dir, onClose, onCreated }: { dir: Directory; onClose: 
 
   return (
     <FormModal
-      title="New group"
-      subtitle="Groups are recorded in the runtime store and are live immediately."
-      okLabel="Create"
+      title={t('tenancy.groups.new')}
+      subtitle={t('tenancy.groups.newSubtitle')}
+      okLabel={t('common.create')}
       busy={busy}
       error={error}
       onSubmit={submit}
       onClose={onClose}
     >
-      <Field label="Name">
+      <Field label={t('common.name')}>
         <Input autoFocus placeholder="design-team" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
       </Field>
-      <Field label="Creator" hint="The creator's personal uuid. They become the master and the first member.">
+      <Field label={t('tenancy.creator')} hint={t('tenancy.groups.creatorHint')}>
         <ComboInput
           mono
           options={dir.userIDs}
-          placeholder="creator's tenant uuid (becomes master)"
+          placeholder={t('tenancy.groups.creatorPlaceholder')}
           value={creator}
           onChange={(e) => setCreator(e.target.value)}
           disabled={busy}

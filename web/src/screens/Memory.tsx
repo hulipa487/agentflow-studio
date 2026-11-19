@@ -9,8 +9,8 @@ import { docPath } from './docs/helpers'
 import { ApiError, errorMessage } from '@/api/client'
 import type { MemoryBackend, MemoryList, MemoryProfile } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, CopyButton, IconButton, Page, Section } from '@/components/ui'
+import { t } from '@/i18n'
 import { useAsync, useScreenActions } from '@/lib/hooks'
-import { plural } from '@/lib/format'
 import { useClient, useSession } from '@/state/session'
 import { confirm, info, toast } from '@/state/ui'
 import { LiveChip, useMounted } from './safety/parts'
@@ -39,7 +39,7 @@ export default function Memory() {
         return await client.memory(signal)
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
-          throw new ApiError(404, 'This runtime does not expose the Studio memory API yet; rebuild and restart AgentFlow, then reopen Memory.')
+          throw new ApiError(404, t('memory.apiMissing'))
         }
         throw err
       }
@@ -65,8 +65,8 @@ export default function Memory() {
 
   const readOnly = () =>
     void info({
-      title: 'Memory is read-only',
-      message: list?.note || 'This deployment has no editable config source, so memory cannot be changed from Studio.',
+      title: t('memory.readOnlyTitle'),
+      message: list?.note || t('memory.readOnlyMessage'),
     })
 
   const open = (next: Editor) => {
@@ -90,12 +90,9 @@ export default function Memory() {
   const remove = async (kind: Editor['kind'], name: string) => {
     if (!editable) return readOnly()
     const ok = await confirm({
-      title: kind === 'profile' ? 'Delete memory profile' : 'Delete memory backend',
-      message:
-        kind === 'profile'
-          ? `Delete memory profile "${name}" from the deployment config?\n\nThe stored records are not deleted.`
-          : `Delete memory backend "${name}" from the deployment config?\n\nThe database itself and its records are not touched.`,
-      confirmLabel: 'Delete',
+      title: kind === 'profile' ? t('memory.deleteProfileTitle') : t('memory.deleteBackendTitle'),
+      message: kind === 'profile' ? t('memory.deleteProfileMessage', { name }) : t('memory.deleteBackendMessage', { name }),
+      confirmLabel: t('common.delete'),
       danger: true,
     })
     if (!ok || !mounted.current) return
@@ -104,7 +101,7 @@ export default function Memory() {
     try {
       const next = kind === 'profile' ? await client.deleteMemoryProfile(name, mtime) : await client.deleteMemoryBackend(name, mtime)
       if (!mounted.current) return
-      applied(next, `memory ${kind} deleted · restart required`)
+      applied(next, kind === 'profile' ? t('memory.profileDeleted') : t('memory.backendDeleted'))
     } catch (err) {
       if (mounted.current) setActionError(errorMessage(err))
     } finally {
@@ -117,32 +114,32 @@ export default function Memory() {
 
   return (
     <Page
-      title="Memory"
-      subtitle="Where agents keep what they remember: backends are the databases, profiles are the stores an agent reads and writes. Saves go to the deployment config and open on the next runtime start."
+      title={t('memory.title')}
+      subtitle={t('memory.subtitle')}
       actions={
         <>
           <Button icon={BookOpen} onClick={() => navigate(docPath('memory'))}>
-            Memory guide
+            {t('memory.guide')}
           </Button>
-          <IconButton icon={RotateCw} label="Refresh" loading={refreshing} onClick={refresh} />
+          <IconButton icon={RotateCw} label={t('common.refresh')} loading={refreshing} onClick={refresh} />
         </>
       }
       meta={
         list && (
           <>
             <LiveChip live={!restart} />
-            <span>{plural(backends.length, 'backend')}</span>
-            <span>{plural(profiles.length, 'profile')}</span>
-            <span>source {list.mode || 'file'}</span>
+            <span>{t('memory.backendCount', { n: backends.length })}</span>
+            <span>{t('memory.profileCount', { n: profiles.length })}</span>
+            <span>{t('memory.source', { mode: list.mode || 'file' })}</span>
             {list.path && (
               <span className="flex min-w-0 items-center gap-1">
                 <span className="truncate" title={list.path}>
                   {list.path}
                 </span>
-                <CopyButton text={list.path} what="path" />
+                <CopyButton text={list.path} what={t('memory.whatPath')} />
               </span>
             )}
-            <span className={editable ? undefined : 'text-warning'}>{editable ? 'editable' : 'read-only'}</span>
+            <span className={editable ? undefined : 'text-warning'}>{editable ? t('memory.editable') : t('memory.readOnly')}</span>
           </>
         )
       }
@@ -155,51 +152,42 @@ export default function Memory() {
               </Banner>
             )}
             {!editable ? (
-              <Banner tone="warning">{list.note || 'This deployment has no editable config source for memory.'}</Banner>
+              <Banner tone="warning">{list.note || t('memory.readOnlyBanner')}</Banner>
             ) : (
-              pendingNote && (
-                <Banner tone="warning">
-                  {restart && 'Restart required — '}
-                  {pendingNote}
-                </Banner>
-              )
+              pendingNote && <Banner tone="warning">{restart ? t('safety.restartRequiredNote', { note: pendingNote }) : pendingNote}</Banner>
             )}
           </>
         ) : undefined
       }
     >
-      <AsyncView loading={loading} error={error} hasData={!!list} retry={refresh} loadingText="Loading memory…">
+      <AsyncView loading={loading} error={error} hasData={!!list} retry={refresh} loadingText={t('memory.loading')}>
         <div className="flex flex-col gap-3">
           <Section
             flush
-            title="Profiles"
-            subtitle={
-              builtin.length > 0
-                ? `Named store sets agents pick in the builder. The built-in "conversational" profile is used by ${builtin.join(', ')}.`
-                : 'Named store sets agents pick in the builder, besides the built-in "conversational" one.'
-            }
+            title={t('memory.profiles')}
+            subtitle={builtin.length > 0 ? t('memory.profilesSubtitleBuiltin', { agents: builtin.join(', ') }) : t('memory.profilesSubtitle')}
             action={
               <Button size="sm" icon={Plus} disabled={!editable} onClick={() => open({ kind: 'profile', existing: null })}>
-                New profile
+                {t('memory.newProfile')}
               </Button>
             }
           >
-            {profiles.length === 0 && <p className="px-3 pb-2 text-sm text-muted">No named memory profiles yet.</p>}
+            {profiles.length === 0 && <p className="px-3 pb-2 text-sm text-muted">{t('memory.noProfiles')}</p>}
             {profiles.map((p) => {
               const inUse = profileInUse(p)
               return (
                 <div key={p.name} className="border-t border-line/70 px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate font-mono text-base font-semibold">{p.name}</span>
-                    <Chip tone="accent">{plural((p.stores ?? []).length, 'store')}</Chip>
+                    <Chip tone="accent">{t('memory.storeCount', { n: (p.stores ?? []).length })}</Chip>
                     {p.recall && <Chip>{p.recall}</Chip>}
                     <LiveChip live={p.live} />
                     <div className="flex-1" />
-                    <IconButton icon={Pencil} label={`Edit ${p.name}`} onClick={() => open({ kind: 'profile', existing: p })} />
+                    <IconButton icon={Pencil} label={t('memory.editWhat', { name: p.name })} onClick={() => open({ kind: 'profile', existing: p })} />
                     <IconButton
                       icon={Trash2}
                       tone="danger"
-                      label={inUse ? `Cannot delete ${p.name}; it is used by ${profileUsedBy(p)}.` : `Delete ${p.name}`}
+                      label={inUse ? t('memory.cannotDelete', { name: p.name, usedBy: profileUsedBy(p) }) : t('memory.deleteWhat', { name: p.name })}
                       disabled={inUse || deleting !== ''}
                       loading={deleting === 'profile:' + p.name}
                       onClick={() => void remove('profile', p.name)}
@@ -212,14 +200,13 @@ export default function Memory() {
                       </Row>
                     ))}
                     {p.embed_model && (
-                      <Row label="embedding">
+                      <Row label={t('memory.row.embedding')}>
                         <span className="font-mono">
-                          {p.embed_model}
-                          {p.rerank_model ? ` · rerank ${p.rerank_model}` : ''}
+                          {p.rerank_model ? t('memory.embeddingRerank', { embed: p.embed_model, rerank: p.rerank_model }) : p.embed_model}
                         </span>
                       </Row>
                     )}
-                    <Row label="used by">{profileUsedBy(p)}</Row>
+                    <Row label={t('memory.row.usedBy')}>{profileUsedBy(p)}</Row>
                   </div>
                 </div>
               )
@@ -228,11 +215,11 @@ export default function Memory() {
 
           <Section
             flush
-            title="Backends"
-            subtitle="The databases stores live in. Secrets are never shown; use ${VAR} or cred:<service> to keep them out of the file."
+            title={t('memory.backends')}
+            subtitle={t('memory.backendsSubtitle')}
             action={
               <Button size="sm" icon={Plus} disabled={!editable} onClick={() => open({ kind: 'backend', existing: null })}>
-                New backend
+                {t('memory.newBackend')}
               </Button>
             }
           >
@@ -243,18 +230,22 @@ export default function Memory() {
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate font-mono text-base font-semibold">{b.name}</span>
                     <Chip tone="accent">{b.provider}</Chip>
-                    {b.implicit ? <Chip title="Not in the file: the runtime store, used while no backend is declared">built-in</Chip> : <LiveChip live={b.live} />}
+                    {b.implicit ? <Chip title={t('memory.builtinChipTitle')}>{t('memory.builtinChip')}</Chip> : <LiveChip live={b.live} />}
                     <div className="flex-1" />
                     <IconButton
                       icon={Pencil}
-                      label={b.implicit ? 'Write main_db out to the config to change it' : `Edit ${b.name}`}
+                      label={b.implicit ? t('memory.writeOutMainDb') : t('memory.editWhat', { name: b.name })}
                       onClick={() => open({ kind: 'backend', existing: b })}
                     />
                     {!b.implicit && (
                       <IconButton
                         icon={Trash2}
                         tone="danger"
-                        label={inUse ? `Cannot delete ${b.name}; it is used by ${backendUsedBy(b, builtin)}.` : `Delete ${b.name}`}
+                        label={
+                          inUse
+                            ? t('memory.cannotDelete', { name: b.name, usedBy: backendUsedBy(b, builtin) })
+                            : t('memory.deleteWhat', { name: b.name })
+                        }
                         disabled={inUse || deleting !== ''}
                         loading={deleting === 'backend:' + b.name}
                         onClick={() => void remove('backend', b.name)}
@@ -262,15 +253,17 @@ export default function Memory() {
                     )}
                   </div>
                   <div className="mt-1.5 flex flex-col gap-1">
-                    <Row label="target">
+                    <Row label={t('memory.row.target')}>
                       <span className="font-mono">{backendTarget(b)}</span>
                     </Row>
                     {b.dim ? (
-                      <Row label="dimensions">
+                      <Row label={t('memory.row.dimensions')}>
                         <span className="font-mono">{b.dim}</span>
                       </Row>
                     ) : null}
-                    <Row label="used by">{b.implicit && builtin.length > 0 ? `built-in profile: ${builtin.join(', ')}` : backendUsedBy(b, builtin)}</Row>
+                    <Row label={t('memory.row.usedBy')}>
+                      {b.implicit && builtin.length > 0 ? t('memory.builtinProfileUsedBy', { agents: builtin.join(', ') }) : backendUsedBy(b, builtin)}
+                    </Row>
                   </div>
                 </div>
               )
@@ -287,7 +280,7 @@ export default function Memory() {
           onClose={() => setEditor(null)}
           onSaved={(next) => {
             setEditor(null)
-            applied(next, next.saved_note || 'memory profile saved · restart required')
+            applied(next, next.saved_note || t('memory.profileSaved'))
           }}
           reload={reloadForEditor}
         />
@@ -300,7 +293,7 @@ export default function Memory() {
           onClose={() => setEditor(null)}
           onSaved={(next) => {
             setEditor(null)
-            applied(next, next.saved_note || 'memory backend saved · restart required')
+            applied(next, next.saved_note || t('memory.backendSaved'))
           }}
           reload={reloadForEditor}
         />

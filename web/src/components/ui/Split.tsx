@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { t } from '@/i18n'
 import { cx } from './index'
 
 /**
@@ -103,7 +104,7 @@ export function Split({
       }}
       onDoubleClick={() => setSize(initial)}
       className={cx('group relative w-3 shrink-0 cursor-col-resize', collapsed && 'hidden')}
-      title="Drag to resize · double-click to reset"
+      title={t('common.resizeHint')}
     >
       <span className="absolute inset-y-2 left-1/2 w-px -translate-x-1/2 rounded-full bg-transparent transition-colors group-hover:bg-accent/60" />
     </div>

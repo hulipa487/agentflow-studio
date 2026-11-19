@@ -4,6 +4,7 @@
 import { create } from 'zustand'
 import { ApiError, Client, errorMessage } from '@/api/client'
 import type { Catalog, State } from '@/api/types'
+import { t } from '@/i18n'
 import { activeProfile, tokenFor, useConnections } from './connections'
 import { toast } from './ui'
 
@@ -77,11 +78,11 @@ function startHeartbeat() {
       const runtime = await client.state(ctl.signal)
       if (useSession.getState().client !== client) return
       useSession.setState({ online: true, runtime })
-      if (!online) toast('runtime reachable again', 'success')
+      if (!online) toast(t('connection.reachableAgain'), 'success')
     } catch (err) {
       if (useSession.getState().client !== client) return
       useSession.setState({ online: false })
-      if (online) toast('runtime unreachable: ' + errorMessage(err), 'danger')
+      if (online) toast(t('connection.unreachable', { message: errorMessage(err) }), 'danger')
     } finally {
       clearTimeout(timer)
     }
@@ -101,14 +102,14 @@ export const useSession = create<SessionState>((set, get) => ({
 
   connect: async (url, token, { remember, viaProxy, signal, onStep }) => {
     const client = new Client({ url, token, viaProxy })
-    onStep?.(`Contacting ${client.displayURL}…`)
+    onStep?.(t('connection.contacting', { url: client.displayURL }))
     // The state call is the ping: it proves the address and the token.
     const runtime = await client.state(signal)
-    onStep?.('token accepted · loading the Studio catalog…')
+    onStep?.(t('connection.tokenAccepted'))
     const catalog = await client.catalog(signal).catch((err: unknown) => {
       if (signal?.aborted) throw err
       // The address and token were right; say which half failed.
-      const text = 'connected, but the Studio API is unavailable: ' + errorMessage(err)
+      const text = t('connection.studioUnavailable', { message: errorMessage(err) })
       throw err instanceof ApiError ? new ApiError(err.status, text, err.network) : new Error(text)
     })
     // Only a connection that worked is saved, so a wrong URL or token never
@@ -130,7 +131,7 @@ export const useSession = create<SessionState>((set, get) => ({
       timedOut = true
       ctl.abort()
     }, CONNECT_TIMEOUT_MS)
-    set({ restoring: true, restoreStep: `Contacting ${p.url}…`, restoreError: '', restoreCause: undefined })
+    set({ restoring: true, restoreStep: t('connection.contacting', { url: p.url }), restoreError: '', restoreCause: undefined })
     try {
       await get().connect(p.url, token, {
         remember: !p.forgetToken,
@@ -146,8 +147,8 @@ export const useSession = create<SessionState>((set, get) => ({
       if (restoreCtl !== ctl || (ctl.signal.aborted && !timedOut)) return false
       // Falling back to the welcome screen without a word would look like the
       // saved connection had been lost.
-      const cause = timedOut ? new ApiError(0, 'no answer within 20 seconds', true) : err
-      set({ restoreError: `Could not reconnect to ${p.name}: ${errorMessage(cause)}`, restoreCause: cause })
+      const cause = timedOut ? new ApiError(0, t('connection.noAnswer20s'), true) : err
+      set({ restoreError: t('connection.reconnectFailed', { name: p.name, message: errorMessage(cause) }), restoreCause: cause })
       return false
     } finally {
       clearTimeout(timer)
@@ -188,7 +189,7 @@ export const useSession = create<SessionState>((set, get) => ({
 /** The connected client. Screens render only while connected, so this is non-null there. */
 export function useClient(): Client {
   const client = useSession((s) => s.client)
-  if (!client) throw new Error('not connected')
+  if (!client) throw new Error(t('connection.notConnected'))
   return client
 }
 

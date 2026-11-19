@@ -5,12 +5,13 @@ import { ApiError } from '@/api/client'
 import type { Client } from '@/api/client'
 import { useSession } from '@/state/session'
 import { confirm, toast, toastError } from '@/state/ui'
+import { t } from '@/i18n'
 
 export async function deleteAgentFlow(client: Client, name: string): Promise<boolean> {
   const ok = await confirm({
-    title: 'Delete agent',
-    message: `Delete agent "${name}" and its persisted files?`,
-    confirmLabel: 'Delete',
+    title: t('agents.deleteTitle'),
+    message: t('agents.deleteMessage', { name }),
+    confirmLabel: t('common.delete'),
     danger: true,
   })
   if (!ok) return false
@@ -22,9 +23,9 @@ export async function deleteAgentFlow(client: Client, name: string): Promise<boo
       return false
     }
     const force = await confirm({
-      title: 'Delete agent',
-      message: `${err.message || `Agent "${name}" has live sessions. Stop them and delete it?`}\n\nForce the delete?`,
-      confirmLabel: 'Force delete',
+      title: t('agents.deleteTitle'),
+      message: t('agents.forceMessage', { reason: err.message || t('agents.liveSessionsMessage', { name }) }),
+      confirmLabel: t('agents.forceDelete'),
       danger: true,
     })
     if (!force) return false
@@ -35,7 +36,7 @@ export async function deleteAgentFlow(client: Client, name: string): Promise<boo
       return false
     }
   }
-  toast('deleted ' + name, 'success')
+  toast(t('agents.deleted', { name }), 'success')
   void useSession.getState().reloadCatalog()
   return true
 }

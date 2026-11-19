@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react'
 import type { DocHeading } from '@/docs/library'
 import { cx } from '@/components/ui'
+import { t } from '@/i18n'
 
 export function Outline({ outline, active, onPick }: { outline: DocHeading[]; active: number; onPick: (index: number) => void }) {
   const list = useRef<HTMLDivElement>(null)
@@ -13,8 +14,8 @@ export function Outline({ outline, active, onPick }: { outline: DocHeading[]; ac
 
   if (outline.length === 0) return null
   return (
-    <aside className="hidden w-[232px] shrink-0 flex-col border-l border-line min-[1200px]:flex" aria-label="On this page">
-      <div className="shrink-0 px-4 pb-1.5 pt-4 text-xs font-bold text-faint">On this page</div>
+    <aside className="hidden w-[232px] shrink-0 flex-col border-l border-line min-[1200px]:flex" aria-label={t('docs.onThisPage')}>
+      <div className="shrink-0 px-4 pb-1.5 pt-4 text-xs font-bold text-faint">{t('docs.onThisPage')}</div>
       <div ref={list} className="min-h-0 flex-1 overflow-y-auto pb-4 pl-4 pr-2">
         {outline.map((h, i) => (
           <button

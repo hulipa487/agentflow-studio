@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useUI, type ConfirmOptions, type PromptOptions } from '@/state/ui'
+import { t } from '@/i18n'
+import { tr } from '@/i18n/rich'
 import { Banner, Button, ComboInput, Field, Input, Modal, Textarea, cx, toneBg, toneText } from './index'
 
 function ConfirmDialog({ opts, resolve }: { opts: ConfirmOptions; resolve: (ok: boolean) => void }) {
@@ -17,16 +19,16 @@ function ConfirmDialog({ opts, resolve }: { opts: ConfirmOptions; resolve: (ok: 
       width={460}
       footer={
         <>
-          <Button onClick={() => resolve(false)}>{opts.cancelLabel ?? 'Cancel'}</Button>
+          <Button onClick={() => resolve(false)}>{opts.cancelLabel ?? t('common.cancel')}</Button>
           <Button variant={opts.danger ? 'danger' : 'primary'} disabled={blocked} onClick={() => resolve(true)} autoFocus={opts.typeToConfirm === undefined}>
-            {opts.confirmLabel ?? 'Confirm'}
+            {opts.confirmLabel ?? t('common.confirm')}
           </Button>
         </>
       }
     >
       <div className="whitespace-pre-wrap text-base leading-relaxed">{opts.message}</div>
       {opts.typeToConfirm !== undefined && (
-        <Field label={<>Type <code className="text-text">{opts.typeToConfirm}</code> to confirm</>} className="mt-4">
+        <Field label={tr('common.typeToConfirm', { text: opts.typeToConfirm }, { code: (c) => <code className="text-text">{c}</code> })} className="mt-4">
           <Input
             mono
             autoFocus
@@ -63,9 +65,9 @@ function PromptDialog({ opts, resolve }: { opts: PromptOptions; resolve: (v: str
       width={520}
       footer={
         <>
-          <Button onClick={() => resolve(null)}>Cancel</Button>
+          <Button onClick={() => resolve(null)}>{t('common.cancel')}</Button>
           <Button variant="primary" onClick={submit}>
-            {opts.okLabel ?? 'OK'}
+            {opts.okLabel ?? t('common.ok')}
           </Button>
         </>
       }
@@ -131,7 +133,7 @@ export function Overlays() {
           width={480}
           footer={
             <Button variant="primary" onClick={dialog.resolve} autoFocus>
-              Done
+              {t('common.done')}
             </Button>
           }
         >
@@ -139,18 +141,18 @@ export function Overlays() {
         </Modal>
       )}
       <div className="pointer-events-none fixed bottom-9 right-4 z-[60] flex w-[min(420px,calc(100vw-2rem))] flex-col items-end gap-2">
-        {toasts.map((t) => (
+        {toasts.map((item) => (
           <button
-            key={t.id}
+            key={item.id}
             type="button"
-            onClick={() => dismiss(t.id)}
+            onClick={() => dismiss(item.id)}
             className={cx(
               'pointer-events-auto max-w-full animate-pop-in rounded-ctl border border-line px-3 py-2 text-left text-xs shadow-float',
-              toneBg(t.tone),
-              t.tone === 'neutral' ? 'text-text' : toneText(t.tone),
+              toneBg(item.tone),
+              item.tone === 'neutral' ? 'text-text' : toneText(item.tone),
             )}
           >
-            {t.text}
+            {item.text}
           </button>
         ))}
       </div>

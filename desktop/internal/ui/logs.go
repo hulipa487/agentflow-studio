@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"image/color"
 	"strings"
 	"time"
@@ -20,6 +19,19 @@ const logBufferLines = 5000
 
 // logLevels orders the runtime's short level names (llog.ShortName).
 var logLevels = []string{"DEV", "DBG", "INF", "WRN", "ERR"}
+
+// logFloors are the level floors the toolbar offers: the message key of each
+// option and the lowest level it shows.
+var logFloors = []struct {
+	key   string
+	level int
+}{
+	{"logs.floorDebug", 1},
+	{"logs.floorInfo", 2},
+	{"logs.floorWarn", 3},
+	{"logs.floorError", 4},
+	{"logs.floorAll", 0},
+}
 
 func logLevelOf(line string) int {
 	// "15:04:05 INF message k=v": the level is the second field.
@@ -117,49 +129,43 @@ func (a *App) newLogsView() *logsView {
 	v.list.OnSelected = func(id widget.ListItemID) {
 		if id < len(v.filtered) {
 			v.app.win.Clipboard().SetContent(v.filtered[id])
-			v.app.setStatus("log line copied", toneSuccess)
+			v.app.setStatus(T("logs.lineCopied"), toneSuccess)
 		}
 		v.list.UnselectAll()
 	}
 
-	search := newSearchBox("Filter text, e.g. agent=assistant or err=", func(q string) {
+	search := newSearchBox(T("logs.filterPlaceholder"), func(q string) {
 		v.filter = strings.ToLower(strings.TrimSpace(q))
 		v.apply()
 	})
-	level := widget.NewSelect([]string{"Debug and up", "Info and up", "Warnings and errors", "Errors only", "Everything"}, func(s string) {
-		switch s {
-		case "Everything":
-			v.minLevel = 0
-		case "Debug and up":
-			v.minLevel = 1
-		case "Info and up":
-			v.minLevel = 2
-		case "Warnings and errors":
-			v.minLevel = 3
-		case "Errors only":
-			v.minLevel = 4
+	floors := make([]string, len(logFloors))
+	for i, f := range logFloors {
+		floors[i] = T(f.key)
+	}
+	var level *widget.Select
+	level = widget.NewSelect(floors, func(string) {
+		if i := level.SelectedIndex(); i >= 0 && i < len(logFloors) {
+			v.minLevel = logFloors[i].level
 		}
 		v.apply()
 	})
-	level.SetSelected("Debug and up")
-	v.pauseBtn = actionButton("Pause", theme.MediaPauseIcon(), v.togglePause)
-	clear := actionButton("Clear", theme.ContentClearIcon(), func() {
+	level.SetSelectedIndex(0)
+	v.pauseBtn = actionButton(T("logs.pause"), theme.MediaPauseIcon(), v.togglePause)
+	clear := actionButton(T("common.clear"), theme.ContentClearIcon(), func() {
 		v.lines = nil
 		v.apply()
 	})
-	copyAll := iconButton(theme.ContentCopyIcon(), "Copy visible lines", func() {
+	copyAll := iconButton(theme.ContentCopyIcon(), T("logs.copyVisible"), func() {
 		v.app.win.Clipboard().SetContent(strings.Join(v.filtered, "\n"))
-		v.app.setStatus(fmt.Sprintf("%d lines copied", len(v.filtered)), toneSuccess)
+		v.app.setStatus(T("logs.linesCopied", "n", len(v.filtered)), toneSuccess)
 	})
 	toolbar := container.NewBorder(nil, nil, nil,
 		hstack(spaceS, widthBox(190, level), v.pauseBtn, clear, copyAll),
 		search.Root)
 	content := container.NewBorder(toolbar, nil, nil, nil, panel(v.list))
-	v.s = a.newPane("Logs",
-		"The runtime's log tail: the last 500 lines replayed, then live. The level floor is the runtime's -log-level; click a line to copy it.",
-		nil, content)
+	v.s = a.newPane(T("logs.title"), T("logs.subtitle"), nil, content)
 	v.status = v.s.meta
-	v.status.SetText("connecting…")
+	v.status.SetText(T("logs.connecting"))
 	return v
 }
 
@@ -174,7 +180,7 @@ func (v *logsView) start(ctx context.Context) {
 				if ctx.Err() == nil {
 					v.lines = nil
 					v.apply()
-					v.status.SetText("streaming · " + c.DisplayURL)
+					v.status.SetText(T("logs.streaming", "url", c.DisplayURL))
 				}
 			})
 			err := c.Logs(ctx, func(line string) {
@@ -187,11 +193,12 @@ func (v *logsView) start(ctx context.Context) {
 			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 				return
 			}
-			msg := "stream ended"
+			seconds := int(backoff / time.Second)
+			msg := T("logs.endedReconnecting", "seconds", seconds)
 			if err != nil {
-				msg = err.Error()
+				msg = T("logs.reconnecting", "message", err.Error(), "seconds", seconds)
 			}
-			onUI(func() { v.status.SetText(msg + " · reconnecting in " + backoff.String()) })
+			onUI(func() { v.status.SetText(msg) })
 			select {
 			case <-ctx.Done():
 				return
@@ -211,7 +218,7 @@ func (v *logsView) push(line string) {
 	}
 	if v.paused {
 		v.pending++
-		v.pauseBtn.SetText(fmt.Sprintf("Resume (%d)", v.pending))
+		v.pauseBtn.SetText(T("logs.resumePending", "n", v.pending))
 		return
 	}
 	if v.matches(line) {
@@ -250,12 +257,12 @@ func (v *logsView) togglePause() {
 	v.paused = !v.paused
 	if v.paused {
 		v.pending = 0
-		v.pauseBtn.SetText("Resume")
+		v.pauseBtn.SetText(T("logs.resume"))
 		v.pauseBtn.SetIcon(theme.MediaPlayIcon())
 		return
 	}
 	v.pending = 0
-	v.pauseBtn.SetText("Pause")
+	v.pauseBtn.SetText(T("logs.pause"))
 	v.pauseBtn.SetIcon(theme.MediaPauseIcon())
 	v.apply()
 }

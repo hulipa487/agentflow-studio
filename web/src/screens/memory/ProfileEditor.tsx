@@ -5,6 +5,7 @@ import { Plus, X } from 'lucide-react'
 import type { Client } from '@/api/client'
 import type { MemoryList, MemoryProfile } from '@/api/types'
 import { Button, Checkbox, ComboInput, Field, IconButton, Input, Modal, Select } from '@/components/ui'
+import { t } from '@/i18n'
 import { EditorFooter, EditorNotice, useEditorActions } from '../safety/parts'
 import { STORE_SCOPES, buildProfileDraft, profileForm, storeRow, type ProfileForm, type StoreRow } from './helpers'
 
@@ -35,7 +36,7 @@ export function ProfileEditor({
     build: () => buildProfileDraft(form),
     validate: (d) => client.validateMemory({ kind: 'profile', creating, profile: d }),
     save: (d) => client.saveMemoryProfile(d.name, creating, d, list.mtime),
-    validText: () => 'Valid. Save it, then pick it for an agent in the builder after the next restart.',
+    validText: () => t('memory.profile.validText'),
     onSaved,
     reload,
     what: 'memory',
@@ -50,37 +51,50 @@ export function ProfileEditor({
       onClose={onClose}
       dismissable={!busy}
       width={760}
-      title={creating ? 'New memory profile' : 'Edit ' + existing.name}
-      subtitle="Agents name a profile with memory: <name>. The built-in plugins look for stores called dialogue, facts and semantic."
+      title={creating ? t('memory.profile.newTitle') : t('memory.editWhat', { name: existing.name })}
+      subtitle={t('memory.profile.subtitle')}
       footer={<EditorFooter actions={actions} onCancel={onClose} />}
     >
       <EditorNotice actions={actions} />
       <div className="flex flex-col gap-4">
-        <Field label="Name" hint='Agents refer to the profile by name, so it cannot change later. "conversational" is the built-in one.'>
+        <Field label={t('common.name')} hint={t('memory.profile.nameHint')}>
           <Input mono value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="group_chat" disabled={!creating} autoFocus={creating} />
         </Field>
 
-        <Field label="Stores" hint="Each logical store is a table on a backend. Retention is a duration such as 30d, or forever.">
+        <Field label={t('memory.profile.stores')} hint={t('memory.profile.storesHint')}>
           <div className="flex flex-col gap-2">
             {form.stores.length > 0 && (
               <div className="hidden grid-cols-[1fr_1fr_1fr_90px_80px_28px] gap-2 px-2.5 text-xs font-medium text-faint sm:grid" aria-hidden>
-                <span>store</span>
-                <span>backend</span>
-                <span>table</span>
-                <span>retention</span>
-                <span>window</span>
+                <span>{t('memory.col.store')}</span>
+                <span>{t('memory.col.backend')}</span>
+                <span>{t('memory.col.table')}</span>
+                <span>{t('memory.col.retention')}</span>
+                <span>{t('memory.col.window')}</span>
                 <span />
               </div>
             )}
             {form.stores.map((s, i) => (
               <div key={i} className="rounded-ctl border border-line bg-bg p-2.5">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr_90px_80px_28px]">
-                  <Input mono value={s.name} onChange={(e) => setStore(i, { name: e.target.value })} placeholder="store" aria-label="Store name" />
-                  <Select mono value={s.backend} onChange={(v) => setStore(i, { backend: v })} placeholder="backend…" options={backends} aria-label="Backend" />
-                  <Input mono value={s.table} onChange={(e) => setStore(i, { table: e.target.value })} placeholder="table" aria-label="Table" />
-                  <Input mono value={s.retention} onChange={(e) => setStore(i, { retention: e.target.value })} placeholder="retention" aria-label="Retention" />
-                  <Input mono inputMode="numeric" value={s.window} onChange={(e) => setStore(i, { window: e.target.value })} placeholder="window" aria-label="Window" title="How many recent records recall returns" />
-                  <IconButton icon={X} tone="danger" label={`Remove store ${s.name || i + 1}`} onClick={() => set('stores', form.stores.filter((_, at) => at !== i))} />
+                  <Input mono value={s.name} onChange={(e) => setStore(i, { name: e.target.value })} placeholder={t('memory.col.store')} aria-label={t('memory.store.nameAria')} />
+                  <Select mono value={s.backend} onChange={(v) => setStore(i, { backend: v })} placeholder={t('memory.store.backendPick')} options={backends} aria-label={t('memory.store.backendAria')} />
+                  <Input mono value={s.table} onChange={(e) => setStore(i, { table: e.target.value })} placeholder={t('memory.col.table')} aria-label={t('memory.store.tableAria')} />
+                  <Input mono value={s.retention} onChange={(e) => setStore(i, { retention: e.target.value })} placeholder={t('memory.col.retention')} aria-label={t('memory.store.retentionAria')} />
+                  <Input
+                    mono
+                    inputMode="numeric"
+                    value={s.window}
+                    onChange={(e) => setStore(i, { window: e.target.value })}
+                    placeholder={t('memory.col.window')}
+                    aria-label={t('memory.store.windowAria')}
+                    title={t('memory.store.windowTitle')}
+                  />
+                  <IconButton
+                    icon={X}
+                    tone="danger"
+                    label={t('memory.store.removeNamed', { name: s.name || i + 1 })}
+                    onClick={() => set('stores', form.stores.filter((_, at) => at !== i))}
+                  />
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
                   {requires.map((r) => (
@@ -96,37 +110,37 @@ export function ProfileEditor({
                     className="w-[170px]"
                     value={s.scope}
                     onChange={(v) => setStore(i, { scope: v })}
-                    options={STORE_SCOPES}
+                    options={STORE_SCOPES.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
                     disabled={s.pool.trim() !== ''}
-                    aria-label="Scope"
-                    title="Rows are kept per user by default; whole agent shares one set across users"
+                    aria-label={t('memory.store.scopeAria')}
+                    title={t('memory.store.scopeTitle')}
                   />
                   <Input
                     mono
                     className="w-[150px]"
                     value={s.pool}
                     onChange={(e) => setStore(i, { pool: e.target.value })}
-                    placeholder="shared pool"
-                    aria-label="Pool"
-                    title="A named shared pool from Tenancy; replaces the scope"
+                    placeholder={t('memory.store.poolPlaceholder')}
+                    aria-label={t('memory.store.poolAria')}
+                    title={t('memory.store.poolTitle')}
                   />
-                  <Checkbox checked={s.localityOk} onChange={(v) => setStore(i, { localityOk: v })} label="instance-local is fine" />
+                  <Checkbox checked={s.localityOk} onChange={(v) => setStore(i, { localityOk: v })} label={t('memory.store.localityOk')} />
                 </div>
               </div>
             ))}
             <div>
               <Button size="sm" icon={Plus} onClick={() => set('stores', [...form.stores, storeRow(null, backends[0] ?? '')])}>
-                Add store
+                {t('memory.store.add')}
               </Button>
             </div>
           </div>
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Recall" hint="plugin:recency reads dialogue and facts; plugin:semantic searches the semantic store by meaning.">
+          <Field label={t('memory.profile.recall')} hint={t('memory.profile.recallHint')}>
             <ComboInput mono value={form.recall} onChange={(e) => set('recall', e.target.value)} options={list.recall_plugins ?? []} placeholder="plugin:recency" />
           </Field>
-          <Field label="Write" hint="Passed to loops as agent.info().memory.write. memory.write always runs the routing table, so leave it as plugin:routing_table.">
+          <Field label={t('memory.profile.write')} hint={t('memory.profile.writeHint')}>
             <ComboInput
               mono
               value={form.write.join(', ')}
@@ -135,14 +149,14 @@ export function ProfileEditor({
               placeholder="plugin:routing_table"
             />
           </Field>
-          <Field label="Embed model" hint={semantic ? 'Required for semantic recall: it embeds each record on write and each query.' : 'Embeds each record on write, for semantic search.'}>
-            <Select mono value={form.embedModel} onChange={(v) => set('embedModel', v)} placeholder="none" options={list.models ?? []} />
+          <Field label={t('memory.profile.embedModel')} hint={semantic ? t('memory.profile.embedHintSemantic') : t('memory.profile.embedHint')}>
+            <Select mono value={form.embedModel} onChange={(v) => set('embedModel', v)} placeholder={t('common.none')} options={list.models ?? []} />
           </Field>
-          <Field label="Rerank model" hint="Optional: oversample vector hits and let a provider: rerank model order them.">
-            <Select mono value={form.rerankModel} onChange={(v) => set('rerankModel', v)} placeholder="none" options={list.rerank_models ?? []} />
+          <Field label={t('memory.profile.rerankModel')} hint={t('memory.profile.rerankHint')}>
+            <Select mono value={form.rerankModel} onChange={(v) => set('rerankModel', v)} placeholder={t('common.none')} options={list.rerank_models ?? []} />
           </Field>
           {form.rerankModel !== '' && (
-            <Field label="Oversample" hint="How many times k vector hits to rerank. Default 4.">
+            <Field label={t('memory.profile.oversample')} hint={t('memory.profile.oversampleHint')}>
               <Input mono inputMode="numeric" value={form.oversample} onChange={(e) => set('oversample', e.target.value)} placeholder="4" />
             </Field>
           )}

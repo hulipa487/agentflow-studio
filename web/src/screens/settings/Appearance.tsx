@@ -3,6 +3,7 @@
 import { Check, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react'
 import { Chip, Section, Segmented, cx } from '@/components/ui'
 import { PALETTES, useAppearance, type Mode, type Palette } from '@/state/appearance'
+import { t } from '@/i18n'
 import { FieldLabel, useShownTheme } from './parts'
 
 /**
@@ -26,11 +27,11 @@ function PalettePreview({ palette, theme }: { palette: Palette; theme: 'light' |
           <span className="text-xs font-semibold leading-none text-text">assistant</span>
           <span className="font-mono text-xs leading-none text-muted">loops/chat.lua</span>
           <span className="mt-0.5 flex items-center gap-1">
-            <span className="rounded bg-accent px-1.5 text-xs font-semibold leading-4 text-on-primary">Apply</span>
+            <span className="rounded bg-accent px-1.5 text-xs font-semibold leading-4 text-on-primary">{t('common.apply')}</span>
             <span className="rounded bg-tone-accent px-1.5 font-mono text-xs leading-4 text-accent">llm.chat</span>
-            <span className="rounded bg-tone-success px-1.5 font-mono text-xs leading-4 text-success">live</span>
-            <span className="rounded bg-tone-warning px-1.5 font-mono text-xs leading-4 text-warning">restart</span>
-            <span className="rounded bg-tone-danger px-1.5 font-mono text-xs leading-4 text-danger">error</span>
+            <span className="rounded bg-tone-success px-1.5 font-mono text-xs leading-4 text-success">{t('settings.previewLive')}</span>
+            <span className="rounded bg-tone-warning px-1.5 font-mono text-xs leading-4 text-warning">{t('settings.previewRestart')}</span>
+            <span className="rounded bg-tone-danger px-1.5 font-mono text-xs leading-4 text-danger">{t('settings.previewError')}</span>
           </span>
         </span>
       </span>
@@ -50,10 +51,10 @@ function Swatches({ palette, theme }: { palette: Palette; theme: 'light' | 'dark
   )
 }
 
-const MODES: { value: Mode; label: string; icon: LucideIcon }[] = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor },
+const MODES: { value: Mode; labelKey: string; icon: LucideIcon }[] = [
+  { value: 'light', labelKey: 'settings.modeLight', icon: Sun },
+  { value: 'dark', labelKey: 'settings.modeDark', icon: Moon },
+  { value: 'system', labelKey: 'settings.modeSystem', icon: Monitor },
 ]
 
 export function AppearanceSection() {
@@ -65,13 +66,13 @@ export function AppearanceSection() {
 
   return (
     <Section
-      title="Appearance"
-      subtitle="Choose your Studio theme and light or dark mode. Both settings apply immediately and persist across launches."
-      action={<Chip tone="accent">Saved automatically</Chip>}
+      title={t('settings.appearance')}
+      subtitle={t('settings.appearanceHint')}
+      action={<Chip tone="accent">{t('settings.savedAutomatically')}</Chip>}
     >
       <div className="flex flex-col gap-4">
         <div>
-          <FieldLabel>Color theme</FieldLabel>
+          <FieldLabel>{t('settings.colorTheme')}</FieldLabel>
           <div className="grid gap-3 md:grid-cols-2">
             {PALETTES.map((p) => {
               const active = p.id === palette
@@ -94,22 +95,22 @@ export function AppearanceSection() {
                     {active ? (
                       <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-ctl bg-accent px-2 text-xs font-semibold text-on-primary">
                         <Check className="size-3.5" strokeWidth={2.4} />
-                        Active
+                        {t('settings.active')}
                       </span>
                     ) : (
                       <span className="inline-flex h-6 shrink-0 items-center rounded-ctl border border-line bg-surface px-2 text-xs font-medium text-text">
-                        Use {p.title}
+                        {t('settings.usePalette', { name: p.title })}
                       </span>
                     )}
                   </span>
-                  <span className="text-xs leading-snug text-muted">{p.description}</span>
+                  <span className="text-xs leading-snug text-muted">{t(p.descriptionKey)}</span>
                 </button>
               )
             })}
           </div>
         </div>
         <div>
-          <FieldLabel>Appearance mode</FieldLabel>
+          <FieldLabel>{t('settings.appearanceMode')}</FieldLabel>
           <div className="flex flex-wrap items-center gap-3">
             <Segmented
               value={mode}
@@ -119,13 +120,13 @@ export function AppearanceSection() {
                 label: (
                   <span className="inline-flex items-center gap-1.5">
                     <m.icon className="size-3.5" strokeWidth={2} />
-                    {m.label}
+                    {t(m.labelKey)}
                   </span>
                 ),
               }))}
             />
             <span className="text-xs text-muted">
-              {mode === 'system' ? `Following the operating system: ${shown} right now.` : 'System follows the operating system’s light or dark setting.'}
+              {mode === 'system' ? t('settings.followingSystem', { mode: shown }) : t('settings.systemFollows')}
             </span>
           </div>
         </div>

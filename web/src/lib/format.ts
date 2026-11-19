@@ -1,5 +1,6 @@
 // Formatting helpers, ported from the desktop Studio (internal/ui/screen.go
 // and widgets.go) so both apps print numbers, durations and ids the same way.
+import { t } from '@/i18n'
 
 export function humanCount(n: number): string {
   const neg = n < 0
@@ -17,10 +18,10 @@ export function humanDuration(seconds: number): string {
   seconds = Math.max(0, Math.trunc(seconds))
   const m = Math.floor(seconds / 60)
   const h = Math.floor(seconds / 3600)
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 3600) return `${m}m`
-  if (seconds < 48 * 3600) return `${h}h ${m % 60}m`
-  return `${Math.floor(h / 24)}d ${h % 24}h`
+  if (seconds < 60) return t('common.durSeconds', { s: seconds })
+  if (seconds < 3600) return t('common.durMinutes', { m })
+  if (seconds < 48 * 3600) return t('common.durHours', { h, m: m % 60 })
+  return t('common.durDays', { d: Math.floor(h / 24), h: h % 24 })
 }
 
 function pad(n: number): string {
@@ -42,18 +43,14 @@ export function clockTime(d: Date): string {
 /** A unix timestamp (seconds) as "3m ago", or a date beyond a week. */
 export function relTime(unix: number): string {
   if (!unix || unix <= 0) return '—'
-  const t = new Date(unix * 1000)
-  const d = (Date.now() - t.getTime()) / 1000
-  if (d < 0) return localDateTime(t)
-  if (d < 60) return 'just now'
-  if (d < 3600) return `${Math.floor(d / 60)}m ago`
-  if (d < 86400) return `${Math.floor(d / 3600)}h ago`
-  if (d < 7 * 86400) return `${Math.floor(d / 86400)}d ago`
-  return localDate(t)
-}
-
-export function plural(n: number, noun: string): string {
-  return n === 1 ? `1 ${noun}` : `${n} ${noun}s`
+  const when = new Date(unix * 1000)
+  const d = (Date.now() - when.getTime()) / 1000
+  if (d < 0) return localDateTime(when)
+  if (d < 60) return t('common.justNow')
+  if (d < 3600) return t('common.minutesAgo', { n: Math.floor(d / 60) })
+  if (d < 86400) return t('common.hoursAgo', { n: Math.floor(d / 3600) })
+  if (d < 7 * 86400) return t('common.daysAgo', { n: Math.floor(d / 86400) })
+  return localDate(when)
 }
 
 export function orDash(s: string | null | undefined): string {

@@ -7,8 +7,8 @@ import { Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
 import type { SafetyClassifier, SafetyList, SafetyProfile } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, CopyButton, IconButton, Page, Section, type Tone } from '@/components/ui'
+import { t } from '@/i18n'
 import { useAsync, useScreenActions } from '@/lib/hooks'
-import { plural } from '@/lib/format'
 import { useClient, useSession } from '@/state/session'
 import { confirm, info, toast } from '@/state/ui'
 import { ClassifierEditor } from './safety/ClassifierEditor'
@@ -59,7 +59,7 @@ export default function Safety() {
         return await client.safety(signal)
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
-          throw new ApiError(404, 'This runtime does not expose the Studio safety API yet; rebuild and restart AgentFlow, then reopen Safety.')
+          throw new ApiError(404, t('safety.apiMissing'))
         }
         throw err
       }
@@ -87,8 +87,8 @@ export default function Safety() {
 
   const readOnly = () =>
     void info({
-      title: 'Safety is read-only',
-      message: list?.note || 'This deployment has no editable config source, so safety profiles cannot be changed from Studio.',
+      title: t('safety.readOnlyTitle'),
+      message: list?.note || t('safety.readOnlyMessage'),
     })
 
   const open = (next: Editor) => {
@@ -115,15 +115,15 @@ export default function Safety() {
     const ok = await confirm(
       kind === 'profile'
         ? {
-            title: 'Delete safety profile',
-            message: `Delete safety profile "${name}" from the deployment config?\n\nThe running instance keeps its current chain until the next restart.`,
-            confirmLabel: 'Delete',
+            title: t('safety.deleteProfileTitle'),
+            message: t('safety.deleteProfileMessage', { name }),
+            confirmLabel: t('common.delete'),
             danger: true,
           }
         : {
-            title: 'Delete classifier',
-            message: `Delete classifier "${name}" from the deployment config?\n\nThe running instance keeps using it until the next restart.`,
-            confirmLabel: 'Delete',
+            title: t('safety.deleteClassifierTitle'),
+            message: t('safety.deleteClassifierMessage', { name }),
+            confirmLabel: t('common.delete'),
             danger: true,
           },
     )
@@ -133,7 +133,7 @@ export default function Safety() {
     try {
       const next = kind === 'profile' ? await client.deleteSafetyProfile(name, mtime) : await client.deleteSafetyClassifier(name, mtime)
       if (!mounted.current) return
-      applied(next, kind === 'profile' ? 'safety profile deleted · restart required' : 'safety classifier deleted · restart required')
+      applied(next, kind === 'profile' ? t('safety.profileDeleted') : t('safety.classifierDeleted'))
     } catch (err) {
       // An entry that is still referenced, or a config that changed on disk
       // (409), is refused by the runtime; its words say which.
@@ -144,29 +144,29 @@ export default function Safety() {
   }
 
   const restart = list?.restart_required ?? false
-  const pendingNote = list ? (restart ? list.saved_note || list.note || 'Saved changes take effect after a restart.' : list.saved_note) : ''
+  const pendingNote = list ? (restart ? list.saved_note || list.note || t('safety.pendingDefault') : list.saved_note) : ''
 
   return (
     <Page
-      title="Safety"
-      subtitle="Core-owned ingress and egress filter chains, plus the model-backed classifiers they can call. Saves go to the deployment config and bind on the next runtime start."
-      actions={<IconButton icon={RotateCw} label="Refresh" loading={refreshing} onClick={refresh} />}
+      title={t('safety.title')}
+      subtitle={t('safety.subtitle')}
+      actions={<IconButton icon={RotateCw} label={t('common.refresh')} loading={refreshing} onClick={refresh} />}
       meta={
         list && (
           <>
             <LiveChip live={!restart} />
-            <span>{plural(profiles.length, 'profile')}</span>
-            <span>{plural(classifiers.length, 'classifier')}</span>
-            <span>source {list.mode || 'file'}</span>
+            <span>{t('safety.profileCount', { n: profiles.length })}</span>
+            <span>{t('safety.classifierCount', { n: classifiers.length })}</span>
+            <span>{t('safety.source', { mode: list.mode || 'file' })}</span>
             {list.path && (
               <span className="flex min-w-0 items-center gap-1">
                 <span className="truncate" title={list.path}>
                   {list.path}
                 </span>
-                <CopyButton text={list.path} what="path" />
+                <CopyButton text={list.path} what={t('safety.whatPath')} />
               </span>
             )}
-            <span className={editable ? undefined : 'text-warning'}>{editable ? 'editable' : 'read-only'}</span>
+            <span className={editable ? undefined : 'text-warning'}>{editable ? t('safety.editable') : t('safety.readOnly')}</span>
           </>
         )
       }
@@ -179,34 +179,27 @@ export default function Safety() {
               </Banner>
             )}
             {!editable ? (
-              <Banner tone="warning">{list.note || 'This deployment has no editable config source for safety profiles.'}</Banner>
+              <Banner tone="warning">{list.note || t('safety.readOnlyBanner')}</Banner>
             ) : (
-              pendingNote && (
-                <Banner tone="warning">
-                  {restart && 'Restart required — '}
-                  {pendingNote}
-                </Banner>
-              )
+              pendingNote && <Banner tone="warning">{restart ? t('safety.restartRequiredNote', { note: pendingNote }) : pendingNote}</Banner>
             )}
           </>
         ) : undefined
       }
     >
-      <AsyncView loading={loading} error={error} hasData={!!list} retry={refresh} loadingText="Loading safety…">
+      <AsyncView loading={loading} error={error} hasData={!!list} retry={refresh} loadingText={t('safety.loading')}>
         <div className="flex flex-col gap-3">
           <Section
             flush
-            title="Filter profiles"
-            subtitle="The chain runs in order. Builtins are compiled in; classifier:<name> entries call a model-backed policy."
+            title={t('safety.profiles')}
+            subtitle={t('safety.profilesSubtitle')}
             action={
               <Button size="sm" icon={Plus} disabled={!editable} onClick={() => open({ kind: 'profile', existing: null })}>
-                New profile
+                {t('safety.newProfile')}
               </Button>
             }
           >
-            {profiles.length === 0 && (
-              <p className="px-3 pb-2 text-sm text-muted">No named safety profiles. Agents can still use the built-in "default" chain or "none".</p>
-            )}
+            {profiles.length === 0 && <p className="px-3 pb-2 text-sm text-muted">{t('safety.noProfiles')}</p>}
             {profiles.map((p) => {
               const filters = p.filters ?? []
               const refs = p.classifiers ?? []
@@ -215,17 +208,17 @@ export default function Safety() {
                 <div key={p.name} className="border-t border-line/70 px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate font-mono text-base font-semibold">{p.name}</span>
-                    <Chip tone="accent">{plural(filters.length, 'filter')}</Chip>
+                    <Chip tone="accent">{t('safety.filterCount', { n: filters.length })}</Chip>
                     <LiveChip live={p.live} />
                     <div className="flex-1" />
-                    <IconButton icon={Pencil} label={`Edit ${p.name}`} onClick={() => open({ kind: 'profile', existing: p })} />
+                    <IconButton icon={Pencil} label={t('safety.editWhat', { name: p.name })} onClick={() => open({ kind: 'profile', existing: p })} />
                     <IconButton
                       icon={Trash2}
                       tone="danger"
                       label={
                         inUse
-                          ? `Cannot delete ${p.name}: it is still referenced by ${profileUsage(p)}; remove those references first.`
-                          : `Delete ${p.name}`
+                          ? t('safety.cannotDeleteProfile', { name: p.name, refs: profileUsage(p) })
+                          : t('safety.deleteWhat', { name: p.name })
                       }
                       disabled={inUse || deleting !== ''}
                       loading={deleting === 'profile:' + p.name}
@@ -233,15 +226,15 @@ export default function Safety() {
                     />
                   </div>
                   <div className="mt-1.5 flex flex-col gap-1.5">
-                    <Row label="chain">
+                    <Row label={t('safety.row.chain')}>
                       <ChainView filters={filters} />
                     </Row>
-                    <Row label="used by">
+                    <Row label={t('safety.row.usedBy')}>
                       {profileUsedBy(p)}
-                      {inUse && <span className="text-faint"> · delete is off until these references are removed</span>}
+                      {inUse && <span className="text-faint"> · {t('safety.deleteOff')}</span>}
                     </Row>
                     {refs.length > 0 && (
-                      <Row label="classifiers">
+                      <Row label={t('safety.row.classifiers')}>
                         <span className="font-mono text-text">{refs.join(', ')}</span>
                       </Row>
                     )}
@@ -253,19 +246,15 @@ export default function Safety() {
 
           <Section
             flush
-            title="Model-backed classifiers"
-            subtitle="A dedicated engine-keyed model returns a label and score; the policy here maps labels to allow, review, or block."
+            title={t('safety.classifiers')}
+            subtitle={t('safety.classifiersSubtitle')}
             action={
               <Button size="sm" icon={Plus} disabled={!editable} onClick={() => open({ kind: 'classifier', existing: null })}>
-                New classifier
+                {t('safety.newClassifier')}
               </Button>
             }
           >
-            {classifiers.length === 0 && (
-              <p className="px-3 pb-2 text-sm text-muted">
-                No model-backed classifiers yet. Add one to enable classifier:&lt;name&gt; filters in a profile.
-              </p>
-            )}
+            {classifiers.length === 0 && <p className="px-3 pb-2 text-sm text-muted">{t('safety.noClassifiers')}</p>}
             {classifiers.map((c) => {
               const mode = c.mode || 'enforce'
               const usedBy = c.used_by ?? []
@@ -274,20 +263,20 @@ export default function Safety() {
                 <div key={c.name} className="border-t border-line/70 px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate font-mono text-base font-semibold">{c.name}</span>
-                    <Chip tone="accent" title="model">
+                    <Chip tone="accent" title={t('safety.row.model')}>
                       {c.model}
                     </Chip>
                     <Chip tone={mode === 'shadow' ? 'warning' : 'success'}>{mode}</Chip>
                     <LiveChip live={c.live} />
                     <div className="flex-1" />
-                    <IconButton icon={Pencil} label={`Edit ${c.name}`} onClick={() => open({ kind: 'classifier', existing: c })} />
+                    <IconButton icon={Pencil} label={t('safety.editWhat', { name: c.name })} onClick={() => open({ kind: 'classifier', existing: c })} />
                     <IconButton
                       icon={Trash2}
                       tone="danger"
                       label={
                         inUse
-                          ? `Cannot delete ${c.name}: it is referenced by profile(s): ${usedBy.join(', ')}. Remove those references first.`
-                          : `Delete ${c.name}`
+                          ? t('safety.cannotDeleteClassifier', { name: c.name, n: usedBy.length, profiles: usedBy.join(', ') })
+                          : t('safety.deleteWhat', { name: c.name })
                       }
                       disabled={inUse || deleting !== ''}
                       loading={deleting === 'classifier:' + c.name}
@@ -295,22 +284,22 @@ export default function Safety() {
                     />
                   </div>
                   <div className="mt-1.5 grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
-                    <Row label="threshold">
-                      <span className="font-mono">{typeof c.threshold === 'number' ? formatThreshold(c.threshold) : '0.7 (default)'}</span>
+                    <Row label={t('safety.row.threshold')}>
+                      <span className="font-mono">{typeof c.threshold === 'number' ? formatThreshold(c.threshold) : t('safety.thresholdDefault')}</span>
                     </Row>
-                    <Row label="directions">{(c.directions ?? []).length > 0 ? (c.directions ?? []).join(', ') : 'ingress + egress'}</Row>
-                    <Row label="sources">{(c.sources ?? []).length > 0 ? (c.sources ?? []).join(', ') : 'channel + agent'}</Row>
-                    <Row label="used by">
+                    <Row label={t('safety.row.directions')}>{(c.directions ?? []).length > 0 ? (c.directions ?? []).join(', ') : 'ingress + egress'}</Row>
+                    <Row label={t('safety.row.sources')}>{(c.sources ?? []).length > 0 ? (c.sources ?? []).join(', ') : 'channel + agent'}</Row>
+                    <Row label={t('safety.row.usedBy')}>
                       {inUse ? (
                         <>
                           {usedBy.join(', ')}
-                          <span className="text-faint"> · delete is off until these references are removed</span>
+                          <span className="text-faint"> · {t('safety.deleteOff')}</span>
                         </>
                       ) : (
-                        'unused'
+                        t('safety.unused')
                       )}
                     </Row>
-                    <Row label="categories" className="md:col-span-2">
+                    <Row label={t('safety.row.categories')} className="md:col-span-2">
                       <Categories categories={c.categories} />
                     </Row>
                   </div>
@@ -329,7 +318,7 @@ export default function Safety() {
           onClose={() => setEditor(null)}
           onSaved={(next) => {
             setEditor(null)
-            applied(next, next.saved_note || 'safety profile saved · restart required')
+            applied(next, next.saved_note || t('safety.profileSaved'))
           }}
           reload={reloadForEditor}
         />
@@ -342,7 +331,7 @@ export default function Safety() {
           onClose={() => setEditor(null)}
           onSaved={(next) => {
             setEditor(null)
-            applied(next, next.saved_note || 'safety classifier saved · restart required')
+            applied(next, next.saved_note || t('safety.classifierSaved'))
           }}
           reload={reloadForEditor}
         />

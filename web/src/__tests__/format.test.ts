@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { humanCount, humanDuration, orDash, plural, shortID, splitList, utcDay } from '@/lib/format'
+import { humanCount, humanDuration, orDash, shortID, splitList, utcDay } from '@/lib/format'
 
 // The same cases the desktop app asserts (internal/ui/ui_test.go), so both
 // apps print numbers identically.
@@ -24,8 +24,6 @@ describe('format', () => {
   })
 
   it('small helpers', () => {
-    expect(plural(1, 'agent')).toBe('1 agent')
-    expect(plural(3, 'agent')).toBe('3 agents')
     expect(orDash('  ')).toBe('—')
     expect(shortID('4f2a91c3d8b14e6f')).toBe('4f2a91c3')
     expect(splitList('pm, researcher\n\n ops ')).toEqual(['pm', 'researcher', 'ops'])

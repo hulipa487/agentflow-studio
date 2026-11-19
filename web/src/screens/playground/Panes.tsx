@@ -4,6 +4,7 @@
 // room and give way down to a floor before the chat does, and the whole row
 // scrolls sideways once even the floors do not fit.
 import { useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { t } from '@/i18n'
 import { useStored } from '@/lib/hooks'
 
 const LEFT = { min: 200, max: 420, initial: 240 }
@@ -26,7 +27,7 @@ function Handle({ onDrag, onNudge, onReset }: { onDrag: (clientX: number) => voi
       role="separator"
       aria-orientation="vertical"
       tabIndex={0}
-      title="Drag to resize · double-click to reset"
+      title={t('common.resizeHint')}
       onPointerDown={(e) => {
         e.preventDefault()
         // Capture keeps the drag alive when the pointer leaves the 12px strip.

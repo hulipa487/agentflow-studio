@@ -6,8 +6,9 @@ import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react'
 import type { Client } from '@/api/client'
 import type { SafetyList, SafetyProfile } from '@/api/types'
 import { Button, Chip, Field, IconButton, Input, Modal } from '@/components/ui'
+import { t } from '@/i18n'
 import { splitList } from '@/lib/format'
-import { CLASSIFIER_PREFIX, DEFAULT_CHAIN, EMPTY_CHAIN, appendFilters, buildProfileDraft, isClassifierFilter, moveFilter } from './helpers'
+import { CLASSIFIER_PREFIX, DEFAULT_CHAIN, appendFilters, buildProfileDraft, emptyChain, isClassifierFilter, moveFilter } from './helpers'
 import { ChainView, EditorFooter, EditorNotice, useEditorActions } from './parts'
 
 export function ProfileEditor({
@@ -40,7 +41,7 @@ export function ProfileEditor({
     build: () => buildProfileDraft(name, chain),
     validate: (d) => client.validateSafety({ kind: 'profile', creating, profile: d }),
     save: (d) => client.saveSafetyProfile(d.name, creating, d, list.mtime),
-    validText: () => 'Valid. Save it to bind the chain on the next runtime start.',
+    validText: () => t('safety.profile.validText'),
     onSaved,
     reload,
   })
@@ -55,10 +56,10 @@ export function ProfileEditor({
 
   // The runtime has the last word; this only flags what it will refuse.
   const kindOf = (f: string): { label: string; tone: 'neutral' | 'accent' | 'warning'; title?: string } => {
-    if (builtins.includes(f)) return { label: 'builtin', tone: 'neutral' }
-    if (classifierFilters.includes(f)) return { label: 'classifier', tone: 'accent' }
-    if (isClassifierFilter(f)) return { label: 'no such classifier', tone: 'warning', title: 'Classifier filters need a saved classifier.' }
-    return { label: 'unknown', tone: 'warning', title: 'Not a builtin filter of the running runtime.' }
+    if (builtins.includes(f)) return { label: t('safety.kind.builtin'), tone: 'neutral' }
+    if (classifierFilters.includes(f)) return { label: t('safety.kind.classifier'), tone: 'accent' }
+    if (isClassifierFilter(f)) return { label: t('safety.kind.missing'), tone: 'warning', title: t('safety.kind.missingTitle') }
+    return { label: t('safety.kind.unknown'), tone: 'warning', title: t('safety.kind.unknownTitle') }
   }
 
   return (
@@ -67,19 +68,19 @@ export function ProfileEditor({
       onClose={onClose}
       dismissable={!busy}
       width={640}
-      title={creating ? 'New safety profile' : 'Edit ' + existing.name}
-      subtitle="Profiles are core-owned: a loop cannot uninstall the chain. Changes bind when agentflow starts."
+      title={creating ? t('safety.profile.newTitle') : t('safety.editWhat', { name: existing.name })}
+      subtitle={t('safety.profile.subtitle')}
       footer={<EditorFooter actions={actions} onCancel={onClose} />}
     >
       <EditorNotice actions={actions} />
       <div className="flex flex-col gap-4">
-        <Field label="Name" hint={'Immutable after creation. "default" and "none" are reserved references.'}>
+        <Field label={t('common.name')} hint={t('safety.profile.nameHint')}>
           <Input mono value={name} onChange={(e) => setName(e.target.value)} placeholder="strict" disabled={!creating} autoFocus={creating} />
         </Field>
 
-        <Field label="Filter chain" hint="Runs top to bottom. Order matters: move a filter with the arrows.">
+        <Field label={t('safety.profile.chain')} hint={t('safety.profile.chainHint')}>
           <ol className="overflow-hidden rounded-ctl border border-line bg-bg">
-            {chain.length === 0 && <li className="px-2.5 py-2 font-mono text-sm text-faint">{EMPTY_CHAIN}</li>}
+            {chain.length === 0 && <li className="px-2.5 py-2 font-mono text-sm text-faint">{emptyChain()}</li>}
             {chain.map((f, i) => {
               const kind = kindOf(f)
               return (
@@ -92,15 +93,15 @@ export function ProfileEditor({
                     {kind.label}
                   </Chip>
                   <span className="flex shrink-0 items-center">
-                    <IconButton size="sm" icon={ArrowUp} label={`Move ${f} up`} disabled={i === 0} onClick={() => setChain((c) => moveFilter(c, i, -1))} />
+                    <IconButton size="sm" icon={ArrowUp} label={t('safety.profile.moveUp', { filter: f })} disabled={i === 0} onClick={() => setChain((c) => moveFilter(c, i, -1))} />
                     <IconButton
                       size="sm"
                       icon={ArrowDown}
-                      label={`Move ${f} down`}
+                      label={t('safety.profile.moveDown', { filter: f })}
                       disabled={i === chain.length - 1}
                       onClick={() => setChain((c) => moveFilter(c, i, 1))}
                     />
-                    <IconButton size="sm" icon={X} tone="danger" label={`Remove ${f}`} onClick={() => setChain((c) => c.filter((_, at) => at !== i))} />
+                    <IconButton size="sm" icon={X} tone="danger" label={t('safety.profile.removeFilter', { filter: f })} onClick={() => setChain((c) => c.filter((_, at) => at !== i))} />
                   </span>
                 </li>
               )
@@ -108,7 +109,7 @@ export function ProfileEditor({
           </ol>
         </Field>
 
-        <Field label="Available filters" hint="Click a name to append it, or add names comma-separated, left to right.">
+        <Field label={t('safety.profile.available')} hint={t('safety.profile.availableHint')}>
           <div className="flex flex-wrap gap-1.5">
             {available.map((f) => (
               <Button
@@ -117,7 +118,7 @@ export function ProfileEditor({
                 icon={Plus}
                 className="font-mono"
                 disabled={chain.includes(f)}
-                title={chain.includes(f) ? 'Already in the chain' : undefined}
+                title={chain.includes(f) ? t('safety.profile.alreadyInChain') : undefined}
                 onClick={() => setChain((c) => appendFilters(c, [f]))}
               >
                 {f}
@@ -136,15 +137,15 @@ export function ProfileEditor({
                 }
               }}
               placeholder="source-attribution, affect-guard"
-              aria-label="Filters to add"
+              aria-label={t('safety.profile.filtersToAdd')}
             />
             <Button onClick={addExtra} disabled={splitList(extra).length === 0}>
-              Add
+              {t('common.add')}
             </Button>
           </div>
         </Field>
 
-        <Field label="Preview" hint="Classifier filters need a saved classifier below; builtin names come from the running runtime.">
+        <Field label={t('safety.profile.preview')} hint={t('safety.profile.previewHint')}>
           <div className="rounded-ctl border border-line bg-bg px-2.5 py-2">
             <ChainView filters={chain} />
           </div>

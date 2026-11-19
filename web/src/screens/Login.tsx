@@ -7,6 +7,7 @@ import { ApiError, errorMessage, normalizeURL, probeProxy, transportOf, type Tra
 import { describeURL } from '@/api/describe'
 import { Banner, BrandBanner, Button, Checkbox, Chip, Field, IconButton, Input, Segmented, Spinner, cx } from '@/components/ui'
 import { APP_VERSION } from '@/components/shell/Shell'
+import { t, useLang } from '@/i18n'
 import { useAppearance, useResolvedMode } from '@/state/appearance'
 import { tokenFor, useConnections } from '@/state/connections'
 import { useSession } from '@/state/session'
@@ -17,15 +18,13 @@ const EXAMPLES: Record<Transport, string> = {
   npipe: 'npipe://agentflow-admin',
 }
 
-const TOKEN_HINT =
-  'ADMIN_TOKEN, a named operator token (runtime.admin.operators), or the per-boot token AgentFlow prints at startup.'
-
 export default function Login() {
   const profiles = useConnections((s) => s.profiles)
   const active = useConnections((s) => s.active)
   const connect = useSession((s) => s.connect)
   const mode = useResolvedMode()
   const toggleTheme = useAppearance((s) => s.toggle)
+  const lang = useLang()
 
   const initial = profiles.find((p) => p.name === active)
   const [url, setURL] = useState(initial?.url ?? EXAMPLES.http)
@@ -71,12 +70,12 @@ export default function Login() {
   }, [])
 
   const kind = transportOf(url)
-  const described = useMemo(() => describeURL(url, proxy), [url, proxy])
+  const described = useMemo(() => describeURL(url, proxy), [url, proxy, lang])
   const forcedProxy = kind !== 'http'
   const usingProxy = forcedProxy || (viaProxy && proxy.available)
 
-  const pickTransport = (t: Transport) => {
-    if (transportOf(url) !== t) setURL(EXAMPLES[t])
+  const pickTransport = (next: Transport) => {
+    if (transportOf(url) !== next) setURL(EXAMPLES[next])
     setURLError('')
     setMessage(null)
     urlInput.current?.focus()
@@ -87,23 +86,17 @@ export default function Login() {
     let text = errorMessage(err)
     if (err instanceof ApiError) {
       if (err.status === 401) {
-        setTokenError(
-          'The runtime rejected this token. Check ADMIN_TOKEN, or copy the token AgentFlow printed at boot (it changes every start unless ADMIN_TOKEN is set).',
-        )
-        text = 'Authentication failed: ' + err.message
+        setTokenError(t('login.tokenRejected'))
+        text = t('login.authFailed', { message: err.message })
         tokenInput.current?.focus()
       } else if (err.status === 0 || err.status === 502) {
-        setURLError(
-          'Nothing answered here. Is AgentFlow running, and is this its address (gateway.listen, or runtime.admin.socket with tcp: false)?',
-        )
+        setURLError(t('login.nothingAnswered'))
         urlInput.current?.focus()
       } else if (err.status === 403) {
-        setURLError(
-          'This runtime answers its admin API only on its own machine: its token is minted per boot. Set ADMIN_TOKEN (or runtime.admin.operators) on the runtime to connect from here.',
-        )
+        setURLError(t('login.localOnly'))
         urlInput.current?.focus()
       } else if (err.status === 503) {
-        text += '\n\nThe Studio API is off on this runtime: set runtime.studio.enabled: true and restart AgentFlow.'
+        text = t('login.studioOff', { message: text })
       }
     }
     return text
@@ -130,7 +123,7 @@ export default function Login() {
     setURLError('')
     setTokenError('')
     if (url.trim() === '') {
-      setURLError('An instance URL is required.')
+      setURLError(t('login.urlRequired'))
       urlInput.current?.focus()
       return
     }
@@ -140,7 +133,7 @@ export default function Login() {
       return
     }
     if (token.trim() === '') {
-      setTokenError('The admin token is required.')
+      setTokenError(t('login.tokenRequired'))
       tokenInput.current?.focus()
       return
     }
@@ -151,16 +144,16 @@ export default function Login() {
       timedOut = true
       ctl.abort()
     }, 20000)
-    setStep(`contacting ${normalizeURL(url)}…`)
+    setStep(t('connection.contacting', { url: normalizeURL(url) }))
     try {
       await connect(url, token, { remember, viaProxy: usingProxy, signal: ctl.signal, onStep: setStep })
     } catch (err) {
       if (ctl.signal.aborted) {
         if (timedOut) {
-          setURLError('No answer within 20 seconds. Check the address and that nothing blocks the port.')
-          setMessage({ text: `Timed out contacting ${normalizeURL(url)}.`, tone: 'danger' })
+          setURLError(t('login.noAnswer'))
+          setMessage({ text: t('login.timedOut', { url: normalizeURL(url) }), tone: 'danger' })
         } else {
-          setMessage({ text: 'Connection cancelled.', tone: 'neutral' })
+          setMessage({ text: t('login.cancelled'), tone: 'neutral' })
         }
       } else {
         fail(err)
@@ -178,7 +171,7 @@ export default function Login() {
         <BrandBanner height={72} />
         {/* The banner carries the AgentFlow name; this line names the app. */}
         <h1 className="mt-1 text-xl font-semibold tracking-[-0.01em]">Studio</h1>
-        <p className="mt-1 text-base text-muted">Build, run and trace agents on your own runtime.</p>
+        <p className="mt-1 text-base text-muted">{t('login.tagline')}</p>
         <div className="brand-rule mt-4 h-[3px] w-44 rounded-full" />
 
         <form
@@ -189,14 +182,12 @@ export default function Login() {
           }}
         >
           <div>
-            <h2 className="text-md font-semibold">Connect to a runtime</h2>
-            <p className="mt-0.5 text-sm text-muted">
-              Studio talks to AgentFlow’s admin API with its bearer token. Nothing is stored on a server.
-            </p>
+            <h2 className="text-md font-semibold">{t('login.connectTitle')}</h2>
+            <p className="mt-0.5 text-sm text-muted">{t('login.introWeb')}</p>
           </div>
 
           {profiles.length > 0 && (
-            <Field label="Saved connections">
+            <Field label={t('login.savedConnections')}>
               <div className="flex flex-col gap-1">
                 {profiles.map((p) => (
                   <div key={p.name} className="group flex items-center gap-1">
@@ -219,34 +210,34 @@ export default function Login() {
                     >
                       <span className="truncate text-base font-medium">{p.name}</span>
                       <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{p.url}</span>
-                      {tokenFor(p) ? <Chip tone="success">token saved</Chip> : <Chip>no token</Chip>}
+                      {tokenFor(p) ? <Chip tone="success">{t('login.tokenSaved')}</Chip> : <Chip>{t('login.noToken')}</Chip>}
                     </button>
-                    <IconButton icon={Trash2} label={`Forget ${p.name}`} tone="danger" onClick={() => useConnections.getState().remove(p.name)} />
+                    <IconButton icon={Trash2} label={t('login.forget', { name: p.name })} tone="danger" onClick={() => useConnections.getState().remove(p.name)} />
                   </div>
                 ))}
               </div>
             </Field>
           )}
 
-          <Field label="Transport">
+          <Field label={t('login.transport')}>
             <Segmented<Transport>
               className="self-start"
               value={kind}
               onChange={pickTransport}
               options={[
-                { value: 'http', label: 'HTTP' },
-                { value: 'unix', label: 'Unix socket', disabled: busy || (proxy.probed && !proxy.available), title: proxy.available ? undefined : 'Needs the local proxy' },
+                { value: 'http', label: t('login.transportHttp') },
+                { value: 'unix', label: t('login.transportUnix'), disabled: busy || (proxy.probed && !proxy.available), title: proxy.available ? undefined : t('login.needsProxy') },
                 {
                   value: 'npipe',
-                  label: 'Named pipe',
+                  label: t('login.transportPipe'),
                   disabled: busy || (proxy.probed && (!proxy.available || proxy.platform !== 'win32')),
-                  title: proxy.platform !== 'win32' ? 'Named pipes are Windows only' : undefined,
+                  title: proxy.platform !== 'win32' ? t('login.pipesWindowsOnly') : undefined,
                 },
               ]}
             />
           </Field>
 
-          <Field label="Instance URL" error={urlError || (!described.ok ? described.text : '')} hint={described.text}>
+          <Field label={t('login.instanceURL')} error={urlError || (!described.ok ? described.text : '')} hint={described.text}>
             <Input
               ref={urlInput}
               mono
@@ -269,7 +260,7 @@ export default function Login() {
             />
           </Field>
 
-          <Field label="Admin token" error={tokenError} hint={TOKEN_HINT}>
+          <Field label={t('login.adminToken')} error={tokenError} hint={t('login.tokenHint')}>
             <div className="relative">
               <Input
                 ref={tokenInput}
@@ -278,7 +269,7 @@ export default function Login() {
                 value={token}
                 disabled={busy}
                 invalid={tokenError !== ''}
-                placeholder="ADMIN_TOKEN or an operator token"
+                placeholder={t('login.tokenPlaceholder')}
                 autoComplete="off"
                 className="pr-9"
                 onChange={(e) => {
@@ -289,7 +280,7 @@ export default function Login() {
               />
               <IconButton
                 icon={showToken ? Eye : EyeOff}
-                label={showToken ? 'Hide the token' : 'Show the token'}
+                label={showToken ? t('login.hideToken') : t('login.showToken')}
                 size="sm"
                 className="absolute right-1.5 top-1/2 -translate-y-1/2"
                 onClick={() => setShowToken((v) => !v)}
@@ -302,28 +293,26 @@ export default function Login() {
               checked={usingProxy}
               disabled={busy || forcedProxy || !proxy.available}
               onChange={setViaProxy}
-              label="Route through Studio’s local proxy"
+              label={t('login.viaProxy')}
               hint={
                 !proxy.probed
-                  ? 'Checking for the local proxy…'
+                  ? t('login.proxyChecking')
                   : !proxy.available
-                    ? `Not available on this origin, so the browser calls the runtime directly: add "${location.origin}" to runtime.admin.cors_origins.`
+                    ? t('login.proxyUnavailable', { origin: location.origin })
                     : forcedProxy
-                      ? 'Required for sockets and pipes: a browser cannot open them itself.'
+                      ? t('login.proxyRequired')
                       : usingProxy
-                        ? 'No CORS setup needed: the browser talks to this origin, which forwards to the runtime.'
-                        : `Direct from the browser: the runtime must list "${location.origin}" in runtime.admin.cors_origins.`
+                        ? t('login.proxyOn')
+                        : t('login.proxyOff', { origin: location.origin })
               }
             />
             <Checkbox
               checked={remember}
               disabled={busy}
               onChange={setRemember}
-              label="Remember the token in this browser"
+              label={t('login.rememberBrowser')}
               hint={
-                remember
-                  ? 'Stored in plain text in this browser profile’s localStorage. Lock forgets it.'
-                  : 'Kept for this tab only; closing the tab forgets it.'
+                remember ? t('login.rememberBrowserOn') : t('login.rememberBrowserOff')
               }
             />
           </div>
@@ -335,7 +324,7 @@ export default function Login() {
           )}
 
           <Button type="submit" variant={busy ? 'default' : 'primary'} icon={busy ? X : ArrowRight} className="h-9 w-full">
-            {busy ? 'Cancel' : 'Connect'}
+            {busy ? t('common.cancel') : t('login.connect')}
           </Button>
           {busy && (
             <div className="flex items-center justify-center gap-2 text-xs text-muted">
@@ -345,10 +334,10 @@ export default function Login() {
         </form>
 
         <div className="mt-4 flex items-center gap-2 text-xs text-faint">
-          <span>Studio {APP_VERSION} ·</span>
+          <span>{t('login.version', { version: APP_VERSION })}</span>
           <button type="button" onClick={toggleTheme} className="inline-flex items-center gap-1.5 rounded px-1.5 py-1 font-medium text-muted hover:bg-hover hover:text-text">
             {mode === 'light' ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
-            {mode === 'light' ? 'Dark mode' : 'Light mode'}
+            {mode === 'light' ? t('login.darkMode') : t('login.lightMode')}
           </button>
         </div>
       </div>

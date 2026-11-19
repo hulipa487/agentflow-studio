@@ -89,7 +89,9 @@ func TestSnapshots(t *testing.T) {
 	win := fyneApp.NewWindow("snapshot")
 	win.Resize(fyne.NewSize(1280, 860))
 
-	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})
+	// STUDIO_SNAPSHOT_LANG (en, zh-Hans, zh-Hant) renders every screen in that
+	// language; point STUDIO_SNAPSHOT_DIR somewhere of its own for each.
+	a := New(fyneApp, win, appconfig.Config{Theme: "dark", Language: os.Getenv("STUDIO_SNAPSHOT_LANG")})
 	if err := a.SetDocs(os.DirFS("../../../docs")); err != nil {
 		t.Fatal(err)
 	}
@@ -143,11 +145,11 @@ func TestSnapshots(t *testing.T) {
 	}
 	demoPlayground := func() *playgroundView {
 		a.setActive("playground")
-		a.setBreadcrumb("Playground")
+		a.setBreadcrumb(T("nav.playground"))
 		p := a.newPlaygroundView([]string{"assistant", "echo", "lab"}, "assistant")
 		a.setMain(p.root)
-		p.addBubble("You", "Summarize what this agent can do, and check the weather in Hong Kong.", true)
-		p.assistant = p.addBubble("Agent", `I can answer with the configured model, remember earlier turns in the dialogue store, and call the tools you enabled.
+		p.addBubble(T("playground.roleYou"), "Summarize what this agent can do, and check the weather in Hong Kong.", true)
+		p.assistant = p.addBubble(T("playground.roleAgent"), `I can answer with the configured model, remember earlier turns in the dialogue store, and call the tools you enabled.
 
 I don't have a weather tool enabled in this example, so I can't fetch a live forecast.`, false)
 		p.events = []api.TraceEvent{
@@ -235,8 +237,8 @@ I don't have a weather tool enabled in this example, so I can't fetch a live for
 		// reference, then the Apply menu.
 		b.luaEditor.editor.ShowCompletions(nil, "", 0, 0)
 		b.setDock("run")
-		b.run.addBubble("You", "hello workbench", true)
-		b.run.assistant = b.run.addBubble("Agent", "echo v2: hello workbench", false)
+		b.run.addBubble(T("playground.roleYou"), "hello workbench", true)
+		b.run.assistant = b.run.addBubble(T("playground.roleAgent"), "echo v2: hello workbench", false)
 		b.run.events = []api.TraceEvent{
 			{Seq: 1, Kind: "turn.start", Turn: "m1"},
 			{Seq: 2, Kind: "op.end", Op: "send", OK: true, DurationMS: 2},
@@ -366,6 +368,18 @@ I don't have a weather tool enabled in this example, so I can't fetch a live for
 		a.showConfig()
 		ui.wait(400 * time.Millisecond)
 		capture("16-config" + suffix)
+
+		a.showMemory()
+		ui.wait(400 * time.Millisecond)
+		capture("18-memory" + suffix)
+
+		a.showSafety()
+		ui.wait(400 * time.Millisecond)
+		capture("19-safety" + suffix)
+
+		a.showCredentials()
+		ui.wait(400 * time.Millisecond)
+		capture("20-credentials" + suffix)
 
 		a.showOverview()
 		ui.wait(300 * time.Millisecond)
@@ -542,6 +556,39 @@ func operatorFixture(w http.ResponseWriter, r *http.Request) bool {
 		_ = enc.Encode(api.ConfigFile{OK: true, Path: "/srv/agentflow/agentflow.yaml", Mtime: now - 3600,
 			Raw:  "version: \"1\"\n\nmodels:\n  default:\n    provider: openai\n    model: llama3.1\n    base_url: http://127.0.0.1:11434/v1\n    api_key: ${OPENAI_API_KEY:-}\n\nruntime:\n  persistence: sqlite://./data/agentflow.db\n  limits:\n    sessions_per_tenant: 50\n    egress_per_minute: 60\n\nagents:\n  echo:\n    loop: ./loops/echo.lua\n",
 			View: map[string]any{"version": "1", "models": map[string]any{"default": map[string]any{"provider": "openai", "api_key": "••••"}}}})
+	case p == "/admin/api/studio/memory":
+		_ = enc.Encode(api.MemoryList{
+			OK: true, Mode: "configdir", Path: "/srv/agentflow/system.yaml", Editable: true, MTime: now - 600,
+			Providers: []string{"sqlite", "postgres", "redis", "qdrant", "volatile"},
+			Backends: []api.MemoryBackend{
+				{Name: "main", Provider: "sqlite", Path: "./data/memory.db"},
+				{Name: "vectors", Provider: "qdrant", Collection: "facts", Distance: "cosine", Dim: 1536, HasURL: true, URLRef: "${QDRANT_URL}", HasAPIKey: true, APIKeyRef: "cred:qdrant"},
+			},
+			Profiles: []api.MemoryProfile{
+				{MemoryProfileDraft: api.MemoryProfileDraft{Name: "dialogue", Stores: []api.MemoryStoreDraft{{Name: "turns", Backend: "main", Window: 40, Retention: "720h"}}}, Agents: []string{"assistant"}, Live: true},
+				{MemoryProfileDraft: api.MemoryProfileDraft{Name: "knowledge", Recall: "semantic", EmbedModel: "embed", Stores: []api.MemoryStoreDraft{{Name: "facts", Backend: "vectors", Requires: []string{"vector"}, Scope: "agent"}}}},
+			},
+			BuiltinAgents: []string{"conversational"}, Models: []string{"default", "embed"},
+		})
+	case p == "/admin/api/studio/safety":
+		_ = enc.Encode(api.SafetyList{
+			OK: true, Mode: "configdir", Path: "/srv/agentflow/system.yaml", Editable: true, MTime: now - 600,
+			BuiltinFilters: []string{"source-attribution", "affect-guard", "pii-redact"},
+			Profiles: []api.SafetyProfile{
+				{Name: "default", Filters: []string{"source-attribution", "affect-guard"}, Agents: []string{"assistant", "echo"}, Live: true},
+				{Name: "strict", Filters: []string{"pii-redact", "classifier:moderation"}, Classifiers: []string{"moderation"}},
+			},
+			Classifiers: []api.SafetyClassifier{{Name: "moderation", Model: "fast", Mode: "block"}},
+			Models:      []string{"default", "fast"},
+		})
+	case p == "/admin/api/credentials":
+		_ = enc.Encode(api.CredentialList{
+			OK: true, Enabled: true, Users: []string{"u-7f3a"},
+			Credentials: []api.Credential{
+				{Service: "github", Kind: "bearer", Header: "Authorization", Scheme: "Bearer", Fingerprint: "…a1b2", CreatedAt: now - 86400*3, UpdatedAt: now - 3600},
+				{Service: "qdrant", Kind: "api_key", Header: "api-key", Fingerprint: "…9f0e", CreatedAt: now - 86400, UpdatedAt: now - 86400},
+			},
+		})
 	default:
 		return false
 	}

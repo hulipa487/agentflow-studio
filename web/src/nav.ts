@@ -24,34 +24,40 @@ export type Section = 'Home' | 'Build' | 'Connect' | 'Govern' | 'Operate' | 'Stu
 
 export const SECTIONS: Section[] = ['Home', 'Build', 'Connect', 'Govern', 'Operate', 'Studio']
 
+/** The catalogue key of a section's heading ("nav.section.build"). */
+export function sectionKey(section: Section): string {
+  return 'nav.section.' + section.toLowerCase()
+}
+
 export interface NavItem {
   id: string
-  label: string
+  /** Catalogue key of the screen's name. */
+  labelKey: string
   section: Section
   icon: LucideIcon
   path: string
   /** Alt+<digit> jumps here; browsers keep Ctrl+<digit> for their own tabs. */
   digit?: number
-  /** The command palette's one-line description. */
-  hint: string
+  /** Catalogue key of the command palette's one-line description. */
+  hintKey: string
 }
 
 export const NAV: NavItem[] = [
-  { id: 'overview', label: 'Overview', section: 'Home', icon: LayoutDashboard, path: '/overview', digit: 1, hint: 'Instance health, live sessions, agents, channels and counters' },
-  { id: 'agents', label: 'Agents', section: 'Build', icon: Bot, path: '/agents', digit: 2, hint: 'Configured agents; create, edit, apply and delete' },
-  { id: 'playground', label: 'Playground', section: 'Build', icon: FlaskConical, path: '/playground', digit: 3, hint: 'Chat with an agent and watch the live trace' },
-  { id: 'channels', label: 'Channels', section: 'Connect', icon: Network, path: '/channels', digit: 4, hint: 'Webhook, Telegram, GitHub and bridge channels' },
-  { id: 'models', label: 'Models', section: 'Connect', icon: Boxes, path: '/models', digit: 5, hint: 'LLM endpoints: add, test, persist or revert' },
-  { id: 'memory', label: 'Memory', section: 'Connect', icon: Database, path: '/memory', hint: 'Memory backends and the profiles agents pick' },
-  { id: 'credentials', label: 'Credentials', section: 'Connect', icon: KeyRound, path: '/credentials', digit: 6, hint: 'Encrypted secrets, engine-wide or per user' },
-  { id: 'safety', label: 'Safety', section: 'Govern', icon: ShieldCheck, path: '/safety', digit: 7, hint: 'Safety profiles and model-backed classifiers' },
-  { id: 'users', label: 'Users', section: 'Govern', icon: Users, path: '/users', digit: 8, hint: 'Profiles, linked handles, quotas, model layer and invites' },
-  { id: 'tenancy', label: 'Tenancy', section: 'Govern', icon: Building2, path: '/tenancy', hint: 'Groups, members, shared memory pools and grants' },
-  { id: 'usage', label: 'Usage', section: 'Operate', icon: Activity, path: '/usage', hint: 'Token ledger per tenant, agent and model for a day' },
-  { id: 'logs', label: 'Logs', section: 'Operate', icon: ScrollText, path: '/logs', digit: 9, hint: 'Live runtime log tail with filters' },
-  { id: 'config', label: 'Config', section: 'Operate', icon: FileCog, path: '/config', hint: 'Raw config editor with boot-equivalent validation' },
-  { id: 'docs', label: 'Documentation', section: 'Studio', icon: BookOpen, path: '/docs', hint: 'Bundled AgentFlow guides and reference' },
-  { id: 'settings', label: 'Settings', section: 'Studio', icon: Settings, path: '/settings', hint: 'Appearance and connection' },
+  { id: 'overview', labelKey: 'nav.overview', section: 'Home', icon: LayoutDashboard, path: '/overview', digit: 1, hintKey: 'nav.overviewHint' },
+  { id: 'agents', labelKey: 'nav.agents', section: 'Build', icon: Bot, path: '/agents', digit: 2, hintKey: 'nav.agentsHint' },
+  { id: 'playground', labelKey: 'nav.playground', section: 'Build', icon: FlaskConical, path: '/playground', digit: 3, hintKey: 'nav.playgroundHint' },
+  { id: 'channels', labelKey: 'nav.channels', section: 'Connect', icon: Network, path: '/channels', digit: 4, hintKey: 'nav.channelsHint' },
+  { id: 'models', labelKey: 'nav.models', section: 'Connect', icon: Boxes, path: '/models', digit: 5, hintKey: 'nav.modelsHint' },
+  { id: 'memory', labelKey: 'nav.memory', section: 'Connect', icon: Database, path: '/memory', hintKey: 'nav.memoryHint' },
+  { id: 'credentials', labelKey: 'nav.credentials', section: 'Connect', icon: KeyRound, path: '/credentials', digit: 6, hintKey: 'nav.credentialsHint' },
+  { id: 'safety', labelKey: 'nav.safety', section: 'Govern', icon: ShieldCheck, path: '/safety', digit: 7, hintKey: 'nav.safetyHint' },
+  { id: 'users', labelKey: 'nav.users', section: 'Govern', icon: Users, path: '/users', digit: 8, hintKey: 'nav.usersHint' },
+  { id: 'tenancy', labelKey: 'nav.tenancy', section: 'Govern', icon: Building2, path: '/tenancy', hintKey: 'nav.tenancyHint' },
+  { id: 'usage', labelKey: 'nav.usage', section: 'Operate', icon: Activity, path: '/usage', hintKey: 'nav.usageHint' },
+  { id: 'logs', labelKey: 'nav.logs', section: 'Operate', icon: ScrollText, path: '/logs', digit: 9, hintKey: 'nav.logsHint' },
+  { id: 'config', labelKey: 'nav.config', section: 'Operate', icon: FileCog, path: '/config', hintKey: 'nav.configHint' },
+  { id: 'docs', labelKey: 'nav.docs', section: 'Studio', icon: BookOpen, path: '/docs', hintKey: 'nav.docsHint' },
+  { id: 'settings', labelKey: 'nav.settings', section: 'Studio', icon: Settings, path: '/settings', hintKey: 'nav.settingsHint' },
 ]
 
 /** The destination a path belongs to (the builder highlights Agents). */

@@ -3,6 +3,7 @@
 // runtime.admin.cors_origins) or through Studio's local proxy, which also
 // reaches Unix sockets and named pipes. Every request carries the bearer
 // token explicitly; there are no cookies.
+import { t } from '@/i18n'
 import type * as T from './types'
 
 /** An HTTP or transport failure. status 0 means the request got no response. */
@@ -89,7 +90,7 @@ async function errorFromResponse(res: Response): Promise<ApiError> {
   }
   if (!msg) msg = text.trim()
   if (!msg) msg = `${res.status} ${res.statusText}`.trim()
-  if (res.status === 401) msg = 'admin token rejected: ' + msg
+  if (res.status === 401) msg = t('connection.tokenRejected', { message: msg })
   return new ApiError(res.status, msg)
 }
 
@@ -122,19 +123,16 @@ export class Client {
 
   private unreachable(err: unknown): ApiError {
     const why = err instanceof Error ? err.message : String(err)
-    let msg = `cannot reach ${this.displayURL}: ${why}`
-    if (!this.viaProxy) {
-      // A browser reports CORS refusals and a dead host identically.
-      msg +=
-        `. If the runtime is up, it is refusing this origin: add "${location.origin}" to ` +
-        `runtime.admin.cors_origins and restart, or connect through the local proxy.`
-    }
+    // A browser reports CORS refusals and a dead host identically.
+    const msg = this.viaProxy
+      ? t('connection.cannotReach', { url: this.displayURL, error: why })
+      : t('connection.cannotReachCors', { url: this.displayURL, error: why, origin: location.origin })
     return new ApiError(0, msg, true)
   }
 
   /** Low-level fetch with auth; rejects with ApiError on a non-2xx answer. */
   async raw(method: string, path: string, body?: Body, signal?: AbortSignal, accept?: string): Promise<Response> {
-    if (!this.displayURL) throw new ApiError(0, 'instance URL is required')
+    if (!this.displayURL) throw new ApiError(0, t('connection.urlRequired'))
     const { url, headers } = this.target(path)
     const init: RequestInit = { method, headers, signal, cache: 'no-store', credentials: 'omit' }
     if (body !== undefined) {
@@ -172,10 +170,10 @@ export class Client {
       try {
         return parseBody<R>(text)
       } catch {
-        throw new ApiError(res.status, 'decode response: the runtime did not answer with JSON')
+        throw new ApiError(res.status, t('connection.notJSON'))
       }
     } catch (err) {
-      if (timedOut) throw new ApiError(0, `no answer from ${this.displayURL} within ${Math.round(timeoutMs / 1000)}s`, true)
+      if (timedOut) throw new ApiError(0, t('connection.timeout', { url: this.displayURL, s: Math.round(timeoutMs / 1000) }), true)
       throw err
     } finally {
       clearTimeout(timer)
@@ -264,7 +262,7 @@ export class Client {
       try {
         ev = JSON.parse(data) as T.ChatEvent
       } catch {
-        throw new ApiError(0, 'bad stream event')
+        throw new ApiError(0, t('connection.badEvent'))
       }
       if (!ev.type) ev.type = event
       onEvent(ev)
@@ -628,10 +626,9 @@ export function featureOff(err: unknown): string | null {
   if (!(err instanceof ApiError) || err.status !== 503) return null
   let msg = err.message
   if (msg.includes('identity')) {
-    msg +=
-      '\n\nSet runtime.identity.enabled: true (and runtime.users.enabled for the public user API), then restart AgentFlow.'
+    msg = t('common.featureOffIdentity', { message: msg })
   } else if (msg.includes('tenancy')) {
-    msg += '\n\nTenancy needs a runtime store (runtime.persistence).'
+    msg = t('common.featureOffTenancy', { message: msg })
   }
   return msg
 }

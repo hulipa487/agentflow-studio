@@ -6,6 +6,7 @@ import { readAsset, type DocAsset } from '@/docs/library'
 import { Button, Chip, CopyButton, EmptyState, IconButton } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
 import { downloadText } from '@/lib/format'
+import { t } from '@/i18n'
 import { toast } from '@/state/ui'
 
 const MIME: Record<DocAsset['language'], string> = {
@@ -19,26 +20,26 @@ export function AssetViewer({ asset, path, onClose }: { asset: DocAsset | undefi
   const text = asset ? readAsset(asset.path) : undefined
   const name = path.slice(path.lastIndexOf('/') + 1)
   if (!asset || text === undefined) {
-    return <EmptyState title={'could not read ' + path} guidance="This file is not bundled in this build." actionLabel="Back to the page" onAction={onClose} />
+    return <EmptyState title={t('docs.couldNotRead', { path })} guidance={t('docs.assetNotBundled')} actionLabel={t('docs.backToPage')} onAction={onClose} />
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 px-5 pb-4 pt-3">
       <div className="flex shrink-0 items-center gap-2">
-        <h2 className="min-w-0 truncate text-lg font-semibold leading-tight">{asset.title}</h2>
+        <h2 className="min-w-0 truncate text-lg font-semibold leading-tight">{t(asset.titleKey)}</h2>
         <Chip>{asset.path}</Chip>
-        <span className="font-mono text-xs text-faint">{text.split('\n').length} lines · read-only</span>
+        <span className="font-mono text-xs text-faint">{t('docs.assetLines', { n: text.split('\n').length })}</span>
         <span className="flex-1" />
         <CopyButton text={text} what={name} size="md" />
         <Button
           icon={Download}
           onClick={() => {
             downloadText(name, text, MIME[asset.language])
-            toast('downloaded ' + name, 'success')
+            toast(t('docs.downloaded', { name }), 'success')
           }}
         >
-          Download
+          {t('docs.download')}
         </Button>
-        <IconButton icon={X} label="Close (Esc)" onClick={onClose} />
+        <IconButton icon={X} label={t('docs.closeEsc')} onClick={onClose} />
       </div>
       <CodeEditor value={text} language={asset.language} readOnly className="min-h-0 flex-1" />
     </div>

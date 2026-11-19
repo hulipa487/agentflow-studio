@@ -8,13 +8,13 @@ import (
 )
 
 type builderDocPage struct {
-	slug  string
-	label string
+	slug     string
+	labelKey string
 }
 
 var builderDocPages = []builderDocPage{
-	{slug: "loops-reference", label: "Loop API reference"},
-	{slug: "loops", label: "Luau coding tutorial"},
+	{slug: "loops-reference", labelKey: "builder.docLoopsReference"},
+	{slug: "loops", labelKey: "builder.docLoopsTutorial"},
 }
 
 // luaDocsPane is the builder's inline documentation pane, shown in the dock
@@ -28,18 +28,18 @@ func (b *builderView) luaDocsPane() fyne.CanvasObject {
 		current = slug
 		clearBox(body)
 		if b.app.docs == nil {
-			body.Add(muted("Documentation is not bundled in this build."))
+			body.Add(muted(T("builder.docsNotBundled")))
 			body.Refresh()
 			return
 		}
 		if _, ok := b.app.docs.Page(slug); !ok {
-			body.Add(muted("This guide is not bundled in this build."))
+			body.Add(muted(T("builder.guideNotBundled")))
 			body.Refresh()
 			return
 		}
 		source, ok := b.app.docs.Read(slug)
 		if !ok {
-			body.Add(muted("This guide could not be read."))
+			body.Add(muted(T("builder.guideUnreadable")))
 			body.Refresh()
 			return
 		}
@@ -54,14 +54,14 @@ func (b *builderView) luaDocsPane() fyne.CanvasObject {
 
 	labels := make([]string, len(builderDocPages))
 	for i, p := range builderDocPages {
-		labels[i] = p.label
+		labels[i] = T(p.labelKey)
 	}
 	picker := widget.NewSelect(labels, nil)
-	picker.PlaceHolder = "Choose a guide"
+	picker.PlaceHolder = T("builder.chooseGuide")
 	picker.SetSelectedIndex(0)
 	picker.OnChanged = func(label string) {
-		for _, p := range builderDocPages {
-			if p.label == label {
+		for i, p := range builderDocPages {
+			if labels[i] == label {
 				build(p.slug)
 				return
 			}
@@ -69,9 +69,9 @@ func (b *builderView) luaDocsPane() fyne.CanvasObject {
 	}
 
 	titleRow := container.NewBorder(nil, nil,
-		vCenter(insetLeading(titleText("Luau Reference", theme.SizeNameSubHeadingText))),
+		vCenter(insetLeading(titleText(T("builder.luauReference"), theme.SizeNameSubHeadingText))),
 		vCenter(func() fyne.CanvasObject {
-			full := actionButton("Full docs", theme.FileTextIcon(), func() { b.leave(func() { b.app.showDocs(current) }) })
+			full := actionButton(T("builder.fullDocs"), theme.FileTextIcon(), func() { b.leave(func() { b.app.showDocs(current) }) })
 			full.Importance = widget.LowImportance
 			return full
 		}()),

@@ -2,7 +2,7 @@ package ui
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -46,14 +46,14 @@ func (a *App) newCredentialsView() *credentialsView {
 	v.banner = newBanner()
 	v.count = oneLine("")
 	v.meta = oneLine("")
-	v.bucket = widget.NewSelect([]string{"Engine-wide"}, func(string) { v.load() })
-	v.bucket.SetSelected("Engine-wide")
-	v.newBtn = primaryButton("New credential", theme.ContentAddIcon(), func() { v.editCredential(nil) })
-	v.addUser = actionButton("User bucket…", theme.AccountIcon(), func() { v.addUserBucket() })
-	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh", v.load)
+	v.bucket = widget.NewSelect([]string{bucketLabel("")}, func(string) { v.load() })
+	v.bucket.SetSelected(bucketLabel(""))
+	v.newBtn = primaryButton(T("credentials.newCredential"), theme.ContentAddIcon(), func() { v.editCredential(nil) })
+	v.addUser = actionButton(T("credentials.userBucketButton"), theme.AccountIcon(), func() { v.addUserBucket() })
+	refresh := iconButton(theme.ViewRefreshIcon(), T("common.refresh"), v.load)
 
-	head := pageHeader("Credentials",
-		"Encrypted secrets resolved by the runtime at request time. Values are write-only: Studio can replace a secret but never read it back.",
+	head := pageHeader(T("credentials.title"),
+		T("credentials.subtitle"),
 		hstack(spaceS,
 			widthBox(260, v.bucket),
 			widthBox(120, v.addUser),
@@ -79,13 +79,13 @@ func (v *credentialsView) setBanner(text string, t tone) {
 
 func bucketLabel(user string) string {
 	if user == "" {
-		return "Engine-wide"
+		return T("credentials.engineWide")
 	}
 	return user
 }
 
 func bucketValue(label string) string {
-	if label == "Engine-wide" {
+	if label == T("credentials.engineWide") {
 		return ""
 	}
 	return label
@@ -140,7 +140,7 @@ func (v *credentialsView) syncBuckets(selected string, extra ...string) {
 
 func (v *credentialsView) load() {
 	v.banner.Clear()
-	v.meta.SetText("loading…")
+	v.meta.SetText(T("credentials.loadingState"))
 	user := v.selectedBucket()
 	v.loadSeq++
 	seq := v.loadSeq
@@ -156,11 +156,11 @@ func (v *credentialsView) load() {
 				v.meta.SetText("")
 				msg := err.Error()
 				if ae, ok := err.(*api.Error); ok && ae.Status == 404 {
-					msg = "This runtime does not expose the Studio credentials API yet; rebuild and restart AgentFlow, then reopen Credentials."
+					msg = T("credentials.apiMissing")
 				}
 				v.setBanner(msg, toneDanger)
 				clearBox(v.list)
-				v.list.Add(container.NewCenter(widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), v.load)))
+				v.list.Add(container.NewCenter(widget.NewButtonWithIcon(T("common.retry"), theme.ViewRefreshIcon(), v.load)))
 				v.list.Refresh()
 				return
 			}
@@ -176,27 +176,23 @@ func (v *credentialsView) render() {
 	v.banner.Clear()
 	clearBox(v.list)
 	n := len(v.data.Credentials)
-	if n == 1 {
-		v.count.SetText("1 secret")
-	} else {
-		v.count.SetText(fmt.Sprintf("%d secrets", n))
-	}
-	where := "engine-wide bucket"
+	v.count.SetText(T("credentials.count", "n", n))
+	where := T("credentials.bucketEngineWide")
 	if v.data.Bucket != "" {
-		where = "user " + v.data.Bucket
+		where = T("credentials.bucketUser", "user", v.data.Bucket)
 	}
-	meta := where + " · write-only values"
+	meta := where + " · " + T("credentials.writeOnlyValues")
 	if !v.data.Enabled {
 		v.newBtn.Disable()
 		v.newBtn.Hide()
 		v.addUser.Disable()
 		v.addUser.Hide()
-		v.meta.SetText("credential store disabled")
+		v.meta.SetText(T("credentials.storeDisabled"))
 		v.setBanner(v.data.Note, toneWarning)
 		v.list.Add(layout.NewSpacer())
 		v.list.Add(emptyStateCard(
-			"Credentials are disabled",
-			"Set runtime.credentials.enabled: true and CREDENTIALS_MASTER_KEY, restart AgentFlow, then reopen this screen.",
+			T("credentials.disabledTitle"),
+			T("credentials.disabledGuidance"),
 			"", nil,
 		))
 		v.list.Add(layout.NewSpacer())
@@ -212,9 +208,9 @@ func (v *credentialsView) render() {
 		v.newBtn.Hide()
 		v.list.Add(layout.NewSpacer())
 		v.list.Add(emptyStateCard(
-			"No credentials in this bucket",
-			"Store an API key or token here; loops reference it by name and the runtime injects the value at request time.",
-			"Add a credential",
+			T("credentials.emptyTitle"),
+			T("credentials.emptyGuidance"),
+			T("credentials.emptyAction"),
 			func() { v.editCredential(nil) },
 		))
 		v.list.Add(layout.NewSpacer())
@@ -234,13 +230,13 @@ func (v *credentialsView) credentialCard(c api.Credential) fyne.CanvasObject {
 	title := widget.NewLabelWithStyle(c.Service, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	fp := c.Fingerprint
 	if fp == "" {
-		fp = "no fingerprint"
+		fp = T("credentials.noFingerprint")
 	}
 	top := container.NewBorder(nil, nil,
 		hstack(spaceS, vCenter(title), vCenter(chip(c.Kind, toneAccent)), vCenter(chip(fp, toneSuccess))),
 		hstack(spaceXS,
-			vCenter(actionButton("Edit", theme.DocumentCreateIcon(), func() { v.editCredential(&c) })),
-			vCenter(iconButton(theme.DeleteIcon(), "Delete", func() { v.confirmDelete(c) })),
+			vCenter(actionButton(T("common.edit"), theme.DocumentCreateIcon(), func() { v.editCredential(&c) })),
+			vCenter(iconButton(theme.DeleteIcon(), T("common.delete"), func() { v.confirmDelete(c) })),
 		),
 		nil,
 	)
@@ -256,10 +252,10 @@ func (v *credentialsView) credentialCard(c api.Credential) fyne.CanvasObject {
 		updated = time.Unix(c.UpdatedAt, 0).Local().Format("2006-01-02 15:04")
 	}
 	cells := []fyne.CanvasObject{
-		detailRow("kind", detailText(c.Kind)),
-		detailRow("header", detailText(auth)),
-		detailRow("fingerprint", detailText(fp)),
-		detailRow("updated", detailText(updated)),
+		detailRow(T("credentials.fact.kind"), detailText(c.Kind)),
+		detailRow(T("credentials.fact.header"), detailText(auth)),
+		detailRow(T("credentials.fact.fingerprint"), detailText(fp)),
+		detailRow(T("credentials.fact.updated"), detailText(updated)),
 	}
 	return panel(vstack(spaceS, top, widget.NewSeparator(), grid(2, cells...)))
 }
@@ -271,7 +267,7 @@ func (v *credentialsView) editCredential(existing *api.Credential) {
 	kind := widget.NewSelect([]string{"api_key", "token", "password", "oauth", "generic"}, nil)
 	kind.SetSelected("api_key")
 	secret := widget.NewPasswordEntry()
-	secret.SetPlaceHolder("the value (never returned again)")
+	secret.SetPlaceHolder(T("credentials.placeholder.secretNew"))
 	header := widget.NewEntry()
 	header.SetText("Authorization")
 	scheme := widget.NewEntry()
@@ -289,7 +285,7 @@ func (v *credentialsView) editCredential(existing *api.Credential) {
 			}
 			kind.SetSelected(existing.Kind)
 		}
-		secret.SetPlaceHolder("leave blank to keep the stored value")
+		secret.SetPlaceHolder(T("credentials.placeholder.secretKeep"))
 		if existing.Header != "" {
 			header.SetText(existing.Header)
 		}
@@ -302,16 +298,16 @@ func (v *credentialsView) editCredential(existing *api.Credential) {
 	}
 	form := vstack(spaceM,
 		grid(2,
-			field("Service", service),
-			field("Kind", kind),
+			field(T("credentials.field.service"), service),
+			field(T("credentials.field.kind"), kind),
 		),
-		field("Secret value", secret),
-		caption("Write-only: the stored value is encrypted at rest and never returned by the API. Leave blank on an edit to keep it."),
+		field(T("credentials.field.secret"), secret),
+		caption(T("credentials.hint.secret")),
 		grid(2,
-			field("Header", header),
-			field("Scheme", scheme),
+			field(T("credentials.field.header"), header),
+			field(T("credentials.field.scheme"), scheme),
 		),
-		caption("Sent as <header>: <scheme> <value>. Defaults are Authorization: Bearer <value>."),
+		caption(T("credentials.hint.sentAs")),
 	)
 	scroll := container.NewVScroll(panel(form))
 	scroll.SetMinSize(fyne.NewSize(680, 420))
@@ -326,10 +322,10 @@ func (v *credentialsView) editCredential(existing *api.Credential) {
 			Scheme:  strings.TrimSpace(scheme.Text),
 		}
 		if d.Service == "" {
-			return d, fmt.Errorf("a service name is required")
+			return d, errors.New(T("credentials.error.serviceRequired"))
 		}
 		if creating && d.Secret == "" {
-			return d, fmt.Errorf("a secret value is required")
+			return d, errors.New(T("credentials.error.secretRequired"))
 		}
 		return d, nil
 	}
@@ -340,8 +336,8 @@ func (v *credentialsView) editCredential(existing *api.Credential) {
 			popup.Hide()
 		}
 	}
-	cancel := widthBox(100, controlFrame(actionButton("Cancel", nil, closePopup)))
-	save := primaryButton("Save", theme.UploadIcon(), nil)
+	cancel := widthBox(100, controlFrame(actionButton(T("common.cancel"), nil, closePopup)))
+	save := primaryButton(T("common.save"), theme.UploadIcon(), nil)
 	footer := container.NewBorder(nil, nil, nil, hstack(spaceS, cancel, widthBox(104, controlFrame(save))), nil)
 
 	save.OnTapped = func() {
@@ -351,14 +347,14 @@ func (v *credentialsView) editCredential(existing *api.Credential) {
 			return
 		}
 		save.Disable()
-		save.SetText("Saving…")
+		save.SetText(T("common.saving"))
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			list, err := v.app.api.PutCredential(ctx, d)
 			onUI(func() {
 				save.Enable()
-				save.SetText("Save")
+				save.SetText(T("common.save"))
 				if err != nil {
 					errBanner.Set(err.Error(), toneDanger)
 					return
@@ -368,24 +364,26 @@ func (v *credentialsView) editCredential(existing *api.Credential) {
 				v.buckets = append([]string{}, list.Users...)
 				v.syncBuckets(d.User)
 				v.render()
-				v.app.setStatus("credential "+d.Service+" saved · live", toneSuccess)
+				v.app.setStatus(T("credentials.saved", "service", d.Service), toneSuccess)
 			})
 		}()
 	}
 
-	title := "New credential"
-	subtitle := "Stored encrypted, resolved by the runtime at request time, and never shown again."
+	title := T("credentials.newCredential")
+	subtitle := T("credentials.editorSubtitle")
 	if existing != nil {
-		title = "Edit " + existing.Service
+		title = T("credentials.editNamed", "name", existing.Service)
 	}
 	popup = showModalCard(v.app.win, title, subtitle,
 		container.NewBorder(errBanner, nil, nil, nil, scroll), footer)
 }
 
 func (v *credentialsView) confirmDelete(c api.Credential) {
-	msg := fmt.Sprintf("Delete credential %q from the %s?", c.Service, bucketLabel(v.data.Bucket))
-	msg += "\n\nAny loop or config reference that resolves it will fail until a new secret is stored."
-	showConfirmPrompt(v.app.win, "Delete credential", msg, "Delete", true, func(ok bool) {
+	msg := T("credentials.deleteMessageEngine", "service", c.Service)
+	if v.data.Bucket != "" {
+		msg = T("credentials.deleteMessageUser", "service", c.Service, "user", v.data.Bucket)
+	}
+	showConfirmPrompt(v.app.win, T("credentials.deleteTitle"), msg, T("common.delete"), true, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -402,7 +400,7 @@ func (v *credentialsView) confirmDelete(c api.Credential) {
 				v.buckets = append([]string{}, list.Users...)
 				v.syncBuckets(v.selectedBucket())
 				v.render()
-				v.app.setStatus("credential "+c.Service+" deleted", toneWarning)
+				v.app.setStatus(T("credentials.deleted", "service", c.Service), toneWarning)
 			})
 		}()
 	})
@@ -414,12 +412,12 @@ func (v *credentialsView) addUserBucket() {
 		return
 	}
 	entry := widget.NewSelectEntry(nil)
-	entry.SetPlaceHolder("user uuid")
+	entry.SetPlaceHolder(T("credentials.bucketDialog.placeholder"))
 	v.app.loadUserIDs(func(ids []string) { entry.SetOptions(ids) })
 	errBanner := newBanner()
 	form := vstack(spaceS,
-		vstack(spaceXS, fieldLabel("User UUID"), entry,
-			caption("Per-user credentials resolve only for that tenant. Leave empty to use the engine-wide bucket.")),
+		vstack(spaceXS, fieldLabel(T("credentials.bucketDialog.field")), entry,
+			caption(T("credentials.bucketDialog.hint"))),
 		errBanner,
 	)
 	var popup *widget.PopUp
@@ -428,10 +426,10 @@ func (v *credentialsView) addUserBucket() {
 			popup.Hide()
 		}
 	}
-	choose := primaryButton("Open bucket", nil, func() {
+	choose := primaryButton(T("credentials.bucketDialog.open"), nil, func() {
 		u := strings.TrimSpace(entry.Text)
 		if u == "" {
-			errBanner.Set("Enter a user UUID, or cancel and use the Engine-wide bucket.", toneDanger)
+			errBanner.Set(T("credentials.bucketDialog.error"), toneDanger)
 			return
 		}
 		closePopup()
@@ -439,10 +437,10 @@ func (v *credentialsView) addUserBucket() {
 		v.syncBuckets(u)
 		v.load()
 	})
-	cancel := widthBox(100, controlFrame(actionButton("Cancel", nil, closePopup)))
+	cancel := widthBox(100, controlFrame(actionButton(T("common.cancel"), nil, closePopup)))
 	footer := container.NewBorder(nil, nil, nil, hstack(spaceS, cancel, widthBox(140, choose)), nil)
-	popup = showModalCard(v.app.win, "Open a user bucket",
-		"Credentials are keyed by (user uuid, service). A user without a stored credential still needs to be named to add one.",
+	popup = showModalCard(v.app.win, T("credentials.bucketDialog.title"),
+		T("credentials.bucketDialog.subtitle"),
 		form, footer)
 	if c := v.app.win.Canvas(); c != nil && popup != nil {
 		c.Focus(entry)

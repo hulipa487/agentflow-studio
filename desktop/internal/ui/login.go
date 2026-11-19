@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"runtime"
 	"strings"
@@ -24,20 +23,20 @@ import (
 
 // loginTransport is one way to reach the admin API.
 type loginTransport struct {
-	label       string
+	labelKey    string
 	example     string // the URL a fresh selection fills in
 	placeholder string
 	// supported is false where this OS cannot dial it; the segment is then
 	// disabled with the reason as its hint.
 	supported bool
-	why       string
+	whyKey    string
 }
 
 var loginTransports = []loginTransport{
-	{label: "HTTP", example: "http://127.0.0.1:8080", placeholder: "http://127.0.0.1:8080", supported: true},
-	{label: "Unix socket", example: "unix:///run/agentflow/admin.sock", placeholder: "unix:///run/agentflow/admin.sock", supported: true},
-	{label: "Named pipe", example: "npipe://agentflow-admin", placeholder: "npipe://agentflow-admin",
-		supported: runtime.GOOS == "windows", why: "Named pipes are Windows only"},
+	{labelKey: "login.transportHttp", example: "http://127.0.0.1:8080", placeholder: "http://127.0.0.1:8080", supported: true},
+	{labelKey: "login.transportUnix", example: "unix:///run/agentflow/admin.sock", placeholder: "unix:///run/agentflow/admin.sock", supported: true},
+	{labelKey: "login.transportPipe", example: "npipe://agentflow-admin", placeholder: "npipe://agentflow-admin",
+		supported: runtime.GOOS == "windows", whyKey: "login.pipesWindowsOnly"},
 }
 
 // transportOf classifies a URL as typed: 0 HTTP(S), 1 Unix socket, 2 pipe.
@@ -57,20 +56,20 @@ func transportOf(raw string) int {
 func describeURL(raw string) (string, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "The runtime's HTTP address (gateway.listen, default :8080); the admin API is served there under /admin/.", true
+		return T("connection.describeEmpty"), true
 	}
 	switch transportOf(raw) {
 	case 1:
 		path := strings.TrimPrefix(raw, "unix://")
 		if !strings.HasPrefix(path, "/") && !strings.HasPrefix(path, ".") && !(len(path) > 1 && path[1] == ':') {
-			return "A Unix socket URL needs a path, e.g. unix:///run/agentflow/admin.sock.", false
+			return T("connection.describeUnixNoPath"), false
 		}
-		return "Unix socket " + path + " · runtime.admin.socket. Owner-only; the token is still required.", true
+		return T("connection.describeUnix", "path", path), true
 	case 2:
 		if runtime.GOOS != "windows" {
-			return "Named pipes are only available on Windows; use HTTP or a Unix socket here.", false
+			return T("connection.describePipeWindowsOnly"), false
 		}
-		return "Named pipe on this machine · runtime.admin.socket. Owner-only; the token is still required.", true
+		return T("connection.describePipe"), true
 	}
 	u := raw
 	if !strings.Contains(u, "://") {
@@ -78,22 +77,32 @@ func describeURL(raw string) (string, bool) {
 	}
 	parsed, err := url.Parse(u)
 	if err != nil || parsed.Host == "" {
-		return "Not a URL. Use http://host:port, unix:///path or npipe://name.", false
+		return T("connection.describeNotURL"), false
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return "Unknown scheme " + parsed.Scheme + "://. Use http, https, unix or npipe.", false
+		return T("connection.describeBadScheme", "scheme", parsed.Scheme), false
 	}
 	host := parsed.Hostname()
-	where := "a remote host: keep it on TLS or a private network"
+	where := "remote"
 	if host == "localhost" || strings.HasPrefix(host, "127.") || host == "::1" {
-		where = "this machine"
+		where = "local"
 	}
 	scheme := "HTTP"
 	if parsed.Scheme == "https" {
 		scheme = "HTTPS"
 	}
-	return fmt.Sprintf("%s to %s · %s.", scheme, parsed.Host, where), true
+	return T("connection.describeHttp", "scheme", scheme, "host", parsed.Host, "where", where), true
 }
+
+// loginCauseError is a translated message that keeps its cause for errors.As, so
+// a failure wrapped with context still points at the field to fix.
+type loginCauseError struct {
+	msg   string
+	cause error
+}
+
+func (e loginCauseError) Error() string { return e.msg }
+func (e loginCauseError) Unwrap() error { return e.cause }
 
 // ---- focus-aware field --------------------------------------------------------
 
@@ -182,6 +191,23 @@ func (a *App) showLoginWith(opts loginOptions) {
 	if c := a.win.Canvas(); c != nil && c.Content() != nil {
 		c.Content().Refresh()
 	}
+	// A language change builds the screen again in the new language, keeping
+	// what was typed; it never connects on its own. buildShell clears this.
+	cur := v
+	a.relocalizeView = func() {
+		if cur.cancel != nil {
+			cur.cancel()
+		}
+		next := &loginView{app: a, keep: &loginInput{
+			url: cur.url.entry.Text, token: cur.token.entry.Text, remember: cur.remember.Checked,
+		}}
+		a.setContent(next.build())
+		if c := a.win.Canvas(); c != nil && c.Content() != nil {
+			c.Content().Refresh()
+		}
+		next.focusFirst()
+		cur = next
+	}
 	if opts.err != "" {
 		v.fail(errors.New(opts.err))
 	}
@@ -192,8 +218,17 @@ func (a *App) showLoginWith(opts loginOptions) {
 	v.focusFirst()
 }
 
+// loginInput is what the operator had typed, carried over when the screen is
+// built again (after a language change).
+type loginInput struct {
+	url, token string
+	remember   bool
+}
+
 type loginView struct {
 	app *App
+	// keep, when set, fills the form instead of the saved configuration.
+	keep *loginInput
 
 	url, token  *loginField
 	segments    []*widget.Button
@@ -213,10 +248,9 @@ func (v *loginView) build() fyne.CanvasObject {
 
 	urlEntry := widget.NewEntry()
 	tokenEntry := widget.NewPasswordEntry()
-	tokenEntry.SetPlaceHolder("ADMIN_TOKEN or an operator token")
-	v.url = newLoginField("Instance URL", urlEntry, "")
-	v.token = newLoginField("Admin token", tokenEntry,
-		"ADMIN_TOKEN, a named operator token (runtime.admin.operators), or the per-boot token AgentFlow prints at startup.")
+	tokenEntry.SetPlaceHolder(T("login.tokenPlaceholder"))
+	v.url = newLoginField(T("login.instanceURL"), urlEntry, "")
+	v.token = newLoginField(T("login.adminToken"), tokenEntry, T("login.tokenHint"))
 
 	// Transport segments: choosing one fills in its default address unless
 	// the field already holds an address of that kind; typing a URL selects
@@ -224,7 +258,7 @@ func (v *loginView) build() fyne.CanvasObject {
 	seg := hstack(spaceXS)
 	for i, t := range loginTransports {
 		i, t := i, t
-		b := widget.NewButton(t.label, func() { v.selectTransport(i, true) })
+		b := widget.NewButton(T(t.labelKey), func() { v.selectTransport(i, true) })
 		if !t.supported {
 			b.Disable()
 		}
@@ -233,7 +267,10 @@ func (v *loginView) build() fyne.CanvasObject {
 	}
 
 	initial := a.cfg.URL
-	if initial == "" {
+	if v.keep != nil {
+		initial = v.keep.url
+	}
+	if initial == "" && v.keep == nil {
 		initial = loginTransports[0].example
 	}
 	urlEntry.SetText(initial)
@@ -243,13 +280,17 @@ func (v *loginView) build() fyne.CanvasObject {
 		v.refreshURLHint()
 		v.clearMessage()
 	}
-	if a.cfg.Token != "" {
-		tokenEntry.SetText(a.cfg.Token)
-		tokenEntry.CursorColumn = len([]rune(a.cfg.Token))
+	initialToken := a.cfg.Token
+	if v.keep != nil {
+		initialToken = v.keep.token
+	}
+	if initialToken != "" {
+		tokenEntry.SetText(initialToken)
+		tokenEntry.CursorColumn = len([]rune(initialToken))
 	}
 	tokenEntry.OnChanged = func(string) {
 		if v.token.failed {
-			v.token.setHint("ADMIN_TOKEN, a named operator token (runtime.admin.operators), or the per-boot token AgentFlow prints at startup.", false)
+			v.token.setHint(T("login.tokenHint"), false)
 		}
 		v.clearMessage()
 	}
@@ -259,9 +300,13 @@ func (v *loginView) build() fyne.CanvasObject {
 	v.refreshURLHint()
 
 	cfgPath, _ := appconfig.Path()
-	v.remember = widget.NewCheck("Remember the token on this computer", nil)
-	v.remember.SetChecked(!a.cfg.ForgetToken)
-	rememberNote := caption("Stored in plain text, owner-only, in " + orDash(cfgPath) + ". Lock forgets it.")
+	v.remember = widget.NewCheck(T("login.rememberDesktop"), nil)
+	if v.keep != nil {
+		v.remember.SetChecked(v.keep.remember)
+	} else {
+		v.remember.SetChecked(!a.cfg.ForgetToken)
+	}
+	rememberNote := caption(T("login.rememberDesktopNote", "path", orDash(cfgPath)))
 	rememberNote.Wrapping = fyne.TextWrapWord
 
 	v.message = vstack(spaceXS)
@@ -270,14 +315,14 @@ func (v *loginView) build() fyne.CanvasObject {
 	v.progress.Wrapping = fyne.TextWrapOff
 	v.progressRow = container.NewCenter(hstack(spaceXS, v.activity, v.progress))
 	v.progressRow.Hide()
-	v.connectBtn = primaryButton("Connect", theme.NavigateNextIcon(), v.connect)
+	v.connectBtn = primaryButton(T("login.connect"), theme.NavigateNextIcon(), v.connect)
 
-	cardTitle := titleText("Connect to a runtime", theme.SizeNameSubHeadingText)
+	cardTitle := titleText(T("login.connectTitle"), theme.SizeNameSubHeadingText)
 	// Saved connections are a shortlist, not a replacement for the form: a
 	// click fills the URL and token, and editing either is still allowed.
 	saved := vstack(spaceXS)
 	if len(a.cfg.Profiles) > 0 {
-		saved.Add(fieldLabel("Saved connections"))
+		saved.Add(fieldLabel(T("login.savedConnections")))
 		for _, p := range a.cfg.Profiles {
 			p := p
 			saved.Add(widget.NewButton(p.Name+"  "+p.URL, func() {
@@ -289,9 +334,9 @@ func (v *loginView) build() fyne.CanvasObject {
 		saved.Hide()
 	}
 	v.form = vstack(spaceM,
-		vstack(2, insetLeading(cardTitle), compactLabel(muted("Studio talks to AgentFlow's admin API with its bearer token. No browser, no CORS."), true)),
+		vstack(2, insetLeading(cardTitle), compactLabel(muted(T("login.introDesktop")), true)),
 		saved,
-		vstack(spaceXS, fieldLabel("Transport"), seg),
+		vstack(spaceXS, fieldLabel(T("login.transport")), seg),
 		v.url.root,
 		v.token.root,
 		vstack(0, v.remember, insetLeading(rememberNote)),
@@ -304,26 +349,26 @@ func (v *loginView) build() fyne.CanvasObject {
 	// The banner carries the AgentFlow name; this line names the app.
 	title := widget.NewLabelWithStyle("Studio", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	title.SizeName = theme.SizeNameHeadingText
-	tagline := muted("Build, run and trace agents on your own runtime.")
+	tagline := muted(T("login.tagline"))
 	tagline.Alignment = fyne.TextAlignCenter
 	tagline.Wrapping = fyne.TextWrapOff
 
-	themeLabel := "Light mode"
+	themeLabel := T("login.lightMode")
 	if a.variant == themeLight {
-		themeLabel = "Dark mode"
+		themeLabel = T("login.darkMode")
 	}
 	var themeBtn *widget.Button
 	themeBtn = widget.NewButtonWithIcon(themeLabel, theme.ColorPaletteIcon(), func() {
 		if a.variant == themeDark {
 			a.chooseTheme(themeLight)
-			themeBtn.SetText("Dark mode")
+			themeBtn.SetText(T("login.darkMode"))
 		} else {
 			a.chooseTheme(themeDark)
-			themeBtn.SetText("Light mode")
+			themeBtn.SetText(T("login.lightMode"))
 		}
 	})
 	themeBtn.Importance = widget.LowImportance
-	version := caption("Studio " + appVersion + " ·")
+	version := caption(T("login.version", "version", appVersion))
 	version.Wrapping = fyne.TextWrapOff
 	footer := container.NewCenter(hstack(spaceXS, vCenter(version), themeBtn))
 
@@ -341,10 +386,20 @@ func (v *loginView) build() fyne.CanvasObject {
 	if grip := a.resizeGrip(); grip != nil {
 		bottom = container.NewHBox(layout.NewSpacer(), grip)
 	}
+	strip := a.chromeStrip()
+	// The language switch floats in the top-right corner, below the window
+	// buttons when there are any, so the centered form does not move.
+	corner := container.NewHBox(layout.NewSpacer(),
+		container.New(layout.NewCustomPaddedLayout(spaceS, 0, 0, spaceM), a.languageToggle()))
+	var cornerTop fyne.CanvasObject = corner
+	if strip != nil {
+		cornerTop = vstack(0, vSpacer(strip.MinSize().Height), corner)
+	}
 	return container.NewStack(
 		canvas.NewRectangle(colorBG),
-		container.NewBorder(a.chromeStrip(), bottom, nil, nil,
+		container.NewBorder(strip, bottom, nil, nil,
 			container.NewCenter(container.NewPadded(body))),
+		container.NewBorder(cornerTop, nil, nil, nil),
 	)
 }
 
@@ -415,30 +470,30 @@ func (v *loginView) fail(err error) {
 	msg := err.Error()
 	switch {
 	case errors.As(err, &ae) && ae.Status == 401:
-		v.token.setHint("The runtime rejected this token. Check ADMIN_TOKEN, or copy the token AgentFlow printed at boot (it changes every start unless ADMIN_TOKEN is set).", true)
-		msg = "Authentication failed: " + ae.Message
+		v.token.setHint(T("login.tokenRejected"), true)
+		msg = T("login.authFailed", "message", ae.Message)
 		v.app.win.Canvas().Focus(v.token.entry)
 	case errors.As(err, &ae) && ae.Status == 0:
-		v.url.setHint("Nothing answered here. Is AgentFlow running, and is this its address (gateway.listen, or runtime.admin.socket with tcp: false)?", true)
+		v.url.setHint(T("login.nothingAnswered"), true)
 		v.app.win.Canvas().Focus(v.url.entry)
 	case errors.As(err, &ae) && ae.Status == 403:
-		v.url.setHint("This runtime answers its admin API only on its own machine: its token is minted per boot. Set ADMIN_TOKEN (or runtime.admin.operators) on the runtime to connect from here.", true)
+		v.url.setHint(T("login.localOnly"), true)
 		v.app.win.Canvas().Focus(v.url.entry)
 	case errors.As(err, &ae) && ae.Status == 503:
-		msg += "\n\nThe Studio API is off on this runtime: set runtime.studio.enabled: true and restart AgentFlow."
+		msg = T("login.studioOff", "message", msg)
 	}
 	v.showMessage(msg, toneDanger)
 }
 
 func (v *loginView) setBusy(busy bool, step string) {
 	if busy {
-		v.connectBtn.SetText("Cancel")
+		v.connectBtn.SetText(T("common.cancel"))
 		v.connectBtn.SetIcon(theme.CancelIcon())
 		v.connectBtn.Importance = widget.MediumImportance
 		v.progressRow.Show()
 		v.activity.Start()
 	} else {
-		v.connectBtn.SetText("Connect")
+		v.connectBtn.SetText(T("login.connect"))
 		v.connectBtn.SetIcon(theme.NavigateNextIcon())
 		v.connectBtn.Importance = widget.HighImportance
 		v.activity.Stop()
@@ -472,7 +527,7 @@ func (v *loginView) connect() {
 	rawURL := strings.TrimSpace(v.url.entry.Text)
 	token := strings.TrimSpace(v.token.entry.Text)
 	if rawURL == "" {
-		v.url.setHint("An instance URL is required.", true)
+		v.url.setHint(T("login.urlRequired"), true)
 		v.app.win.Canvas().Focus(v.url.entry)
 		return
 	}
@@ -482,7 +537,7 @@ func (v *loginView) connect() {
 		return
 	}
 	if token == "" {
-		v.token.setHint("The admin token is required.", true)
+		v.token.setHint(T("login.tokenRequired"), true)
 		v.app.win.Canvas().Focus(v.token.entry)
 		return
 	}
@@ -490,7 +545,7 @@ func (v *loginView) connect() {
 	v.clearMessage()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	v.cancel = cancel
-	v.setBusy(true, "contacting "+rawURL+"…")
+	v.setBusy(true, T("connection.contacting", "url", rawURL))
 
 	a := v.app
 	go func() {
@@ -503,10 +558,10 @@ func (v *loginView) connect() {
 				v.setBusy(false, "")
 				switch {
 				case errors.Is(err, context.Canceled):
-					v.showMessage("Connection cancelled.", toneNeutral)
+					v.showMessage(T("login.cancelled"), toneNeutral)
 				case errors.Is(err, context.DeadlineExceeded):
-					v.url.setHint("No answer within 20 seconds. Check the address and that nothing blocks the port.", true)
-					v.showMessage("Timed out contacting "+rawURL+".", toneDanger)
+					v.url.setHint(T("login.noAnswer"), true)
+					v.showMessage(T("login.timedOut", "url", rawURL), toneDanger)
 				default:
 					v.fail(err)
 				}
@@ -516,11 +571,11 @@ func (v *loginView) connect() {
 			done(err)
 			return
 		}
-		step("token accepted · loading the Studio catalog…")
+		step(T("connection.tokenAccepted"))
 		cat, err := c.Catalog(ctx)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-				err = fmt.Errorf("connected, but the Studio API is unavailable: %w", err)
+				err = loginCauseError{msg: T("connection.studioUnavailable", "message", err.Error()), cause: err}
 			}
 			done(err)
 			return

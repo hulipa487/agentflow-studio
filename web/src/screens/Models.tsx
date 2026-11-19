@@ -6,9 +6,9 @@ import { Pencil, Play, Plus, RotateCw, Save, Trash2, Undo2 } from 'lucide-react'
 import type { Model, ModelTest } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, Chips, EmptyState, IconButton, Page, Panel, StatusChip } from '@/components/ui'
 import { useAsync, useScreenActions } from '@/lib/hooks'
-import { plural } from '@/lib/format'
 import { useClient, useSession } from '@/state/session'
 import { confirm, info, toast, toastError } from '@/state/ui'
+import { t } from '@/i18n'
 import { useAlive } from './channels/useAlive'
 import { ModelEditor } from './models/ModelEditor'
 import { driftSummary, fileOnly, modelState, testFailure } from './models/model'
@@ -36,13 +36,13 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 function ModelSettings({ m }: { m: Model }) {
   const tools = m.server_tools ?? []
   const plain = !m.timeout && !(m.retry > 0) && !(m.max_tokens > 0) && !m.thinking && tools.length === 0
-  if (plain) return <span className="font-mono text-xs text-faint">provider defaults</span>
+  if (plain) return <span className="font-mono text-xs text-faint">{t('models.providerDefaults')}</span>
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-      {m.timeout && <Fact label="timeout">{m.timeout}</Fact>}
-      {m.retry > 0 && <Fact label="retry">{m.retry}</Fact>}
-      {m.max_tokens > 0 && <Fact label="max tokens">{m.max_tokens}</Fact>}
-      {m.thinking && <Fact label="thinking">{m.thinking}</Fact>}
+      {m.timeout && <Fact label={t('models.fact.timeout')}>{m.timeout}</Fact>}
+      {m.retry > 0 && <Fact label={t('models.fact.retry')}>{m.retry}</Fact>}
+      {m.max_tokens > 0 && <Fact label={t('models.fact.maxTokens')}>{m.max_tokens}</Fact>}
+      {m.thinking && <Fact label={t('models.fact.thinking')}>{m.thinking}</Fact>}
       {tools.length > 0 && <Chips items={tools} max={2} />}
     </div>
   )
@@ -97,8 +97,8 @@ export default function Models() {
       const res = await client.testModel(name)
       if (!alive.current) return
       setResults((r) => ({ ...r, [name]: res }))
-      if (res.ok) toast(`${name} ok · ${res.latency_ms}ms`, 'success')
-      else void info({ title: 'Model test failed', message: testFailure(res) })
+      if (res.ok) toast(t('models.testOk', { name, ms: res.latency_ms }), 'success')
+      else void info({ title: t('models.testFailedTitle'), message: testFailure(res) })
     } catch (err) {
       if (alive.current) toastError(err)
     } finally {
@@ -115,20 +115,19 @@ export default function Models() {
   const remove = async (m: Model) => {
     if (fileOnly(m)) {
       void info({
-        title: 'Model is only in the config',
-        message: 'This model is not live on the running instance. Save the live model set to config to remove it, or revert to config to load it.',
+        title: t('models.onlyInConfigTitle'),
+        message: t('models.onlyInConfigMessage'),
       })
       return
     }
-    let message = `Remove model "${m.name}" from the running instance?`
-    if (m.in_file) message += '\n\nIt stays in the config file until you save changes to the config.'
-    if (!(await confirm({ title: 'Delete model', message, confirmLabel: 'Delete', danger: true })) || !alive.current) return
+    const message = t(m.in_file ? 'models.removeConfirmInFile' : 'models.removeConfirm', { name: m.name })
+    if (!(await confirm({ title: t('models.deleteTitle'), message, confirmLabel: t('common.delete'), danger: true })) || !alive.current) return
     setDeleting(m.name)
     try {
       await client.deleteModel(m.name)
       if (!alive.current) return
       forget(m.name)
-      toast('model removed · live', 'warning')
+      toast(t('models.removed'), 'warning')
       changed()
     } catch (err) {
       if (alive.current) toastError(err)
@@ -143,7 +142,7 @@ export default function Models() {
     try {
       await client.persistModels()
       if (!alive.current) return
-      toast('models saved to config', 'success')
+      toast(t('models.savedToConfig'), 'success')
       changed()
     } catch (err) {
       if (alive.current) toastError(err)
@@ -155,9 +154,9 @@ export default function Models() {
   const revert = async () => {
     if (writing) return
     const ok = await confirm({
-      title: 'Revert model changes?',
-      message: "Discard live model changes and reload the deployment config's models?",
-      confirmLabel: 'Revert',
+      title: t('models.revertTitle'),
+      message: t('models.revertMessage'),
+      confirmLabel: t('common.revert'),
       danger: true,
     })
     if (!ok || !alive.current) return
@@ -166,7 +165,7 @@ export default function Models() {
       await client.revertModels()
       if (!alive.current) return
       setResults({})
-      toast('models reverted to config', 'success')
+      toast(t('models.reverted'), 'success')
       changed()
     } catch (err) {
       if (alive.current) toastError(err)
@@ -179,66 +178,66 @@ export default function Models() {
   if (data?.fileError) {
     banners.push(
       <Banner key="file" tone="warning">
-        config read failed: {data.fileError}
+        {t('models.configReadFailedDetail', { message: data.fileError })}
       </Banner>,
     )
   }
 
   return (
     <Page
-      title="Models"
-      subtitle="LLM endpoints available to agents. Changes apply live; save them to the deployment config to keep them across restarts."
+      title={t('models.title')}
+      subtitle={t('models.subtitle')}
       meta={
         data ? (
           <>
             <StatusChip tone={drift.count > 0 ? 'warning' : 'success'}>{drift.text}</StatusChip>
-            {data.fileError && <span className="text-warning">config read failed</span>}
-            {regional && <span className="text-warning">regional fleet: edits apply to this instance only; save and roll the fleet</span>}
+            {data.fileError && <span className="text-warning">{t('models.configReadFailed')}</span>}
+            {regional && <span className="text-warning">{t('models.regionalNote')}</span>}
           </>
         ) : null
       }
       banner={banners.length > 0 ? banners : null}
       actions={
         <>
-          {data && <span className="font-mono text-xs text-faint">{plural(models.length, 'model')}</span>}
+          {data && <span className="font-mono text-xs text-faint">{t('models.count', { n: models.length })}</span>}
           {/* Only drift gives these two something to do. */}
           {drift.count > 0 && (
             <>
               <Button icon={Save} onClick={persist} loading={busy === 'persist'} disabled={writing}>
-                Save to config
+                {t('models.saveToConfig')}
               </Button>
               <Button icon={Undo2} onClick={revert} loading={busy === 'revert'} disabled={writing}>
-                Revert to config
+                {t('models.revertToConfig')}
               </Button>
             </>
           )}
-          <IconButton icon={RotateCw} label="Refresh" onClick={refresh} loading={refreshing} />
+          <IconButton icon={RotateCw} label={t('common.refresh')} onClick={refresh} loading={refreshing} />
           {/* While the list is empty the empty state carries this action. */}
           {models.length > 0 && (
             <Button variant="primary" icon={Plus} onClick={() => setEditing({ existing: null })}>
-              New model
+              {t('models.newModel')}
             </Button>
           )}
         </>
       }
     >
-      <AsyncView loading={loading} error={error} hasData={!!data} retry={refresh} loadingText="Loading models…">
+      <AsyncView loading={loading} error={error} hasData={!!data} retry={refresh} loadingText={t('models.loading')}>
         {models.length === 0 ? (
           <EmptyState
-            title="No models yet"
-            guidance="Add an OpenAI, Anthropic or Gemini endpoint to give agents a model."
-            actionLabel="Add a model"
+            title={t('models.emptyTitle')}
+            guidance={t('models.emptyGuidance')}
+            actionLabel={t('models.emptyAction')}
             onAction={() => setEditing({ existing: null })}
           />
         ) : (
           <Panel flush className="overflow-x-auto">
             <div className="min-w-[990px]">
               <div className={`${GRID} border-b border-line px-3 py-1.5 text-xs font-semibold text-faint`}>
-                <span>Model</span>
-                <span>Endpoint</span>
-                <span>Settings</span>
-                <span>API key</span>
-                <span>State</span>
+                <span>{t('models.col.model')}</span>
+                <span>{t('models.col.endpoint')}</span>
+                <span>{t('models.col.settings')}</span>
+                <span>{t('models.col.apiKey')}</span>
+                <span>{t('models.col.state')}</span>
                 <span />
               </div>
               {models.map((m) => {
@@ -257,15 +256,15 @@ export default function Models() {
                         {m.model}
                       </div>
                       <div className="truncate font-mono text-xs text-muted" title={m.base_url}>
-                        {m.base_url || <span className="text-faint">provider default</span>}
+                        {m.base_url || <span className="text-faint">{t('models.providerDefault')}</span>}
                       </div>
                     </div>
                     <ModelSettings m={m} />
                     <div className="min-w-0">
                       {m.has_key ? (
-                        <Chip tone="success">configured{m.key_fingerprint ? ' · ' + m.key_fingerprint : ''}</Chip>
+                        <Chip tone="success">{m.key_fingerprint ? t('models.key.configuredFingerprint', { fingerprint: m.key_fingerprint }) : t('models.key.configured')}</Chip>
                       ) : (
-                        <Chip tone="warning">not set</Chip>
+                        <Chip tone="warning">{t('models.key.notSet')}</Chip>
                       )}
                     </div>
                     <div className="flex min-w-0 flex-col items-start gap-1">
@@ -273,15 +272,19 @@ export default function Models() {
                         <StatusChip tone={state.tone}>{state.label}</StatusChip>
                       </span>
                       {result && (
-                        <Chip tone={result.ok ? 'success' : 'danger'} title={result.ok ? 'Last test on this screen' : testFailure(result)}>
-                          {result.ok ? `ok · ${result.latency_ms}ms` : `test failed · ${result.class || 'error'}`}
+                        <Chip tone={result.ok ? 'success' : 'danger'} title={result.ok ? t('models.lastTest') : testFailure(result)}>
+                          {result.ok
+                            ? t('models.resultOk', { ms: result.latency_ms })
+                            : result.class
+                              ? t('models.resultFailed', { class: result.class })
+                              : t('models.resultFailedUnknown')}
                         </Chip>
                       )}
                     </div>
                     <div className="flex items-center justify-end">
-                      <IconButton icon={Play} label={`Test ${m.name}`} loading={testing.has(m.name)} onClick={() => test(m.name)} />
-                      <IconButton icon={Pencil} label={`Edit ${m.name}`} onClick={() => setEditing({ existing: m })} />
-                      <IconButton icon={Trash2} label={`Delete ${m.name}`} tone="danger" loading={deleting === m.name} disabled={writing} onClick={() => remove(m)} />
+                      <IconButton icon={Play} label={t('models.testNamed', { name: m.name })} loading={testing.has(m.name)} onClick={() => test(m.name)} />
+                      <IconButton icon={Pencil} label={t('models.editNamed', { name: m.name })} onClick={() => setEditing({ existing: m })} />
+                      <IconButton icon={Trash2} label={t('models.deleteNamed', { name: m.name })} tone="danger" loading={deleting === m.name} disabled={writing} onClick={() => remove(m)} />
                     </div>
                   </div>
                 )
@@ -300,7 +303,7 @@ export default function Models() {
             setEditing(null)
             forget(name)
             toast(
-              regional ? `model ${name} applied to this instance only · save to config and roll the fleet` : `model ${name} applied · save to config to keep`,
+              regional ? t('models.appliedRegional', { name }) : t('models.applied', { name }),
               'warning',
             )
             changed()

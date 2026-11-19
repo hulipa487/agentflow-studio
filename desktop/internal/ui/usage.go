@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
@@ -37,23 +36,22 @@ func (a *App) showUsage() {
 func (a *App) newUsageView() *usageView {
 	v := &usageView{app: a, day: time.Now().UTC()}
 	v.dayLbl = widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{Monospace: true, Bold: true})
-	v.groupBy = widget.NewSelect([]string{"By tenant", "By agent", "By model", "Every slice"}, func(string) {
+	// render reads the grouping by index, in this order.
+	v.groupBy = widget.NewSelect([]string{T("usage.groupTenant"), T("usage.groupAgent"), T("usage.groupModel"), T("usage.groupSlice")}, func(string) {
 		if v.loaded {
 			v.render()
 		}
 	})
-	v.groupBy.SetSelected("By tenant")
-	prev := iconButton(theme.NavigateBackIcon(), "Previous day", func() { v.shift(-1) })
-	next := iconButton(theme.NavigateNextIcon(), "Next day", func() { v.shift(1) })
-	today := actionButton("Today", nil, func() {
+	v.groupBy.SetSelectedIndex(usageByTenant)
+	prev := iconButton(theme.NavigateBackIcon(), T("usage.prevDay"), func() { v.shift(-1) })
+	next := iconButton(theme.NavigateNextIcon(), T("usage.nextDay"), func() { v.shift(1) })
+	today := actionButton(T("usage.today"), nil, func() {
 		v.day = time.Now().UTC()
 		v.load()
 	})
 	actions := hstack(spaceS, prev, widthBox(110, v.dayLbl), next, today, widthBox(150, v.groupBy),
-		iconButton(theme.ViewRefreshIcon(), "Refresh", v.load))
-	v.s = a.newScreen("Usage",
-		"The token ledger's daily rollup (usage_daily): what every tenant, agent and model spent on a UTC day. It is the figure quotas and agent budgets are enforced against.",
-		actions)
+		iconButton(theme.ViewRefreshIcon(), T("common.refresh"), v.load))
+	v.s = a.newScreen(T("usage.title"), T("usage.subtitle"), actions)
 	v.load()
 	return v
 }
@@ -72,7 +70,7 @@ func (v *usageView) load() {
 	v.dayLbl.SetText(day)
 	v.loadSeq++
 	seq := v.loadSeq
-	v.s.loading("Reading the ledger for " + day + "…")
+	v.s.loading(T("usage.loading", "day", day))
 	async(20*time.Second, func(ctx context.Context) (api.UsageDay, error) {
 		return v.app.api.Usage(ctx, day)
 	}, func(d api.UsageDay, err error) {
@@ -90,6 +88,14 @@ func (v *usageView) load() {
 	})
 }
 
+// The groupings, in the order the select offers them.
+const (
+	usageByTenant = iota
+	usageByAgent
+	usageByModel
+	usageEverySlice
+)
+
 type usageGroup struct {
 	key string
 	api.UsageTotals
@@ -104,24 +110,23 @@ func (v *usageView) render() {
 		reasoning += r.Reasoning
 		failed += r.Failed
 	}
-	v.s.meta.SetText(fmt.Sprintf("%s (UTC) · %d slices · %d tenants", d.Day, len(d.Rows), d.Tenants))
+	v.s.meta.SetText(T("usage.meta", "day", d.Day, "slices", len(d.Rows), "tenants", d.Tenants))
 	tiles := grid(4,
-		statTile("Billable", humanCount(d.Totals.Billable), fmt.Sprintf("in %s · out %s", humanCount(d.Totals.Input), humanCount(d.Totals.Output)), toneAccent, nil),
-		statTile("Calls", humanCount(d.Totals.Calls), fmt.Sprintf("%d failed", failed), toneNeutral, nil),
-		statTile("Cached input", humanCount(cached), "already counted in input", toneNeutral, nil),
-		statTile("Reasoning", humanCount(reasoning), "already counted in output", toneNeutral, nil),
+		statTile(T("usage.billable"), humanCount(d.Totals.Billable), T("usage.inOut", "input", humanCount(d.Totals.Input), "output", humanCount(d.Totals.Output)), toneAccent, nil),
+		statTile(T("usage.calls"), humanCount(d.Totals.Calls), T("usage.failedCount", "n", failed), toneNeutral, nil),
+		statTile(T("usage.cachedInput"), humanCount(cached), T("usage.inInput"), toneNeutral, nil),
+		statTile(T("usage.reasoning"), humanCount(reasoning), T("usage.inOutput"), toneNeutral, nil),
 	)
 	if len(d.Rows) == 0 {
-		v.s.setBody(tiles, vSpacer(spaceL), emptyStateCard("Nothing metered on this day",
-			"Every LLM call through a metered agent is recorded here. Pick another day, or chat with an agent and refresh.", "", nil))
+		v.s.setBody(tiles, vSpacer(spaceL), emptyStateCard(T("usage.emptyTitle"), T("usage.emptyGuidance"), "", nil))
 		return
 	}
 
 	var cols []tableColumn
 	var rows [][]fyne.CanvasObject
 	numCols := []tableColumn{
-		{title: "input", width: 80, right: true}, {title: "output", width: 80, right: true},
-		{title: "billable", width: 84, right: true}, {title: "calls", width: 60, right: true}, {title: "failed", width: 60, right: true},
+		{title: T("usage.col.input"), width: 80, right: true}, {title: T("usage.col.output"), width: 80, right: true},
+		{title: T("usage.col.billable"), width: 84, right: true}, {title: T("usage.col.calls"), width: 60, right: true}, {title: T("usage.col.failed"), width: 60, right: true},
 	}
 	nums := func(t api.UsageTotals) []fyne.CanvasObject {
 		failed := cellNum(t.Failed)
@@ -132,13 +137,13 @@ func (v *usageView) render() {
 	}
 	tenantLabel := func(id string) string {
 		if id == "" {
-			return "(no tenant)"
+			return T("usage.noTenant")
 		}
 		return id
 	}
 
-	if v.groupBy.Selected == "Every slice" {
-		cols = append([]tableColumn{{title: "tenant"}, {title: "agent", width: 120}, {title: "model", width: 150}}, numCols...)
+	if v.groupBy.SelectedIndex() == usageEverySlice {
+		cols = append([]tableColumn{{title: T("usage.col.tenant")}, {title: T("usage.col.agent"), width: 120}, {title: T("usage.col.model"), width: 150}}, numCols...)
 		sorted := append([]api.UsageRow(nil), d.Rows...)
 		sort.Slice(sorted, func(i, j int) bool { return sorted[i].Billable() > sorted[j].Billable() })
 		for _, r := range sorted {
@@ -146,12 +151,12 @@ func (v *usageView) render() {
 		}
 	} else {
 		keyOf := func(r api.UsageRow) string { return tenantLabel(r.UserID) }
-		title := "tenant"
-		switch v.groupBy.Selected {
-		case "By agent":
-			keyOf, title = func(r api.UsageRow) string { return r.Agent }, "agent"
-		case "By model":
-			keyOf, title = func(r api.UsageRow) string { return r.Model }, "model"
+		title := T("usage.col.tenant")
+		switch v.groupBy.SelectedIndex() {
+		case usageByAgent:
+			keyOf, title = func(r api.UsageRow) string { return r.Agent }, T("usage.col.agent")
+		case usageByModel:
+			keyOf, title = func(r api.UsageRow) string { return r.Model }, T("usage.col.model")
 		}
 		groups := map[string]*usageGroup{}
 		for _, r := range d.Rows {
@@ -172,7 +177,7 @@ func (v *usageView) render() {
 			list = append(list, g)
 		}
 		sort.Slice(list, func(i, j int) bool { return list[i].Billable() > list[j].Billable() })
-		cols = append([]tableColumn{{title: title}, {title: "share", width: 140}}, numCols...)
+		cols = append([]tableColumn{{title: title}, {title: T("usage.col.share"), width: 140}}, numCols...)
 		total := d.Totals.Billable
 		for _, g := range list {
 			share := widget.NewProgressBar()
@@ -184,5 +189,5 @@ func (v *usageView) render() {
 		}
 	}
 	v.s.setBody(tiles, panel(simpleTable(cols, rows)),
-		caption("Billable = input + output, the rule quotas and budgets use. Per-call detail lives on each profile under Users when usage.events is on."))
+		caption(T("usage.footnote")))
 }

@@ -62,7 +62,7 @@ func TestBuildProfileDraft(t *testing.T) {
 	if !reflect.DeepEqual(d.Write, []string{"plugin:routing_table", "plugin:fact_extractor"}) {
 		t.Fatalf("write = %v", d.Write)
 	}
-	if _, err := buildProfileDraft(profileInput{Name: "p", Stores: []storeInput{{Name: "facts", Window: "lots"}}}); err == nil || !strings.Contains(err.Error(), `store "facts": window`) {
+	if _, err := buildProfileDraft(profileInput{Name: "p", Stores: []storeInput{{Name: "facts", Window: "lots"}}}); err == nil || !strings.Contains(err.Error(), `Store "facts": window`) {
 		t.Fatalf("a bad window: %v", err)
 	}
 	fresh := newProfileDraft([]string{"vectors", "main_db"})

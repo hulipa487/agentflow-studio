@@ -7,6 +7,8 @@ import { humanDuration, orDash, shortID } from '@/lib/format'
 import { tokenFor, useConnections, type Profile } from '@/state/connections'
 import { useClient, useSession } from '@/state/session'
 import { confirm } from '@/state/ui'
+import { t } from '@/i18n'
+import { tr } from '@/i18n/rich'
 import { Fact, FieldLabel } from './parts'
 
 type TokenState = 'stored' | 'tab' | 'none'
@@ -19,28 +21,27 @@ function tokenState(p: Profile | undefined): TokenState {
 
 function transportLabel(url: string, viaProxy: boolean): string {
   const kind = transportOf(url)
-  if (kind === 'unix') return 'Local socket · via local proxy'
-  if (kind === 'npipe') return 'Named pipe · via local proxy'
-  return viaProxy ? 'TCP · via local proxy' : 'TCP · direct from this browser'
+  if (kind === 'unix') return t('settings.transportSocket')
+  if (kind === 'npipe') return t('settings.transportPipe')
+  return viaProxy ? t('settings.transportTcpProxy') : t('settings.transportTcpDirect')
 }
 
 function transportNote(client: Client): string {
-  if (client.local) return 'A browser cannot open a socket or pipe, so Studio’s local proxy on this origin does and forwards each request.'
-  if (client.viaProxy) return 'Requests go to Studio’s local proxy on this origin, which forwards them to the runtime. No CORS entry is needed.'
-  return 'The browser calls the runtime itself, so the runtime must allow this origin (below).'
+  if (client.local) return t('settings.transportNoteLocal')
+  if (client.viaProxy) return t('settings.transportNoteProxy')
+  return t('settings.transportNoteDirect')
 }
 
-const TOKEN_NOTE: Record<TokenState, string> = {
-  stored:
-    'Remembered in this browser’s localStorage, in plain text. Anyone who can use this browser profile can read it. Lock forgets it.',
-  tab: 'Kept for this tab only (sessionStorage, in plain text). A reload stays signed in; closing the tab forgets it.',
-  none: 'Not saved in this browser: it is held in memory, and a reload asks for it again.',
+const TOKEN_NOTE_KEY: Record<TokenState, string> = {
+  stored: 'settings.tokenNoteStored',
+  tab: 'settings.tokenNoteTab',
+  none: 'settings.tokenNoteNone',
 }
 
 function TokenChip({ state }: { state: TokenState }) {
-  if (state === 'stored') return <Chip tone="warning">token in localStorage</Chip>
-  if (state === 'tab') return <Chip tone="accent">token for this tab</Chip>
-  return <Chip>no token saved</Chip>
+  if (state === 'stored') return <Chip tone="warning">{t('settings.tokenStored')}</Chip>
+  if (state === 'tab') return <Chip tone="accent">{t('settings.tokenTab')}</Chip>
+  return <Chip>{t('settings.tokenNone')}</Chip>
 }
 
 /** Leaves this runtime for another saved one, exactly as the shell's connection menu does. */
@@ -54,11 +55,9 @@ async function switchTo(name: string) {
 
 async function forget(p: Profile, isActive: boolean) {
   const ok = await confirm({
-    title: 'Forget connection',
-    message: isActive
-      ? `Forget ${p.name}? Its address and token are removed from this browser and you return to the welcome screen.`
-      : `Forget ${p.name}? Its address and token are removed from this browser.`,
-    confirmLabel: 'Forget',
+    title: t('settings.forgetTitle'),
+    message: isActive ? t('settings.forgetMessageActive', { name: p.name }) : t('settings.forgetMessage', { name: p.name }),
+    confirmLabel: t('settings.forget'),
     danger: true,
   })
   if (!ok) return
@@ -79,45 +78,52 @@ export function ConnectionSection() {
 
   return (
     <Section
-      title="Connection"
-      subtitle="The AgentFlow runtime admin API this Studio window is connected to."
-      action={online ? <StatusChip tone="success">connected</StatusChip> : <StatusChip tone="danger" pulse>offline</StatusChip>}
+      title={t('settings.connection')}
+      subtitle={t('settings.connectionHint')}
+      action={
+        online ? (
+          <StatusChip tone="success">{t('common.connected')}</StatusChip>
+        ) : (
+          <StatusChip tone="danger" pulse>
+            {t('common.offline')}
+          </StatusChip>
+        )
+      }
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <Fact label="Endpoint">
+          <Fact label={t('settings.endpoint')}>
             <span className="truncate font-mono text-xs" title={client.displayURL}>
               {client.displayURL}
             </span>
-            <CopyButton text={client.displayURL} what="endpoint" />
+            <CopyButton text={client.displayURL} what={t('settings.endpointNoun')} />
           </Fact>
-          <Fact label="Transport" hint={transportNote(client)}>
+          <Fact label={t('settings.transport')} hint={transportNote(client)}>
             {transportLabel(client.displayURL, client.viaProxy)}
           </Fact>
-          <Fact label="Admin token" hint={TOKEN_NOTE[token]}>
+          <Fact label={t('settings.adminToken')} hint={t(TOKEN_NOTE_KEY[token])}>
             <TokenChip state={token} />
           </Fact>
         </div>
 
         {rt && (
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-ctl border border-line bg-surface2 px-3 py-2.5 md:grid-cols-4">
-            <KV label="Instance" value={<span title={rt.instance}>{orDash(shortID(rt.instance))}</span>} copy={rt.instance || undefined} />
-            <KV label="Region" value={orDash(rt.region)} />
-            <KV label="Zone" value={orDash(rt.zone)} />
-            <KV label="Topology" value={orDash(rt.topology)} />
-            <KV label="Version" value={orDash(rt.version)} />
-            <KV label="Uptime" value={humanDuration(rt.uptime_s)} />
-            <KV label="Config epoch" value={orDash(rt.config_epoch)} />
-            <KV label="Config" value={<span title={rt.config_path}>{orDash(rt.config_path)}</span>} copy={rt.config_path || undefined} />
+            <KV label={t('settings.instance')} value={<span title={rt.instance}>{orDash(shortID(rt.instance))}</span>} copy={rt.instance || undefined} />
+            <KV label={t('settings.region')} value={orDash(rt.region)} />
+            <KV label={t('settings.zone')} value={orDash(rt.zone)} />
+            <KV label={t('settings.topology')} value={orDash(rt.topology)} />
+            <KV label={t('settings.version')} value={orDash(rt.version)} />
+            <KV label={t('settings.uptime')} value={humanDuration(rt.uptime_s)} />
+            <KV label={t('settings.configEpoch')} value={orDash(rt.config_epoch)} />
+            <KV label={t('settings.config')} value={<span title={rt.config_path}>{orDash(rt.config_path)}</span>} copy={rt.config_path || undefined} />
           </div>
         )}
 
         {direct && (
           <div>
-            <FieldLabel>Allowed origin</FieldLabel>
+            <FieldLabel>{t('settings.allowedOrigin')}</FieldLabel>
             <p className="mb-1.5 text-xs leading-snug text-muted">
-              A direct connection works only while the runtime lists this page’s origin under <span className="font-mono">runtime.admin.cors_origins</span>.
-              Keep this in its config (a change applies at the next restart):
+              {tr('settings.allowedOriginNote', { key: 'runtime.admin.cors_origins' }, { code: (c) => <span className="font-mono">{c}</span> })}
             </p>
             <div className="flex items-start gap-2 rounded-ctl border border-line bg-bg py-2 pl-3 pr-2">
               <pre className="min-w-0 flex-1 overflow-x-auto font-mono text-xs leading-relaxed text-text">{corsLines}</pre>
@@ -127,8 +133,8 @@ export function ConnectionSection() {
         )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button icon={Lock} onClick={() => useSession.getState().lock()} title="Forget the token and return to the welcome screen">
-            Lock
+          <Button icon={Lock} onClick={() => useSession.getState().lock()} title={t('settings.lockTitle')}>
+            {t('settings.lock')}
           </Button>
           <Button
             icon={Plus}
@@ -139,15 +145,15 @@ export function ConnectionSection() {
               useSession.getState().disconnect()
             }}
           >
-            Use another connection…
+            {t('shell.useAnotherConnection')}
           </Button>
-          <span className="text-xs text-muted">Lock forgets the token and returns to the welcome screen; the address stays saved.</span>
+          <span className="text-xs text-muted">{t('settings.lockNote')}</span>
         </div>
 
         <div>
-          <FieldLabel>Saved connections</FieldLabel>
+          <FieldLabel>{t('settings.savedConnections')}</FieldLabel>
           {profiles.length === 0 ? (
-            <div className="rounded-ctl border border-line px-3 py-3 text-xs text-muted">No saved connections yet.</div>
+            <div className="rounded-ctl border border-line px-3 py-3 text-xs text-muted">{t('shell.noConnections')}</div>
           ) : (
             <div className="overflow-hidden rounded-ctl border border-line">
               {profiles.map((p) => {
@@ -158,7 +164,7 @@ export function ConnectionSection() {
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className={'truncate text-base ' + (isActive ? 'font-semibold' : '')}>{p.name}</span>
-                        {isActive && <Chip tone="success">active</Chip>}
+                        {isActive && <Chip tone="success">{t('shell.activeConnection')}</Chip>}
                       </div>
                       <div className="truncate font-mono text-xs text-muted" title={p.url}>
                         {p.url}
@@ -171,12 +177,12 @@ export function ConnectionSection() {
                         size="sm"
                         icon={ArrowLeftRight}
                         onClick={() => void switchTo(p.name)}
-                        title={tokenState(p) === 'none' ? 'Opens the welcome screen to enter its token' : 'Reconnect with this profile'}
+                        title={tokenState(p) === 'none' ? t('settings.switchNeedsToken') : t('settings.switchReconnect')}
                       >
-                        Switch
+                        {t('settings.switch')}
                       </Button>
                     )}
-                    <IconButton icon={Trash2} label={`Forget ${p.name}`} tone="danger" onClick={() => void forget(p, isActive)} />
+                    <IconButton icon={Trash2} label={t('settings.forgetName', { name: p.name })} tone="danger" onClick={() => void forget(p, isActive)} />
                   </div>
                 )
               })}

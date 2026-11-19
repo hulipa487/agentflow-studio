@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"agentflow-studio/internal/i18n"
 	"image/color"
 	"unicode"
 	"unicode/utf8"
@@ -51,11 +52,12 @@ func (p themePalette) Title() string {
 	return "Trans Pride"
 }
 
+// Description is translated; Title is a proper name and stays as it is.
 func (p themePalette) Description() string {
 	if p == paletteObsidian {
-		return "Electric violet & teal accents over a carbon or alabaster shell."
+		return T("settings.paletteObsidianDescription")
 	}
-	return "Flag sky-blue, pastel pink & white over a calm deep-navy or ice shell."
+	return T("settings.paletteTransDescription")
 }
 
 func paletteFromConfig(saved string) themePalette {
@@ -351,7 +353,15 @@ func (studioTheme) Color(n fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color
 	return theme.DefaultTheme().Color(n, theme.VariantDark)
 }
 
+// Font is Fyne's own in English. In a Chinese language proportional text uses
+// a CJK font from the system (see cjkfont.go); code stays in the monospace
+// font, and symbols in the symbol font.
 func (studioTheme) Font(style fyne.TextStyle) fyne.Resource {
+	if l := i18n.Language(); l.Chinese() && !style.Monospace && !style.Symbol {
+		if res := cjkFont(l, style.Bold); res != nil {
+			return res
+		}
+	}
 	return theme.DefaultTheme().Font(style)
 }
 
@@ -998,9 +1008,23 @@ func oneLine(text string) *widget.Label {
 	return l
 }
 
+// monoStyle is the monospace style, unless the text holds Chinese. The
+// monospace font has no CJK glyphs, and a line Fyne draws from two fonts sits
+// on the taller font's ascent, which pushes the Latin part down and clips its
+// underscores in a fixed-height chip. Chinese text is drawn in the CJK font
+// (theme.Font), which has Latin glyphs of its own, so one font draws the line.
+func monoStyle(text string) fyne.TextStyle {
+	for _, r := range text {
+		if unicode.Is(unicode.Han, r) {
+			return fyne.TextStyle{}
+		}
+	}
+	return fyne.TextStyle{Monospace: true}
+}
+
 func mono(text string, sizeName fyne.ThemeSizeName) *widget.Label {
 	l := widget.NewLabel(text)
-	l.TextStyle = fyne.TextStyle{Monospace: true}
+	l.TextStyle = monoStyle(text)
 	l.SizeName = sizeName
 	l.Wrapping = fyne.TextWrapOff
 	l.Truncation = fyne.TextTruncateEllipsis
@@ -1026,7 +1050,7 @@ func chip(text string, t tone) fyne.CanvasObject {
 	bg.CornerRadius = 4
 	txt := canvas.NewText(text, chipText(t))
 	txt.TextSize = 11
-	txt.TextStyle = fyne.TextStyle{Monospace: true}
+	txt.TextStyle = monoStyle(text)
 	txt.Alignment = fyne.TextAlignCenter
 	stack := container.NewStack(bg, container.NewCenter(txt))
 	w := fyne.MeasureText(text, 11, txt.TextStyle).Width + 12
@@ -1054,7 +1078,7 @@ func kbd(text string) fyne.CanvasObject {
 	bg.StrokeWidth = 1
 	txt := canvas.NewText(text, colorMuted)
 	txt.TextSize = 10
-	txt.TextStyle = fyne.TextStyle{Monospace: true}
+	txt.TextStyle = monoStyle(text)
 	txt.Alignment = fyne.TextAlignCenter
 	w := fyne.MeasureText(text, 10, txt.TextStyle).Width + 10
 	return container.NewGridWrap(fyne.NewSize(w, 18), container.NewStack(bg, container.NewCenter(txt)))
@@ -1065,7 +1089,7 @@ func kbd(text string) fyne.CanvasObject {
 func monoText(text string, size float32, c color.Color) *canvas.Text {
 	t := canvas.NewText(text, c)
 	t.TextSize = size
-	t.TextStyle = fyne.TextStyle{Monospace: true}
+	t.TextStyle = monoStyle(text)
 	return t
 }
 
@@ -1188,7 +1212,7 @@ func editorFrame(title, hint string, body fyne.CanvasObject, actions ...fyne.Can
 
 func kv(label, value string) fyne.CanvasObject {
 	v := widget.NewLabel(value)
-	v.TextStyle = fyne.TextStyle{Monospace: true}
+	v.TextStyle = monoStyle(value)
 	v.SizeName = theme.SizeNameCaptionText
 	v.Wrapping = fyne.TextWrapWord
 	return vstack(spaceXS, fieldLabel(label), v)

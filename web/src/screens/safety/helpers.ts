@@ -2,6 +2,7 @@
 // (internal/ui/safety.go) so both apps parse and print the same way. Parsers
 // throw an Error whose message is the text the form shows.
 import type { SafetyClassifier, SafetyClassifierDraft, SafetyProfile, SafetyProfileDraft } from '@/api/types'
+import { t } from '@/i18n'
 
 export const CLASSIFIER_PREFIX = 'classifier:'
 
@@ -12,11 +13,14 @@ export type Source = (typeof SOURCES)[number]
 
 // ---- formatting -------------------------------------------------------------
 
-export const EMPTY_CHAIN = 'empty chain — the dispatcher runs and decides nothing'
+/** What an empty chain shows, in the current language. */
+export function emptyChain(): string {
+  return t('safety.emptyChain')
+}
 
 /** The chain as the dispatcher will build it, left to right. */
 export function chainText(filters: string[] | null | undefined): string {
-  if (!filters || filters.length === 0) return EMPTY_CHAIN
+  if (!filters || filters.length === 0) return emptyChain()
   return filters.join('  →  ')
 }
 
@@ -60,10 +64,10 @@ export function profileUsage(p: Pick<SafetyProfile, 'agents' | 'spawn_profiles'>
 export function profileUsedBy(p: Pick<SafetyProfile, 'agents' | 'spawn_profiles'>): string {
   const agents = p.agents ?? []
   const spawn = p.spawn_profiles ?? []
-  if (agents.length === 0 && spawn.length === 0) return 'not referenced by an agent yet'
+  if (agents.length === 0 && spawn.length === 0) return t('safety.usedBy.none')
   const parts: string[] = []
-  if (agents.length > 0) parts.push('agents: ' + agents.join(', '))
-  if (spawn.length > 0) parts.push('spawn: ' + spawn.join(', '))
+  if (agents.length > 0) parts.push(t('safety.usedBy.agents', { list: agents.join(', ') }))
+  if (spawn.length > 0) parts.push(t('safety.usedBy.spawn', { list: spawn.join(', ') }))
   return parts.join(' · ')
 }
 
@@ -93,7 +97,7 @@ export function parseOptionalThreshold(raw: string): number | undefined {
   raw = raw.trim()
   if (raw === '') return undefined
   const f = FLOAT_RE.test(raw) ? Number(raw) : NaN
-  if (Number.isNaN(f) || f < 0 || f > 1) throw new Error('threshold must be a number between 0 and 1')
+  if (Number.isNaN(f) || f < 0 || f > 1) throw new Error(t('safety.err.thresholdRange'))
   return f === 0 ? 0 : f
 }
 
@@ -107,23 +111,26 @@ export function parseCategoriesEntry(raw: string): Record<string, string> {
     line = line.trim()
     if (line === '') continue
     const cut = line.indexOf(':')
-    if (cut < 0) throw new Error(`categories: ${quote(line)} needs label: action`)
+    if (cut < 0) throw new Error(t('safety.err.categoriesNoColon', { line: quote(line) }))
     const label = line.slice(0, cut).trim()
     const action = line.slice(cut + 1).trim().toLowerCase()
-    if (label === '') throw new Error(`categories: ${quote(line)} has an empty label`)
+    if (label === '') throw new Error(t('safety.err.categoriesEmptyLabel', { line: quote(line) }))
     out.set(label, action)
   }
   // fromEntries defines own properties, so a label such as "__proto__" survives.
   return Object.fromEntries(out)
 }
 
-/** Parses an optional count: blank is 0 (unset), otherwise a non-negative integer. */
+/**
+ * Parses an optional count: blank is 0 (unset), otherwise a non-negative
+ * integer. label is the field's name, already translated.
+ */
 export function optionalCount(label: string, raw: string): number {
   raw = raw.trim()
   if (raw === '') return 0
   const n = /^[+-]?\d+$/.test(raw) ? Number(raw) : NaN
   // Past 2^53 the number sent would not be the number typed.
-  if (!Number.isSafeInteger(n) || n < 0) throw new Error(`${label} must be a non-negative integer`)
+  if (!Number.isSafeInteger(n) || n < 0) throw new Error(t('safety.err.nonNegative', { what: label }))
   return n === 0 ? 0 : n
 }
 
@@ -142,7 +149,7 @@ export const DEFAULT_CHAIN = ['source-attribution', 'affect-guard']
 
 export function buildProfileDraft(name: string, filters: string[]): SafetyProfileDraft {
   const d: SafetyProfileDraft = { name: name.trim(), filters }
-  if (d.name === '') throw new Error('a profile name is required')
+  if (d.name === '') throw new Error(t('safety.err.profileNameRequired'))
   return d
 }
 
@@ -256,15 +263,15 @@ export function classifierForm(existing: SafetyClassifier | null, models: string
  */
 export function buildClassifierDraft(f: ClassifierForm): SafetyClassifierDraft {
   const name = f.name.trim()
-  if (name === '') throw new Error('a classifier name is required')
-  if (f.model === '') throw new Error('choose a classifier model')
+  if (name === '') throw new Error(t('safety.err.classifierNameRequired'))
+  if (f.model === '') throw new Error(t('safety.err.chooseModel'))
 
   const directions: string[] = []
   if (f.ingress) directions.push('ingress')
   if (f.egress) directions.push('egress')
   const sources: string[] = SOURCES.filter((s) => f.sources[s])
-  if (directions.length === 0) throw new Error('choose at least one direction')
-  if (sources.length === 0) throw new Error('choose at least one source')
+  if (directions.length === 0) throw new Error(t('safety.err.chooseDirection'))
+  if (sources.length === 0) throw new Error(t('safety.err.chooseSource'))
 
   const d: SafetyClassifierDraft = { name, model: f.model, mode: f.mode, directions, sources, categories: {}, cache: {}, budget: {} }
   if (f.prompt !== '') d.prompt = f.prompt
@@ -279,17 +286,17 @@ export function buildClassifierDraft(f: ClassifierForm): SafetyClassifierDraft {
   d.on_saturated = f.onSaturated
   d.on_budget_exhausted = f.onBudget
 
-  const maxTokens = optionalCount('max tokens', f.maxTokens)
+  const maxTokens = optionalCount(t('safety.classifier.maxTokens'), f.maxTokens)
   if (maxTokens > 0) d.max_tokens = maxTokens
-  const maxInputChars = optionalCount('max input chars', f.maxInputChars)
+  const maxInputChars = optionalCount(t('safety.classifier.maxInputChars'), f.maxInputChars)
   if (maxInputChars > 0) d.max_input_chars = maxInputChars
-  const maxConcurrency = optionalCount('max concurrency', f.maxConcurrency)
+  const maxConcurrency = optionalCount(t('safety.classifier.maxConcurrency'), f.maxConcurrency)
   if (maxConcurrency > 0) d.max_concurrency = maxConcurrency
-  const cacheSize = optionalCount('cache size', f.cacheSize)
+  const cacheSize = optionalCount(t('safety.classifier.cacheSize'), f.cacheSize)
   if (cacheSize > 0) d.cache.size = cacheSize
   const cacheTTL = f.cacheTTL.trim()
   if (cacheTTL !== '') d.cache.ttl = cacheTTL
-  const budget = optionalCount64('daily token budget', f.budget)
+  const budget = optionalCount64(t('safety.classifier.budget'), f.budget)
   if (budget > 0) d.budget.tokens_per_day = budget
 
   const refusal = f.refusal.trim()

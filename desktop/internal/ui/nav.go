@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
@@ -29,52 +30,45 @@ type navItem struct {
 	row  *railRow
 }
 
-// navSections fixes the rail's grouping and order.
+// navSections fixes the rail's grouping and order. They are ids; the rail
+// shows sectionLabel.
 var navSections = []string{"Home", "Build", "Connect", "Govern", "Operate", "Studio"}
+
+// sectionLabel is a section's heading in the current language.
+func sectionLabel(section string) string {
+	return T("nav.section." + strings.ToLower(section))
+}
 
 func (a *App) buildNav() []*navItem {
 	ctrl := func(n int) (fyne.KeyName, string) {
 		keys := []fyne.KeyName{fyne.Key1, fyne.Key2, fyne.Key3, fyne.Key4, fyne.Key5, fyne.Key6, fyne.Key7, fyne.Key8, fyne.Key9}
 		return keys[n-1], fmt.Sprintf("Ctrl+%d", n)
 	}
-	item := func(id, label, section string, icon fyne.Resource, n int, hint string, show func(), also ...string) *navItem {
-		it := &navItem{id: id, label: label, section: section, icon: icon, hint: hint, show: show, also: also}
+	// The label and hint are the catalogue's nav.<id> and nav.<id>Hint, read
+	// here: buildNav runs again on every language change.
+	item := func(id, section string, icon fyne.Resource, n int, show func(), also ...string) *navItem {
+		it := &navItem{id: id, label: T("nav." + id), section: section, icon: icon, hint: T("nav." + id + "Hint"), show: show, also: also}
 		if n > 0 {
 			it.key, it.keyLabel = ctrl(n)
 		}
 		return it
 	}
 	items := []*navItem{
-		item("overview", "Overview", "Home", theme.HomeIcon(), 1,
-			"Instance health, live sessions, agents, channels and counters", a.showOverview),
-		item("agents", "Agents", "Build", theme.AccountIcon(), 2,
-			"Configured agents; create, edit, apply and delete", a.showAgents, "builder"),
-		item("playground", "Playground", "Build", theme.MediaPlayIcon(), 3,
-			"Chat with an agent and watch the live trace", func() { a.showPlayground("") }),
-		item("channels", "Channels", "Connect", theme.StorageIcon(), 4,
-			"Webhook, Telegram, GitHub and bridge channels", a.showChannels),
-		item("models", "Models", "Connect", theme.ListIcon(), 5,
-			"LLM endpoints: add, test, persist or revert", a.showModels),
-		item("memory", "Memory", "Connect", theme.HistoryIcon(), 0,
-			"Memory backends and the profiles agents pick", a.showMemory),
-		item("credentials", "Credentials", "Connect", theme.LoginIcon(), 6,
-			"Encrypted secrets, engine-wide or per user", a.showCredentials),
-		item("safety", "Safety", "Govern", theme.WarningIcon(), 7,
-			"Safety profiles and model-backed classifiers", a.showSafety),
-		item("users", "Users", "Govern", iconUser, 8,
-			"Profiles, linked handles, quotas, model layer and invites", a.showUsers),
-		item("tenancy", "Tenancy", "Govern", theme.GridIcon(), 0,
-			"Groups, members, shared memory pools and grants", a.showTenancy),
-		item("usage", "Usage", "Operate", theme.InfoIcon(), 0,
-			"Token ledger per tenant, agent and model for a day", a.showUsage),
-		item("logs", "Logs", "Operate", theme.FileTextIcon(), 9,
-			"Live runtime log tail with filters", a.showLogs),
-		item("config", "Config", "Operate", theme.DocumentIcon(), 0,
-			"Raw config editor with boot-equivalent validation", a.showConfig),
-		item("docs", "Documentation", "Studio", theme.HelpIcon(), 0,
-			"Bundled AgentFlow guides and reference", a.openDocs),
-		item("settings", "Settings", "Studio", theme.SettingsIcon(), 0,
-			"Appearance and connection", a.showSettings),
+		item("overview", "Home", theme.HomeIcon(), 1, a.showOverview),
+		item("agents", "Build", theme.AccountIcon(), 2, a.showAgents, "builder"),
+		item("playground", "Build", theme.MediaPlayIcon(), 3, func() { a.showPlayground("") }),
+		item("channels", "Connect", theme.StorageIcon(), 4, a.showChannels),
+		item("models", "Connect", theme.ListIcon(), 5, a.showModels),
+		item("memory", "Connect", theme.HistoryIcon(), 0, a.showMemory),
+		item("credentials", "Connect", theme.LoginIcon(), 6, a.showCredentials),
+		item("safety", "Govern", theme.WarningIcon(), 7, a.showSafety),
+		item("users", "Govern", iconUser, 8, a.showUsers),
+		item("tenancy", "Govern", theme.GridIcon(), 0, a.showTenancy),
+		item("usage", "Operate", theme.InfoIcon(), 0, a.showUsage),
+		item("logs", "Operate", theme.FileTextIcon(), 9, a.showLogs),
+		item("config", "Operate", theme.DocumentIcon(), 0, a.showConfig),
+		item("docs", "Studio", theme.HelpIcon(), 0, a.openDocs),
+		item("settings", "Studio", theme.SettingsIcon(), 0, a.showSettings),
 	}
 	for _, it := range items {
 		if it.id == "docs" {

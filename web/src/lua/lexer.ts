@@ -1,3 +1,4 @@
+import { t as i18n } from '@/i18n'
 import {
   RuneText,
   SeverityError,
@@ -148,7 +149,7 @@ class Lexer {
       const open = this.i
       this.i += level + 2
       if (!this.skipLongBody(level)) {
-        this.errorAt(open, this.n, 'syntax.unclosed-comment', 'unclosed long comment')
+        this.errorAt(open, this.n, 'syntax.unclosed-comment', i18n('lua.diag.unclosedComment'))
       }
       this.comments.push({ start, end: this.i })
       return
@@ -182,7 +183,7 @@ class Lexer {
     const level = this.longBracketAt(this.i)
     this.i += level + 2
     if (!this.skipLongBody(level)) {
-      this.errorAt(start, this.n, 'syntax.unclosed-string', 'unclosed long string')
+      this.errorAt(start, this.n, 'syntax.unclosed-string', i18n('lua.diag.unclosedLongString'))
       this.add('string', start, this.n)
       return
     }
@@ -214,13 +215,13 @@ class Lexer {
         return
       }
       if (r === '\n') {
-        this.errorAt(start, this.i, 'syntax.unclosed-string', 'unfinished string')
+        this.errorAt(start, this.i, 'syntax.unclosed-string', i18n('lua.diag.unfinishedString'))
         this.add('string', start, this.i)
         return
       }
       this.i++
     }
-    this.errorAt(start, this.n, 'syntax.unclosed-string', 'unfinished string')
+    this.errorAt(start, this.n, 'syntax.unclosed-string', i18n('lua.diag.unfinishedString'))
     this.add('string', start, this.n)
   }
 
@@ -247,7 +248,7 @@ class Lexer {
     }
     // An escape as the last character steps one past the end.
     if (this.i > this.n) this.i = this.n
-    this.errorAt(start, this.n, 'syntax.unclosed-string', 'unfinished interpolated string')
+    this.errorAt(start, this.n, 'syntax.unclosed-string', i18n('lua.diag.unfinishedInterpolated'))
     this.add('string', start, this.n)
   }
 

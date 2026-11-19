@@ -5,14 +5,16 @@ import { useState } from 'react'
 import type { Client } from '@/api/client'
 import type { MemoryBackend, MemoryList } from '@/api/types'
 import { Checkbox, Field, Input, Modal, Select } from '@/components/ui'
+import { t } from '@/i18n'
+import { tr } from '@/i18n/rich'
 import { EditorFooter, EditorNotice, useEditorActions } from '../safety/parts'
-import { PROVIDER_HINTS, QDRANT_DISTANCES, backendForm, buildBackendDraft, providerHas, type BackendForm } from './helpers'
+import { QDRANT_DISTANCES, backendForm, buildBackendDraft, providerHas, providerHint, type BackendForm } from './helpers'
 
 function storedSecret(has: boolean, ref: string | undefined, display: string | undefined): string {
-  if (!has) return 'Nothing stored.'
-  if (ref) return `Stored as the reference ${ref}.`
-  if (display) return `Stored: ${display}. Leave empty to keep it.`
-  return 'A value is stored. Leave empty to keep it.'
+  if (!has) return t('memory.backend.storedNothing')
+  if (ref) return t('memory.backend.storedRef', { ref })
+  if (display) return t('memory.backend.storedDisplay', { display })
+  return t('memory.backend.storedValue')
 }
 
 export function BackendEditor({
@@ -41,7 +43,7 @@ export function BackendEditor({
     build: () => buildBackendDraft(form),
     validate: (d) => client.validateMemory({ kind: 'backend', creating, backend: d }),
     save: (d) => client.saveMemoryBackend(d.name, creating, d, list.mtime),
-    validText: () => 'Valid. Save it to open the backend on the next runtime start.',
+    validText: () => t('memory.backend.validText'),
     onSaved,
     reload,
     what: 'memory',
@@ -54,36 +56,39 @@ export function BackendEditor({
       onClose={onClose}
       dismissable={!busy}
       width={600}
-      title={existing === null ? 'New memory backend' : existing.implicit ? 'Write out main_db' : 'Edit ' + existing.name}
-      subtitle="A backend is a database the memory stores live in. Backends open when agentflow starts."
+      title={
+        existing === null
+          ? t('memory.backend.newTitle')
+          : existing.implicit
+            ? t('memory.backend.writeOutTitle')
+            : t('memory.editWhat', { name: existing.name })
+      }
+      subtitle={t('memory.backend.subtitle')}
       footer={<EditorFooter actions={actions} onCancel={onClose} />}
     >
       <EditorNotice actions={actions} />
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Name" hint="Stores refer to the backend by name, so it cannot change later.">
+          <Field label={t('common.name')} hint={t('memory.backend.nameHint')}>
             <Input mono value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="vectors" disabled={existing !== null} autoFocus={existing === null} />
           </Field>
-          <Field label="Provider" hint={providerChanged ? 'Changing provider drops the settings the old one used.' : undefined}>
+          <Field label={t('memory.backend.provider')} hint={providerChanged ? t('memory.backend.providerChanged') : undefined}>
             <Select mono value={form.provider} onChange={(v) => set('provider', v)} options={list.providers ?? []} />
           </Field>
         </div>
-        <p className="-mt-2 text-xs text-muted">{PROVIDER_HINTS[form.provider]}</p>
+        <p className="-mt-2 text-xs text-muted">{providerHint(form.provider)}</p>
 
         {has('path') && (
-          <Field label="Path" hint="A file path, relative to the config. Empty uses ./data/agentflow.db.">
+          <Field label={t('memory.backend.path')} hint={t('memory.backend.pathHint')}>
             <Input mono value={form.path} onChange={(e) => set('path', e.target.value)} placeholder="./data/memory.db" />
           </Field>
         )}
         {has('url') && (
           <Field
-            label="URL"
-            hint={
-              <>
-                {existing && !providerChanged ? storedSecret(existing.has_url, existing.url_ref, existing.url_display) : 'Required.'} Use ${'{'}VAR{'}'} or cred:&lt;service&gt; to keep the
-                secret out of the file.
-              </>
-            }
+            label={t('memory.backend.url')}
+            hint={t('memory.backend.urlHint', {
+              stored: existing && !providerChanged ? storedSecret(existing.has_url, existing.url_ref, existing.url_display) : t('memory.backend.urlRequired'),
+            })}
           >
             <Input
               mono
@@ -96,48 +101,51 @@ export function BackendEditor({
           </Field>
         )}
         {has('api_key') && (
-          <Field label="API key" hint={existing && !providerChanged ? storedSecret(existing.has_api_key, existing.api_key_ref, undefined) : 'Optional.'}>
+          <Field
+            label={t('memory.backend.apiKey')}
+            hint={existing && !providerChanged ? storedSecret(existing.has_api_key, existing.api_key_ref, undefined) : t('memory.backend.optional')}
+          >
             <Input mono type="password" autoComplete="off" value={form.apiKey} onChange={(e) => set('apiKey', e.target.value)} placeholder="cred:qdrant" />
             {existing?.has_api_key && !providerChanged && (
-              <Checkbox className="mt-1" checked={form.clearApiKey} onChange={(v) => set('clearApiKey', v)} label="Remove the stored API key" />
+              <Checkbox className="mt-1" checked={form.clearApiKey} onChange={(v) => set('clearApiKey', v)} label={t('memory.backend.clearApiKey')} />
             )}
           </Field>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {has('collection') && (
-            <Field label="Collection" hint="Empty uses the driver default.">
+            <Field label={t('memory.backend.collection')} hint={t('memory.backend.collectionHint')}>
               <Input mono value={form.collection} onChange={(e) => set('collection', e.target.value)} placeholder="agentflow" />
             </Field>
           )}
           {has('distance') && (
-            <Field label="Distance">
-              <Select mono value={form.distance} onChange={(v) => set('distance', v)} placeholder="Cosine (default)" options={QDRANT_DISTANCES} />
+            <Field label={t('memory.backend.distance')}>
+              <Select mono value={form.distance} onChange={(v) => set('distance', v)} placeholder={t('memory.backend.distanceDefault')} options={QDRANT_DISTANCES} />
             </Field>
           )}
           {has('timeout') && (
-            <Field label="Timeout" hint="A duration, e.g. 5s.">
+            <Field label={t('memory.backend.timeout')} hint={t('memory.backend.timeoutHint')}>
               <Input mono value={form.timeout} onChange={(e) => set('timeout', e.target.value)} placeholder="5s" />
             </Field>
           )}
           {has('dim') && (
-            <Field label="Dimensions" hint="The embedding model's vector size.">
+            <Field label={t('memory.backend.dimensions')} hint={t('memory.backend.dimensionsHint')}>
               <Input mono inputMode="numeric" value={form.dim} onChange={(e) => set('dim', e.target.value)} placeholder="1536" />
             </Field>
           )}
           {has('vector_scan_limit') && (
-            <Field label="Vector scan limit" hint="Rows a vector search may scan. Default 50000.">
+            <Field label={t('memory.backend.vectorScanLimit')} hint={t('memory.backend.vectorScanLimitHint')}>
               <Input mono inputMode="numeric" value={form.vectorScanLimit} onChange={(e) => set('vectorScanLimit', e.target.value)} placeholder="50000" />
             </Field>
           )}
           {has('max_entries') && (
-            <Field label="Max entries" hint="Bounds memory. Without it every store on this backend needs a retention.">
+            <Field label={t('memory.backend.maxEntries')} hint={t('memory.backend.maxEntriesHint')}>
               <Input mono inputMode="numeric" value={form.maxEntries} onChange={(e) => set('maxEntries', e.target.value)} placeholder="10000" />
             </Field>
           )}
         </div>
         {(existing?.other_keys ?? []).length > 0 && (
           <p className="text-xs text-faint">
-            Also in the file and kept as they are: <span className="font-mono">{(existing?.other_keys ?? []).join(', ')}</span>. Edit them in Config.
+            {tr('memory.backend.otherKeys', { keys: (existing?.other_keys ?? []).join(', ') }, { code: (c) => <span className="font-mono">{c}</span> })}
           </p>
         )}
       </div>

@@ -4,15 +4,18 @@ import { Copy, RotateCw } from 'lucide-react'
 import type { TraceEvent } from '@/api/types'
 import { Button, Dot, IconButton, Modal, Panel, Select, cx } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
+import { t, useLang } from '@/i18n'
 import { copyText } from '@/lib/format'
 import { toast } from '@/state/ui'
-import { FILTERS, eventKey, matchesFilter, traceCost, traceDetail, traceTokens, traceTone, type TraceFilter } from './model'
+import { FILTERS, FILTER_LABEL_KEY, eventKey, matchesFilter, traceCost, traceDetail, traceTokens, traceTone, type TraceFilter } from './model'
 import { useStickToBottom } from './useStickToBottom'
 
 // One event as a two-line entry: sequence and kind on the first line with the
 // cost on the right, the op/tool/model (and the error) beneath. The whole row
 // opens the raw event.
 const TraceRow = memo(function TraceRow({ ev, onOpen }: { ev: TraceEvent; onOpen: (ev: TraceEvent) => void }) {
+  // memo() skips the tree's re-render on a language change; this subscribes.
+  useLang()
   const tone = traceTone(ev)
   const cost = traceCost(ev)
   const detail = traceDetail(ev)
@@ -20,7 +23,7 @@ const TraceRow = memo(function TraceRow({ ev, onOpen }: { ev: TraceEvent; onOpen
     <button
       type="button"
       onClick={() => onOpen(ev)}
-      title="Show the raw event"
+      title={t('playground.showRawEvent')}
       className="flex w-full shrink-0 flex-col gap-0.5 rounded-[7px] px-2 py-1.5 text-left transition-colors duration-100 hover:bg-surface2 focus-visible:bg-surface2 active:bg-pressed"
     >
       <span className="flex w-full min-w-0 items-center gap-2">
@@ -45,7 +48,7 @@ function EventModal({ ev, onClose }: { ev: TraceEvent | null; onClose: () => voi
     <Modal
       open={ev !== null}
       onClose={onClose}
-      title={ev ? `Trace event #${ev.seq}` : ''}
+      title={ev ? t('playground.eventTitle', { seq: ev.seq }) : ''}
       subtitle={ev?.kind}
       width={680}
       footer={
@@ -53,14 +56,14 @@ function EventModal({ ev, onClose }: { ev: TraceEvent | null; onClose: () => voi
           <Button
             icon={Copy}
             onClick={async () => {
-              if (await copyText(raw)) toast('event copied', 'success')
-              else toast('could not reach the clipboard', 'danger')
+              if (await copyText(raw)) toast(t('playground.eventCopied'), 'success')
+              else toast(t('common.copyFailed'), 'danger')
             }}
           >
-            Copy JSON
+            {t('playground.copyJson')}
           </Button>
           <Button variant="primary" onClick={onClose}>
-            Done
+            {t('common.done')}
           </Button>
         </>
       }
@@ -94,13 +97,19 @@ export function TracePane({
   return (
     <Panel flush className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-center gap-2 border-b border-line py-2 pl-3 pr-2">
-        <h2 className="text-md font-semibold leading-tight">Trace</h2>
-        <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{events !== null && `${traceTokens(events)} tok`}</span>
-        <Select aria-label="Trace filter" className="w-[124px] shrink-0" value={filter} onChange={(v) => onFilter(v as TraceFilter)} options={[...FILTERS]} />
-        <IconButton icon={RotateCw} label="Refresh trace" onClick={onRefresh} loading={refreshing} />
+        <h2 className="text-md font-semibold leading-tight">{t('playground.trace')}</h2>
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{events !== null && t('playground.traceTokens', { n: traceTokens(events) })}</span>
+        <Select
+          aria-label={t('playground.traceFilter')}
+          className="w-[124px] shrink-0"
+          value={filter}
+          onChange={(v) => onFilter(v as TraceFilter)}
+          options={FILTERS.map((f) => ({ value: f, label: t(FILTER_LABEL_KEY[f]) }))}
+        />
+        <IconButton icon={RotateCw} label={t('playground.refreshTrace')} onClick={onRefresh} loading={refreshing} />
       </header>
       <div ref={ref} onScroll={onScroll} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
-        {events !== null && shown.length === 0 && <div className="px-2 py-1.5 text-sm text-muted">No events match this filter yet.</div>}
+        {events !== null && shown.length === 0 && <div className="px-2 py-1.5 text-sm text-muted">{t('playground.noEventsMatch')}</div>}
         {shown.map((ev) => (
           <TraceRow key={eventKey(ev)} ev={ev} onOpen={setOpen} />
         ))}

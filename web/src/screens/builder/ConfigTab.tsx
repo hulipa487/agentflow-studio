@@ -2,9 +2,10 @@
 // `patch`, which is what marks the builder dirty.
 import { Button, Checkbox, Field, Input, Section, Select, Textarea, type Option } from '@/components/ui'
 import type { Catalog } from '@/api/types'
+import { t } from '@/i18n'
 import {
   AGENT_NAME_RE,
-  DEFAULT_MODEL_OPTION,
+  DEFAULT_MODEL_LABEL_KEY,
   NAME_INVALID,
   effectiveCapabilities,
   extrasError,
@@ -35,7 +36,7 @@ function CheckGrid({
           mono
           checked={selected.includes(label)}
           onChange={(checked) => onToggle(label, checked)}
-          label={known.includes(label) ? label : <span title="Not in this runtime's catalog">{label} · not in catalog</span>}
+          label={known.includes(label) ? label : <span title={t('builder.notInCatalogTitle')}>{t('builder.notInCatalog', { name: label })}</span>}
         />
       ))}
     </div>
@@ -58,16 +59,16 @@ export function ConfigTab({
   skillLabels: string[]
 }) {
   const models = catalog.models ?? []
-  const modelOptions: Option[] = [{ value: '', label: DEFAULT_MODEL_OPTION }, ...models]
+  const modelOptions: Option[] = [{ value: '', label: t(DEFAULT_MODEL_LABEL_KEY) }, ...models]
   // A model or profile the definition names but the catalog no longer lists
   // stays selectable, so opening an agent never silently rewrites it.
   if (form.model !== '' && !models.includes(form.model)) {
-    modelOptions.push({ value: form.model, label: `${form.model} · not in catalog` })
+    modelOptions.push({ value: form.model, label: t('builder.notInCatalog', { name: form.model }) })
   }
   const profiles = safetyOptions(catalog)
   const safetyChoices: Option[] = [...profiles]
   if (form.safety !== '' && !profiles.includes(form.safety)) {
-    safetyChoices.push({ value: form.safety, label: `${form.safety} · not in catalog` })
+    safetyChoices.push({ value: form.safety, label: t('builder.notInCatalog', { name: form.safety }) })
   }
   const nameBad = isNew && form.name.trim() !== '' && !AGENT_NAME_RE.test(form.name.trim())
   const historyBad = !historyValid(form.history)
@@ -77,9 +78,9 @@ export function ConfigTab({
 
   return (
     <div className="flex flex-col gap-3 pb-6 pt-3">
-      <Section title="Identity" subtitle="Model, safety, memory and context budget.">
+      <Section title={t('builder.identity')} subtitle={t('builder.identitySubtitle')}>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Name" error={nameBad ? NAME_INVALID : undefined}>
+          <Field label={t('common.name')} error={nameBad ? t(NAME_INVALID) : undefined}>
             <Input
               mono
               value={form.name}
@@ -90,24 +91,24 @@ export function ConfigTab({
               onChange={(e) => patch({ name: e.target.value })}
             />
           </Field>
-          <Field label="Model">
+          <Field label={t('builder.model')}>
             <Select value={form.model} onChange={(model) => patch({ model })} options={modelOptions} />
           </Field>
-          <Field label="Safety profile">
+          <Field label={t('builder.safetyProfile')}>
             <Select
               value={form.safety}
               onChange={(safety) => patch({ safety })}
               options={safetyChoices}
-              placeholder={form.safety === '' ? '(Select one)' : undefined}
+              placeholder={form.safety === '' ? t('builder.selectOne') : undefined}
             />
           </Field>
-          <Field label="History budget" error={historyBad ? 'Not a positive whole number: the key is left out of the definition.' : undefined}>
+          <Field label={t('builder.historyBudget')} error={historyBad ? t('builder.historyInvalid') : undefined}>
             <Input mono inputMode="numeric" value={form.history} invalid={historyBad} onChange={(e) => patch({ history: e.target.value })} />
           </Field>
           <Field
-            label="Memory profile"
-            error={memoryNeedsCap ? 'Memory needs the memory capability, which this agent does not have.' : undefined}
-            hint="The stores memory.write and memory.recall use. Profiles are set up on the Memory screen; a new one can be picked after a restart."
+            label={t('builder.memoryProfile')}
+            error={memoryNeedsCap ? t('builder.memoryNeedsCap') : undefined}
+            hint={t('builder.memoryHint')}
           >
             <Select value={form.memory} onChange={(memory) => patch({ memory })} options={memoryOptions(catalog, form.memory)} />
           </Field>
@@ -115,11 +116,11 @@ export function ConfigTab({
       </Section>
 
       <Section
-        title="Capabilities"
-        subtitle="Empty uses the deployment defaults."
+        title={t('builder.capabilities')}
+        subtitle={t('builder.capabilitiesSubtitle')}
         action={
           <Button size="sm" variant="ghost" disabled={form.capabilities.length === 0} onClick={() => patch({ capabilities: [] })}>
-            Use defaults
+            {t('builder.useDefaults')}
           </Button>
         }
       >
@@ -131,9 +132,9 @@ export function ConfigTab({
         />
       </Section>
 
-      <Section title="Tools (skills)" subtitle="Leave empty to expose every tool allowed by the deployment policy.">
+      <Section title={t('builder.tools')} subtitle={t('builder.toolsSubtitle')}>
         {skillLabels.length === 0 ? (
-          <p className="text-xs text-muted">No tools are registered in this deployment.</p>
+          <p className="text-xs text-muted">{t('builder.noTools')}</p>
         ) : (
           <div className={skillLabels.length > 8 ? 'max-h-[180px] overflow-y-auto pr-1' : undefined}>
             <CheckGrid
@@ -146,23 +147,23 @@ export function ConfigTab({
         )}
       </Section>
 
-      <Section title="Advanced" subtitle="Runtime, fleet contact and credentials.">
+      <Section title={t('builder.advanced')} subtitle={t('builder.advancedSubtitle')}>
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Can contact">
+            <Field label={t('builder.canContact')}>
               <Input mono value={form.canContact} placeholder="pm, researcher" onChange={(e) => patch({ canContact: e.target.value })} />
             </Field>
-            <Field label="Credentials">
+            <Field label={t('builder.credentials')}>
               <Input mono value={form.credentials} placeholder="openai, stripe" onChange={(e) => patch({ credentials: e.target.value })} />
             </Field>
-            <Field label="Shell profile">
-              <Input mono value={form.shell} placeholder="(none)" onChange={(e) => patch({ shell: e.target.value })} />
+            <Field label={t('builder.shellProfile')}>
+              <Input mono value={form.shell} placeholder={t('builder.noneParen')} onChange={(e) => patch({ shell: e.target.value })} />
             </Field>
             <div className="flex items-end pb-1.5">
-              <Checkbox checked={form.persistent} onChange={(persistent) => patch({ persistent })} label="Daemon (persistent)" />
+              <Checkbox checked={form.persistent} onChange={(persistent) => patch({ persistent })} label={t('builder.persistent')} />
             </div>
           </div>
-          <Field label="Extras (JSON)" error={extrasBad || undefined}>
+          <Field label={t('builder.extras')} error={extrasBad || undefined}>
             <Textarea mono rows={3} value={form.extras} invalid={extrasBad !== ''} onChange={(e) => patch({ extras: e.target.value })} />
           </Field>
         </div>

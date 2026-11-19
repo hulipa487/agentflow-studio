@@ -20,6 +20,7 @@ import {
   type Tooltip,
   type ViewUpdate,
 } from '@codemirror/view'
+import { currentLang, t as i18n, type Lang } from '@/i18n'
 import type { AnalysisContext, AnalysisResult, Model } from './analysis'
 import type { ApiEntry } from './api'
 import {
@@ -87,13 +88,13 @@ export function entryCard(entry: ApiEntry, padded = true): HTMLElement {
   if (entry.capability || entry.yields || entry.maintenance) {
     const row = el('div', 'mt-1.5 flex flex-wrap items-center gap-1')
     if (entry.capability) {
-      row.append(chip(`capability: ${entry.capability}`, 'accent', 'The agent must enable this capability to make the call'))
+      row.append(chip(i18n('lua.doc.capability', { capability: entry.capability }), 'accent', i18n('lua.doc.capabilityTip')))
     }
     if (entry.yields) {
-      row.append(chip('yields', 'warning', 'Parks the session: call it inside loop(), not at chunk top level'))
+      row.append(chip(i18n('lua.doc.yields'), 'warning', i18n('lua.doc.yieldsTip')))
     }
     if (entry.maintenance) {
-      row.append(chip('maintenance provenance only (system or scheduler turns)', 'warning'))
+      row.append(chip(i18n('lua.doc.maintenance'), 'warning'))
     }
     root.append(row)
   }
@@ -272,14 +273,17 @@ export interface LuauSources {
 
 export function luauSources(ctx: AnalysisContext): LuauSources {
   // One analysis per document version serves the linter, completion and hover.
-  const analyses = new WeakMap<Text, AnalysisResult>()
+  // Its diagnostics are worded in the language of the moment, so a language
+  // change analyzes again.
+  const analyses = new WeakMap<Text, { lang: Lang; result: AnalysisResult }>()
   const analysisOf = (state: EditorState): AnalysisResult => {
-    let result = analyses.get(state.doc)
-    if (!result) {
-      result = analysisFor(state.doc.toString(), ctx)
-      analyses.set(state.doc, result)
+    const lang = currentLang()
+    let hit = analyses.get(state.doc)
+    if (!hit || hit.lang !== lang) {
+      hit = { lang, result: analysisFor(state.doc.toString(), ctx) }
+      analyses.set(state.doc, hit)
     }
-    return result
+    return hit.result
   }
 
   return {

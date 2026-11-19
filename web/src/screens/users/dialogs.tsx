@@ -5,6 +5,7 @@ import { Save } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { Invite, Profile } from '@/api/types'
 import { Banner, Button, CopyButton, Field, Modal, Select, Textarea } from '@/components/ui'
+import { t } from '@/i18n'
 import { orDash } from '@/lib/format'
 import { useCatalog, useClient } from '@/state/session'
 import { useAlive } from './helpers'
@@ -50,27 +51,24 @@ export function SettingsDialog({ profile, onClose, onSaved }: { profile: Profile
       onClose={onClose}
       dismissable={!saving}
       width={620}
-      title="Model & instructions"
-      subtitle="Per-person layer on top of every agent this person talks to."
+      title={t('users.settings.title')}
+      subtitle={t('users.settings.subtitle')}
       footer={
         <>
           <Button onClick={onClose} disabled={saving}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" icon={Save} loading={saving} onClick={save}>
-            Save
+            {t('common.save')}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
-        <Field
-          label="Model"
-          hint="Overrides the agent's model for this person's turns. Which model a person runs on is a cost decision, so only an operator can set it."
-        >
-          <Select value={model} onChange={setModel} options={models} placeholder="(agent default)" mono disabled={saving} />
+        <Field label={t('users.settings.model')} hint={t('users.settings.modelHint')}>
+          <Select value={model} onChange={setModel} options={models} placeholder={t('users.settings.agentDefault')} mono disabled={saving} />
         </Field>
-        <Field label="Instructions layer" hint="Appended to the agent's instructions for this person (agent.info().instructions). Empty clears it.">
+        <Field label={t('users.settings.instructions')} hint={t('users.settings.instructionsHint')}>
           <Textarea mono rows={8} value={instructions} onChange={(e) => setInstructions(e.target.value)} disabled={saving} />
         </Field>
         <Banner tone="danger">{error}</Banner>
@@ -86,25 +84,23 @@ export function InviteDialog({ invite, onClose }: { invite: Invite | null; onClo
       open
       onClose={onClose}
       width={520}
-      title="Registration invite"
-      subtitle="Give this code to the person; it is not shown again."
+      title={t('users.inviteDialog.title')}
+      subtitle={t('users.inviteDialog.subtitle')}
       footer={
         <Button variant="primary" className="min-w-24" onClick={onClose} autoFocus>
-          Done
+          {t('common.done')}
         </Button>
       }
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2 rounded-card border border-line bg-bg py-2 pl-3 pr-2">
           <code className="min-w-0 flex-1 select-all break-all font-mono text-md tracking-wide text-text">{invite.invite}</code>
-          <CopyButton text={invite.invite} what="invite code" size="md" />
+          <CopyButton text={invite.invite} what={t('users.whatInviteCode')} size="md" />
         </div>
         <p className="break-words text-xs leading-snug text-faint">
-          Single use, expires in {orDash(invite.expires_in)}. {invite.hint}
+          {t('users.inviteDialog.singleUse', { expires: orDash(invite.expires_in), hint: invite.hint ?? '' })}
         </p>
-        <p className="text-xs leading-snug text-faint">
-          Invites matter when runtime.users.registration is invite; with open registration anyone can register without one.
-        </p>
+        <p className="text-xs leading-snug text-faint">{t('users.inviteDialog.registrationNote')}</p>
       </div>
     </Modal>
   )

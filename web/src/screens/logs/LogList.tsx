@@ -5,6 +5,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowDown } from 'lucide-react'
 import { cx } from '@/components/ui'
+import { t } from '@/i18n'
 import type { LogBuffer, LogLine } from './buffer'
 
 const ROW = 20
@@ -106,7 +107,7 @@ export function LogList({
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={scroller} onScroll={onScroll} role="log" aria-live="off" aria-label="Runtime log" className="absolute inset-0 overflow-x-hidden overflow-y-auto">
+      <div ref={scroller} onScroll={onScroll} role="log" aria-live="off" aria-label={t('logs.runtimeLog')} className="absolute inset-0 overflow-x-hidden overflow-y-auto">
         <div className="relative" style={{ height: n * ROW }}>
           <div className="absolute inset-x-0 top-0" style={{ transform: `translateY(${start * ROW}px)` }}>
             {rows.slice(start, end).map((line) => (
@@ -123,7 +124,7 @@ export function LogList({
           className="absolute bottom-3 right-4 inline-flex h-7 animate-pop-in items-center gap-1.5 rounded-full border border-line bg-float px-3 text-xs font-medium text-text shadow-float hover:bg-hover"
         >
           <ArrowDown className="size-3.5 text-accent" strokeWidth={2.2} />
-          Jump to latest
+          {t('logs.jumpToLatest')}
         </button>
       )}
     </div>

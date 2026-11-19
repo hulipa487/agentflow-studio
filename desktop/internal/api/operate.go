@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -119,7 +118,7 @@ func (c *Client) Logs(ctx context.Context, onLine func(string)) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return &Error{Message: fmt.Sprintf("cannot reach %s: %v", c.display(), err)}
+		return c.unreachable(err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode/100 != 2 {
@@ -137,7 +136,7 @@ func (c *Client) Logs(ctx context.Context, onLine func(string)) error {
 		return ctx.Err()
 	}
 	if err := sc.Err(); err != nil {
-		return fmt.Errorf("log stream: %w", err)
+		return wrap("connection.logStreamFailed", err)
 	}
 	return nil
 }

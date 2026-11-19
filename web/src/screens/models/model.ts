@@ -4,6 +4,7 @@
 import type { Model, ModelDraft, ModelTest } from '@/api/types'
 import { splitList } from '@/lib/format'
 import type { Tone } from '@/state/ui'
+import { t } from '@/i18n'
 
 /** The runtime's own rule for a model name: path- and YAML-safe. */
 const MODEL_NAME = /^[A-Za-z0-9_.:-]{1,64}$/
@@ -23,15 +24,15 @@ export interface ModelState {
 /** Where a model stands between the running instance and the config file. */
 export function modelState(m: Model): ModelState {
   if (m.in_runtime && !m.in_file) {
-    return { tone: 'warning', label: 'runtime only', title: 'Live on this instance but not in the config file: save to config to keep it across restarts.' }
+    return { tone: 'warning', label: t('models.state.runtimeOnly'), title: t('models.state.runtimeOnlyTitle') }
   }
   if (!m.in_runtime && m.in_file) {
-    return { tone: 'warning', label: 'file only', title: 'In the config file but not loaded on the running instance.' }
+    return { tone: 'warning', label: t('models.state.fileOnly'), title: t('models.state.fileOnlyTitle') }
   }
   if (m.drift) {
-    return { tone: 'warning', label: 'unsaved', title: 'The live model differs from the config file.' }
+    return { tone: 'warning', label: t('models.state.unsaved'), title: t('models.state.unsavedTitle') }
   }
-  return { tone: 'success', label: 'saved', title: 'The live model matches the config file.' }
+  return { tone: 'success', label: t('models.state.saved'), title: t('models.state.savedTitle') }
 }
 
 /** True when the model exists only in the config file, so nothing live can be removed or tested. */
@@ -41,10 +42,7 @@ export function fileOnly(m: Model): boolean {
 
 export function driftSummary(models: Model[]): { count: number; text: string } {
   const count = models.filter((m) => m.drift).length
-  let text = 'all changes saved to config'
-  if (count === 1) text = '1 unsaved model change'
-  else if (count > 1) text = `${count} unsaved model changes`
-  return { count, text }
+  return { count, text: count > 0 ? t('models.unsavedChanges', { n: count }) : t('models.allSaved') }
 }
 
 /** A failed test as "class: message", the way the runtime classifies it. */
@@ -99,14 +97,14 @@ export type DraftResult = { name: string; draft: ModelDraft; error?: undefined }
 /** Checks the form and builds the draft; the runtime validates the rest. */
 export function buildDraft(f: ModelForm): DraftResult {
   const name = f.name.trim()
-  if (!MODEL_NAME.test(name)) return { error: 'name must be 1-64 of letters, digits, _ . : -' }
-  if (f.provider === '') return { error: 'choose a provider' }
+  if (!MODEL_NAME.test(name)) return { error: t('models.error.name') }
+  if (f.provider === '') return { error: t('models.error.chooseProvider') }
   const model = f.model.trim()
-  if (model === '') return { error: 'model is required' }
+  if (model === '') return { error: t('models.error.modelRequired') }
   const retry = count(f.retry)
-  if (retry === null) return { error: 'retry must be a non-negative number' }
+  if (retry === null) return { error: t('models.error.retry') }
   const maxTokens = count(f.maxTokens)
-  if (maxTokens === null) return { error: 'max tokens must be a non-negative number' }
+  if (maxTokens === null) return { error: t('models.error.maxTokens') }
   return {
     name,
     draft: {

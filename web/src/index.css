@@ -143,6 +143,11 @@
   --color-tone-danger: var(--af-tone-danger);
 
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Noto Sans', sans-serif;
+  /* Chinese falls through Inter to the system's CJK font. Simplified and
+     Traditional share code points but not glyph shapes, so each language
+     names its own fonts first (see the :lang rules below). */
+  --font-cjk-hans: 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Noto Sans SC', 'WenQuanYi Micro Hei';
+  --font-cjk-hant: 'PingFang HK', 'PingFang TC', 'Microsoft JhengHei UI', 'Microsoft JhengHei', 'Noto Sans CJK HK', 'Noto Sans CJK TC', 'Source Han Sans HK', 'Source Han Sans TC', 'Noto Sans HK', 'Noto Sans TC';
   --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
 
   /* One type scale for the whole app. Tailwind's defaults are replaced so a
@@ -205,6 +210,16 @@
   :focus-visible {
     outline: 2px solid color-mix(in srgb, var(--af-accent) 70%, transparent);
     outline-offset: 1px;
+  }
+  /* The document carries the language, and so does each cell of the
+     language switch, which is always written in its own script. */
+  [lang='zh-Hans'] {
+    --font-sans: 'Inter Variable', var(--font-cjk-hans), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans);
+  }
+  [lang='zh-Hant'] {
+    --font-sans: 'Inter Variable', var(--font-cjk-hant), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans);
   }
   button,
   [role='button'] {

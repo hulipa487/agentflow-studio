@@ -2,6 +2,7 @@
 // internal/ui/memory.go so both apps read and build drafts the same way.
 // Builders throw an Error whose message is the text the form shows.
 import type { MemoryBackend, MemoryBackendDraft, MemoryProfile, MemoryProfileDraft, MemoryStoreDraft } from '@/api/types'
+import { t } from '@/i18n'
 import { splitList } from '@/lib/format'
 
 /** Which config keys each provider reads; the editor shows only those fields. */
@@ -15,21 +16,27 @@ export const PROVIDER_KEYS: Record<string, string[]> = {
   volatile: ['max_entries'],
 }
 
-/** One line on what each provider is for, shown under the picker. */
-export const PROVIDER_HINTS: Record<string, string> = {
-  sqlite: 'A local SQLite file: key-value, full-text and brute-force vector search. No server needed.',
-  postgres: 'A PostgreSQL server: key-value and full-text search, shared by every instance.',
-  pgvector: 'PostgreSQL with the pgvector extension: everything postgres does, plus indexed vector search.',
-  redis: 'A Redis server: key-value only, fast and shared.',
-  redisvector: 'Redis Stack: key-value plus vector search.',
-  qdrant: 'A Qdrant server: vector search at scale.',
-  volatile: 'Process memory, lost on restart and shared by every session. Bound it with max entries or a store retention.',
+/** One line on what each provider is for, shown under the picker (message keys). */
+export const PROVIDER_HINT_KEYS: Record<string, string> = {
+  sqlite: 'memory.providerHint.sqlite',
+  postgres: 'memory.providerHint.postgres',
+  pgvector: 'memory.providerHint.pgvector',
+  redis: 'memory.providerHint.redis',
+  redisvector: 'memory.providerHint.redisvector',
+  qdrant: 'memory.providerHint.qdrant',
+  volatile: 'memory.providerHint.volatile',
+}
+
+/** The hint for a provider, in the current language; '' for one Studio does not know. */
+export function providerHint(provider: string): string {
+  const key = PROVIDER_HINT_KEYS[provider]
+  return key ? t(key) : ''
 }
 
 export const QDRANT_DISTANCES = ['Cosine', 'Euclid', 'Dot', 'Manhattan']
 export const STORE_SCOPES = [
-  { value: '', label: 'per user (default)' },
-  { value: 'agent', label: 'whole agent' },
+  { value: '', labelKey: 'memory.scopeUser' },
+  { value: 'agent', labelKey: 'memory.scopeAgent' },
 ]
 
 export function providerHas(provider: string, key: string): boolean {
@@ -39,35 +46,44 @@ export function providerHas(provider: string, key: string): boolean {
 /** Where a backend points, in one line and without secrets. */
 export function backendTarget(b: MemoryBackend): string {
   if (b.provider === 'sqlite') return b.path || './data/agentflow.db'
-  if (b.provider === 'volatile') return b.max_entries ? `max ${b.max_entries} entries` : 'unbounded'
-  const where = b.url_ref || b.url_display || (b.has_url ? 'URL set' : 'no URL')
+  if (b.provider === 'volatile') return b.max_entries ? t('memory.target.maxEntries', { n: b.max_entries }) : t('memory.target.unbounded')
+  const where = b.url_ref || b.url_display || (b.has_url ? t('memory.target.urlSet') : t('memory.target.noUrl'))
   return b.provider === 'qdrant' && b.collection ? `${where} · ${b.collection}` : where
+}
+
+// The profiles and agents a backend row names: the built-in profile counts
+// only while an agent is on it.
+function backendUsers(b: MemoryBackend, builtinAgents: string[]): { profiles: string[]; agents: string[] } {
+  const profiles = (b.profiles ?? []).filter((p) => p !== 'conversational' || builtinAgents.length > 0)
+  // Agents whose stores are on the backend, through a named or inline
+  // profile; those on the built-in profile are already named above.
+  const agents = (b.agents ?? []).filter((a) => !builtinAgents.includes(a))
+  return { profiles, agents }
 }
 
 /** The "used by" line of a backend row. */
 export function backendUsedBy(b: MemoryBackend, builtinAgents: string[]): string {
   const parts: string[] = []
-  const profiles = (b.profiles ?? [])
-    .filter((p) => p !== 'conversational' || builtinAgents.length > 0)
-    .map((p) => (p === 'conversational' ? `conversational (built-in: ${builtinAgents.join(', ')})` : p))
-  if (profiles.length > 0) parts.push('profiles: ' + profiles.join(', '))
-  // Agents whose stores are on the backend, through a named or inline
-  // profile; those on the built-in profile are already named above.
-  const agents = (b.agents ?? []).filter((a) => !builtinAgents.includes(a))
-  if (agents.length > 0) parts.push('agents: ' + agents.join(', '))
-  return parts.length > 0 ? parts.join(' · ') : 'unused'
+  const users = backendUsers(b, builtinAgents)
+  const profiles = users.profiles.map((p) =>
+    p === 'conversational' ? t('memory.usedBy.builtin', { name: p, agents: builtinAgents.join(', ') }) : p,
+  )
+  if (profiles.length > 0) parts.push(t('memory.usedBy.profiles', { list: profiles.join(', ') }))
+  if (users.agents.length > 0) parts.push(t('memory.usedBy.agents', { list: users.agents.join(', ') }))
+  return parts.length > 0 ? parts.join(' · ') : t('memory.usedBy.unused')
 }
 
 export function backendInUse(b: MemoryBackend, builtinAgents: string[]): boolean {
-  return backendUsedBy(b, builtinAgents) !== 'unused'
+  const users = backendUsers(b, builtinAgents)
+  return users.profiles.length > 0 || users.agents.length > 0
 }
 
 /** The "used by" line of a profile row. */
 export function profileUsedBy(p: Pick<MemoryProfile, 'agents' | 'spawn_profiles'>): string {
   const parts: string[] = []
-  if ((p.agents ?? []).length > 0) parts.push('agents: ' + (p.agents ?? []).join(', '))
-  if ((p.spawn_profiles ?? []).length > 0) parts.push('spawn: ' + (p.spawn_profiles ?? []).join(', '))
-  return parts.length > 0 ? parts.join(' · ') : 'not used by an agent yet'
+  if ((p.agents ?? []).length > 0) parts.push(t('memory.usedBy.agents', { list: (p.agents ?? []).join(', ') }))
+  if ((p.spawn_profiles ?? []).length > 0) parts.push(t('memory.usedBy.spawn', { list: (p.spawn_profiles ?? []).join(', ') }))
+  return parts.length > 0 ? parts.join(' · ') : t('memory.usedBy.noAgent')
 }
 
 export function profileInUse(p: Pick<MemoryProfile, 'agents' | 'spawn_profiles'>): boolean {
@@ -78,20 +94,23 @@ export function profileInUse(p: Pick<MemoryProfile, 'agents' | 'spawn_profiles'>
 export function storeSummary(s: MemoryStoreDraft): string {
   const parts = [`${s.backend}${s.table ? '.' + s.table : ''}`]
   if (s.retention) parts.push(s.retention)
-  if (s.window) parts.push(`window ${s.window}`)
+  if (s.window) parts.push(t('memory.summary.window', { n: s.window }))
   if ((s.requires ?? []).length > 0) parts.push((s.requires ?? []).join('+'))
-  if (s.pool) parts.push(`pool ${s.pool}`)
-  else if (s.scope === 'agent') parts.push('whole agent')
+  if (s.pool) parts.push(t('memory.summary.pool', { pool: s.pool }))
+  else if (s.scope === 'agent') parts.push(t('memory.scopeAgent'))
   return parts.join(' · ')
 }
 
-/** A whole number field: '' is 0 (unset); anything else must be a non-negative integer. */
+/**
+ * A whole number field: '' is 0 (unset); anything else must be a non-negative
+ * integer. label is the field's name, already translated.
+ */
 export function parseCount(text: string, label: string): number {
-  const t = text.trim()
-  if (t === '') return 0
-  if (!/^\d+$/.test(t)) throw new Error(`${label} must be a whole number`)
-  const n = Number(t)
-  if (!Number.isSafeInteger(n)) throw new Error(`${label} is too large`)
+  const raw = text.trim()
+  if (raw === '') return 0
+  if (!/^\d+$/.test(raw)) throw new Error(t('memory.err.wholeNumber', { what: label }))
+  const n = Number(raw)
+  if (!Number.isSafeInteger(n)) throw new Error(t('memory.err.tooLarge', { what: label }))
   return n
 }
 
@@ -153,15 +172,15 @@ export function buildBackendDraft(f: BackendForm): MemoryBackendDraft {
   if (has('distance') && f.distance.trim()) d.distance = f.distance.trim()
   if (has('timeout') && f.timeout.trim()) d.timeout = f.timeout.trim()
   if (has('dim')) {
-    const n = parseCount(f.dim, 'Dimensions')
+    const n = parseCount(f.dim, t('memory.backend.dimensions'))
     if (n) d.dim = n
   }
   if (has('vector_scan_limit')) {
-    const n = parseCount(f.vectorScanLimit, 'Vector scan limit')
+    const n = parseCount(f.vectorScanLimit, t('memory.backend.vectorScanLimit'))
     if (n) d.vector_scan_limit = n
   }
   if (has('max_entries')) {
-    const n = parseCount(f.maxEntries, 'Max entries')
+    const n = parseCount(f.maxEntries, t('memory.backend.maxEntries'))
     if (n) d.max_entries = n
   }
   return d
@@ -238,11 +257,11 @@ export function profileForm(p: MemoryProfile | null, backends: string[]): Profil
 
 export function buildProfileDraft(f: ProfileForm): MemoryProfileDraft {
   const stores = f.stores.map((r, i) => {
-    const label = r.name.trim() ? `Store "${r.name.trim()}"` : `Store ${i + 1}`
+    const label = r.name.trim() ? t('memory.storeWindowNamed', { name: r.name.trim() }) : t('memory.storeWindowNumbered', { n: i + 1 })
     const s: MemoryStoreDraft = { name: r.name.trim(), backend: r.backend.trim() }
     if (r.table.trim()) s.table = r.table.trim()
     if (r.retention.trim()) s.retention = r.retention.trim()
-    const w = parseCount(r.window, `${label}: window`)
+    const w = parseCount(r.window, label)
     if (w) s.window = w
     if (r.requires.length > 0) s.requires = [...r.requires]
     if (r.pool.trim()) s.pool = r.pool.trim()
@@ -256,7 +275,7 @@ export function buildProfileDraft(f: ProfileForm): MemoryProfileDraft {
   if (f.recall.trim()) d.recall = f.recall.trim()
   if (f.embedModel.trim()) d.embed_model = f.embedModel.trim()
   if (f.rerankModel.trim()) d.rerank_model = f.rerankModel.trim()
-  const o = parseCount(f.oversample, 'Oversample')
+  const o = parseCount(f.oversample, t('memory.profile.oversample'))
   if (o) d.oversample = o
   return d
 }

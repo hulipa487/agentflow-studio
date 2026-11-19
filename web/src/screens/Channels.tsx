@@ -8,9 +8,9 @@ import { ApiError, errorMessage } from '@/api/client'
 import type { Channel, ChannelList } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, CopyButton, EmptyState, IconButton, Page, Panel, StatusChip } from '@/components/ui'
 import { useAsync, useScreenActions } from '@/lib/hooks'
-import { plural } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { confirm, info, toast } from '@/state/ui'
+import { t } from '@/i18n'
 import { ChannelEditor } from './channels/ChannelEditor'
 import { QQ_DEFAULT_SCENES, channelAgents, channelTitle, humanBytes } from './channels/model'
 import { useAlive } from './channels/useAlive'
@@ -44,8 +44,9 @@ function Value({ children, title }: { children: ReactNode; title?: string }) {
 function SecretChip({ set, secretRef }: { set: boolean; secretRef?: string }) {
   return (
     <Chip tone={set ? 'success' : 'warning'}>
-      {set ? 'configured' : 'not set'}
-      {secretRef ? ' · ' + secretRef : ''}
+      {secretRef
+        ? t(set ? 'channels.secret.configuredRef' : 'channels.secret.notSetRef', { ref: secretRef })
+        : t(set ? 'channels.secret.configured' : 'channels.secret.notSet')}
     </Chip>
   )
 }
@@ -55,58 +56,58 @@ function ChannelFacts({ ch }: { ch: Channel }) {
   const users = ch.allow_users ?? []
   const media = ch.media_allow ?? []
   const timeout = ch.timeout ? (
-    <Fact key="timeout" label="timeout">
+    <Fact key="timeout" label={t('channels.fact.timeout')}>
       <Value>{ch.timeout}</Value>
     </Fact>
   ) : null
   switch (ch.type) {
     case 'telegram':
       facts.push(
-        <Fact key="mode" label="mode">
+        <Fact key="mode" label={t('channels.fact.mode')}>
           <Value>{ch.mode || 'polling'}</Value>
         </Fact>,
       )
       if (users.length > 0) {
         facts.push(
-          <Fact key="users" label="allow users">
+          <Fact key="users" label={t('channels.fact.allowUsers')}>
             <Value title={users.join(', ')}>{users.join(', ')}</Value>
           </Fact>,
         )
       }
       facts.push(
-        <Fact key="token" label="token">
+        <Fact key="token" label={t('channels.fact.token')}>
           <SecretChip set={ch.has_token} secretRef={ch.token_ref} />
         </Fact>,
-        <Fact key="secret_token" label="webhook secret">
+        <Fact key="secret_token" label={t('channels.fact.webhookSecret')}>
           <SecretChip set={ch.has_secret_token} secretRef={ch.secret_token_ref} />
         </Fact>,
       )
       break
     case 'qq':
       facts.push(
-        <Fact key="mode" label="mode">
+        <Fact key="mode" label={t('channels.fact.mode')}>
           <Value>{ch.mode || 'websocket'}</Value>
         </Fact>,
-        <Fact key="app" label="app id">
+        <Fact key="app" label={t('channels.fact.appId')}>
           <Value>{ch.app_id || '—'}</Value>
         </Fact>,
-        <Fact key="scenes" label="scenes">
+        <Fact key="scenes" label={t('channels.fact.scenes')}>
           <Value>{(ch.scenes ?? []).length > 0 ? (ch.scenes ?? []).join(', ') : QQ_DEFAULT_SCENES.join(', ')}</Value>
         </Fact>,
-        <Fact key="secret" label="app secret">
+        <Fact key="secret" label={t('channels.fact.appSecret')}>
           <SecretChip set={ch.has_secret} secretRef={ch.secret_ref} />
         </Fact>,
       )
       if (ch.markdown) {
         facts.push(
-          <Fact key="md" label="replies">
-            <Value>markdown</Value>
+          <Fact key="md" label={t('channels.fact.replies')}>
+            <Value>{t('channels.fact.repliesMarkdown')}</Value>
           </Fact>,
         )
       }
       if (ch.api_base) {
         facts.push(
-          <Fact key="api" label="api base">
+          <Fact key="api" label={t('channels.fact.apiBase')}>
             <Value title={ch.api_base}>{ch.api_base}</Value>
           </Fact>,
         )
@@ -114,7 +115,7 @@ function ChannelFacts({ ch }: { ch: Channel }) {
       break
     case 'ghhook':
       facts.push(
-        <Fact key="secret" label="secret">
+        <Fact key="secret" label={t('channels.fact.secret')}>
           <SecretChip set={ch.has_secret} secretRef={ch.secret_ref} />
         </Fact>,
       )
@@ -122,16 +123,16 @@ function ChannelFacts({ ch }: { ch: Channel }) {
     case 'bridge':
       if (ch.deliver_url) {
         facts.push(
-          <Fact key="deliver" label="deliver">
+          <Fact key="deliver" label={t('channels.fact.deliver')}>
             <Value title={ch.deliver_url}>{ch.deliver_url}</Value>
           </Fact>,
         )
       }
       facts.push(
-        <Fact key="secret" label="inbound secret">
+        <Fact key="secret" label={t('channels.fact.inboundSecret')}>
           <SecretChip set={ch.has_secret} secretRef={ch.secret_ref} />
         </Fact>,
-        <Fact key="token" label="outbound token">
+        <Fact key="token" label={t('channels.fact.outboundToken')}>
           <SecretChip set={ch.has_token} secretRef={ch.token_ref} />
         </Fact>,
         timeout,
@@ -141,8 +142,8 @@ function ChannelFacts({ ch }: { ch: Channel }) {
       facts.push(timeout)
       if (ch.async) {
         facts.push(
-          <Fact key="mode" label="mode">
-            <Value>async · job id</Value>
+          <Fact key="mode" label={t('channels.fact.mode')}>
+            <Value>{t('channels.fact.asyncJob')}</Value>
           </Fact>,
         )
       }
@@ -150,19 +151,19 @@ function ChannelFacts({ ch }: { ch: Channel }) {
     case 'openai': {
       const refs = (ch.key_refs ?? []).join(', ')
       facts.push(
-        <Fact key="auth" label="auth">
+        <Fact key="auth" label={t('channels.fact.auth')}>
           <Value>{ch.auth || '—'}</Value>
         </Fact>,
       )
       if (ch.auth === 'key') {
         facts.push(
-          <Fact key="keys" label="keys">
+          <Fact key="keys" label={t('channels.fact.keys')}>
             <SecretChip set={ch.has_keys ?? false} secretRef={refs} />
           </Fact>,
         )
       }
       facts.push(
-        <Fact key="journal" label="journal">
+        <Fact key="journal" label={t('channels.fact.journal')}>
           <Value>{ch.journal || 'metadata'}</Value>
         </Fact>,
         timeout,
@@ -174,17 +175,16 @@ function ChannelFacts({ ch }: { ch: Channel }) {
   // it (above); any other type shows it when it is not the default.
   if (ch.type !== 'openai' && ch.journal && ch.journal !== 'full') {
     facts.push(
-      <Fact key="journal" label="journal">
+      <Fact key="journal" label={t('channels.fact.journal')}>
         <Value>{ch.journal}</Value>
       </Fact>,
     )
   }
   if (media.length > 0) {
     facts.push(
-      <Fact key="media" label="media">
+      <Fact key="media" label={t('channels.fact.media')}>
         <Value title={media.join(', ')}>
-          {media.join(', ')}
-          {ch.media_max_bytes > 0 ? ` · max ${humanBytes(ch.media_max_bytes)}` : ''}
+          {ch.media_max_bytes > 0 ? t('channels.fact.mediaMax', { types: media.join(', '), size: humanBytes(ch.media_max_bytes) }) : media.join(', ')}
         </Value>
       </Fact>,
     )
@@ -214,7 +214,7 @@ export default function Channels() {
         return { list: await client.channels(signal), agents: await agents }
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
-          throw new ApiError(404, 'This runtime does not expose the Studio channels API yet; rebuild and restart AgentFlow, then reopen Channels.')
+          throw new ApiError(404, t('channels.apiMissing'))
         }
         throw err
       }
@@ -244,14 +244,14 @@ export default function Channels() {
   const openEditor = (existing: Channel | null) => {
     if (!data) return
     if (!data.list.editable) {
-      void info({ title: 'Channels are read-only', message: data.list.note || "This deployment's channels cannot be edited from Studio." })
+      void info({ title: t('channels.readOnlyTitle'), message: data.list.note || t('channels.readOnlyMessage') })
       return
     }
     if (data.agents.length === 0) {
       void confirm({
-        title: 'Create an agent first',
-        message: 'A channel must route messages to an existing agent. Create an agent, then add the channel.',
-        confirmLabel: 'Go to Agents',
+        title: t('channels.needAgentTitle'),
+        message: t('channels.needAgentMessage'),
+        confirmLabel: t('channels.goToAgents'),
       }).then((ok) => {
         if (ok && alive.current) navigate('/agents')
       })
@@ -264,9 +264,9 @@ export default function Channels() {
     if (!data) return
     const mtime = data.list.mtime
     const ok = await confirm({
-      title: 'Delete channel',
-      message: `Delete "${channelTitle(ch)}" from the deployment config?\n\nThe running instance keeps it until the next restart.`,
-      confirmLabel: 'Delete',
+      title: t('channels.deleteTitle'),
+      message: t('channels.deleteMessage', { name: channelTitle(ch) }),
+      confirmLabel: t('common.delete'),
       danger: true,
     })
     if (!ok || !alive.current) return
@@ -276,16 +276,16 @@ export default function Channels() {
       if (!alive.current) return
       applyList(next)
       setProblem('')
-      toast('channel deleted · restart required', 'warning')
+      toast(t('channels.deleted'), 'warning')
     } catch (err) {
       if (!alive.current) return
       if (err instanceof ApiError && err.status === 409) {
         // The index may point at another channel now, so the delete is not
         // retried: the operator picks the row again from the fresh list.
         const again = await confirm({
-          title: 'Channels file changed',
-          message: `${errorMessage(err)}\n\nNothing was deleted. Reload the channel list?`,
-          confirmLabel: 'Reload',
+          title: t('channels.fileChangedTitle'),
+          message: t('channels.fileChangedMessage', { message: errorMessage(err) }),
+          confirmLabel: t('channels.reload'),
         })
         if (again && alive.current) refresh()
       } else {
@@ -300,7 +300,7 @@ export default function Channels() {
   if (list && !editable) {
     banners.push(
       <Banner key="readonly" tone="warning">
-        {list.note || "This deployment's channels cannot be edited from Studio."}
+        {list.note || t('channels.readOnlyMessage')}
       </Banner>,
     )
   }
@@ -316,7 +316,7 @@ export default function Channels() {
   if (data && error) {
     banners.push(
       <Banner key="refresh" tone="warning">
-        refresh failed: {errorMessage(error)}
+        {t('channels.refreshFailed', { message: errorMessage(error) })}
       </Banner>,
     )
   }
@@ -330,18 +330,18 @@ export default function Channels() {
 
   return (
     <Page
-      title="Channels"
-      subtitle="Entry points that route messages into agents. Saves go to the deployment config and bind at the next runtime start."
+      title={t('channels.title')}
+      subtitle={t('channels.subtitle')}
       meta={
         list ? (
           <>
-            <span>{list.mode === 'configdir' ? 'config directory' : 'single config file'}</span>
+            <span>{list.mode === 'configdir' ? t('channels.modeConfigDir') : t('channels.modeSingleFile')}</span>
             {list.path && (
               <span className="inline-flex min-w-0 items-center gap-1">
                 <span className="truncate" title={list.path}>
                   {list.path}
                 </span>
-                <CopyButton text={list.path} what="config path" />
+                <CopyButton text={list.path} what={t('channels.configPath')} />
               </span>
             )}
             {editable && list.note && <span>{list.note}</span>}
@@ -353,39 +353,39 @@ export default function Channels() {
         <>
           {list && (
             <>
-              <span className="font-mono text-xs text-faint">{plural(channels.length, 'channel')}</span>
-              {!editable && <Chip tone="warning">read-only</Chip>}
+              <span className="font-mono text-xs text-faint">{t('channels.count', { n: channels.length })}</span>
+              {!editable && <Chip tone="warning">{t('channels.readOnlyChip')}</Chip>}
               <StatusChip tone={pending > 0 ? 'warning' : 'success'}>
-                {pending === 0 ? 'all changes live' : `${pending === 1 ? '1 change' : `${pending} changes`} · restart required`}
+                {pending === 0 ? t('channels.allLive') : t('channels.pendingRestart', { n: pending })}
               </StatusChip>
             </>
           )}
-          <IconButton icon={RotateCw} label="Refresh" onClick={refresh} loading={refreshing} />
+          <IconButton icon={RotateCw} label={t('common.refresh')} onClick={refresh} loading={refreshing} />
           {/* While the list is empty the empty state carries this action. */}
           {channels.length > 0 && (
             <Button variant="primary" icon={Plus} disabled={!editable} onClick={() => openEditor(null)}>
-              New channel
+              {t('channels.newChannel')}
             </Button>
           )}
         </>
       }
     >
-      <AsyncView loading={loading} error={error} hasData={!!data} retry={refresh} loadingText="Loading channels…">
+      <AsyncView loading={loading} error={error} hasData={!!data} retry={refresh} loadingText={t('channels.loading')}>
         {channels.length === 0 ? (
           <EmptyState
-            title="No channels yet"
-            guidance="Create a channel to route messages into an agent."
-            actionLabel="Create a channel"
+            title={t('channels.emptyTitle')}
+            guidance={t('channels.emptyGuidance')}
+            actionLabel={t('channels.emptyAction')}
             onAction={() => openEditor(null)}
           />
         ) : (
           <Panel flush className="overflow-x-auto">
             <div className="min-w-[760px]">
               <div className={`${GRID} border-b border-line px-3 py-1.5 text-xs font-semibold text-faint`}>
-                <span>Channel</span>
-                <span>Agent</span>
-                <span>Route</span>
-                <span>State</span>
+                <span>{t('channels.col.channel')}</span>
+                <span>{t('channels.col.agent')}</span>
+                <span>{t('channels.col.route')}</span>
+                <span>{t('channels.col.state')}</span>
                 <span />
               </div>
               {channels.map((ch) => {
@@ -399,20 +399,20 @@ export default function Channels() {
                           {title}
                         </span>
                         <Chip tone="accent">{ch.type}</Chip>
-                        {(ch.media_allow ?? []).length > 0 && <Chip>media</Chip>}
+                        {(ch.media_allow ?? []).length > 0 && <Chip>{t('channels.chip.media')}</Chip>}
                       </div>
                       <div className="truncate font-mono text-xs" title={routed}>
                         {routed || '—'}
                       </div>
                       <div className="truncate font-mono text-sm text-muted" title={ch.path}>
-                        {ch.path || <span className="text-faint">driver default</span>}
+                        {ch.path || <span className="text-faint">{t('channels.driverDefault')}</span>}
                       </div>
-                      <div>{ch.live ? <StatusChip tone="success">live</StatusChip> : <StatusChip tone="warning">restart required</StatusChip>}</div>
+                      <div>{ch.live ? <StatusChip tone="success">{t('channels.chip.live')}</StatusChip> : <StatusChip tone="warning">{t('channels.chip.restartRequired')}</StatusChip>}</div>
                       <div className="flex items-center justify-end">
-                        <IconButton icon={Pencil} label={`Edit ${title}`} onClick={() => openEditor(ch)} />
+                        <IconButton icon={Pencil} label={t('channels.editNamed', { name: title })} onClick={() => openEditor(ch)} />
                         <IconButton
                           icon={Trash2}
-                          label={`Delete ${title}`}
+                          label={t('channels.deleteNamed', { name: title })}
                           tone="danger"
                           loading={deleting === ch.index}
                           disabled={deleting !== null}
@@ -441,12 +441,12 @@ export default function Channels() {
             applyList(next)
             setEditing(null)
             setProblem('')
-            toast('channel saved · restart required', 'warning')
+            toast(t('channels.saved'), 'warning')
           }}
           onReload={() => {
             if (editing.existing) {
               setEditing(null)
-              toast('channel list reloaded · reopen the channel to edit it', 'warning')
+              toast(t('channels.listReloadedReopen'), 'warning')
               refresh()
             } else {
               // Quiet: a failed re-read must not drop the list and, with it,

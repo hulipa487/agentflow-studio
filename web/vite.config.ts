@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -30,4 +31,6 @@ export default defineConfig({
   server: { host: '127.0.0.1', port: 5173, strictPort: false, cors: false, fs: { allow: ['..'] } },
   preview: { host: '127.0.0.1', port: 4173, cors: false },
   build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
+  // English is pinned for the tests whatever the machine's locale (src/test-setup.ts).
+  test: { setupFiles: ['./src/test-setup.ts'] },
 })

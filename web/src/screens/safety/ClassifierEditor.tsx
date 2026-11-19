@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { Client } from '@/api/client'
 import type { SafetyClassifier, SafetyList } from '@/api/types'
 import { Checkbox, Field, Input, Modal, Select, Textarea } from '@/components/ui'
+import { t } from '@/i18n'
 import { FAIL_ACTIONS, MODES, SOURCES, buildClassifierDraft, classifierForm, withCurrent, type ClassifierForm } from './helpers'
 import { EditorFooter, EditorNotice, useEditorActions } from './parts'
 
@@ -41,7 +42,7 @@ export function ClassifierEditor({
     build: () => buildClassifierDraft(form),
     validate: (d) => client.validateSafety({ kind: 'classifier', creating, classifier: d }),
     save: (d) => client.saveSafetyClassifier(d.name, creating, d, list.mtime),
-    validText: (d) => `Valid. Save it, then reference classifier:${d.name} from a profile.`,
+    validText: (d) => t('safety.classifier.validText', { name: d.name }),
     onSaved,
     reload,
   })
@@ -53,41 +54,43 @@ export function ClassifierEditor({
       onClose={onClose}
       dismissable={!busy}
       width={760}
-      title={creating ? 'New classifier' : 'Edit ' + existing.name}
-      subtitle="Classifier spend is metered under __moderation_<name>; refusals and fallbacks are rate-limited per session."
+      title={creating ? t('safety.classifier.newTitle') : t('safety.editWhat', { name: existing.name })}
+      subtitle={t('safety.classifier.subtitle')}
       footer={<EditorFooter actions={actions} onCancel={onClose} />}
     >
       <EditorNotice actions={actions} />
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Name">
+          <Field label={t('common.name')}>
             <Input mono {...text('name')} placeholder="moderation" disabled={!creating} autoFocus={creating} />
           </Field>
           <Field
-            label="Model"
-            hint={
-              models.length === 0
-                ? 'No engine-keyed classifier models are configured. Add one on the Models screen and save it to config first.'
-                : undefined
-            }
+            label={t('safety.classifier.model')}
+            hint={models.length === 0 ? t('safety.classifier.noModels') : undefined}
           >
-            <Select mono value={form.model} onChange={(v) => set('model', v)} options={models} placeholder={form.model === '' ? 'choose a model' : undefined} />
+            <Select
+              mono
+              value={form.model}
+              onChange={(v) => set('model', v)}
+              options={models}
+              placeholder={form.model === '' ? t('safety.classifier.chooseModel') : undefined}
+            />
           </Field>
-          <Field label="Mode">
+          <Field label={t('safety.classifier.mode')}>
             <Select value={form.mode} onChange={(v) => set('mode', v)} options={withCurrent(MODES, form.mode)} />
           </Field>
-          <Field label="Prompt">
-            <Select mono value={form.prompt} onChange={(v) => set('prompt', v)} options={prompts} placeholder="embedded default" />
+          <Field label={t('safety.classifier.prompt')}>
+            <Select mono value={form.prompt} onChange={(v) => set('prompt', v)} options={prompts} placeholder={t('safety.classifier.embeddedDefault')} />
           </Field>
         </div>
 
-        <Field label="Directions">
+        <Field label={t('safety.classifier.directions')}>
           <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-            <Checkbox checked={form.ingress} onChange={(v) => set('ingress', v)} label="Ingress (inbound messages)" />
-            <Checkbox checked={form.egress} onChange={(v) => set('egress', v)} label="Egress (outbound replies)" />
+            <Checkbox checked={form.ingress} onChange={(v) => set('ingress', v)} label={t('safety.classifier.ingress')} />
+            <Checkbox checked={form.egress} onChange={(v) => set('egress', v)} label={t('safety.classifier.egress')} />
           </div>
         </Field>
-        <Field label="Sources">
+        <Field label={t('safety.classifier.sources')}>
           <div className="flex flex-wrap gap-x-5 gap-y-1.5">
             {SOURCES.map((s) => (
               <Checkbox key={s} checked={form.sources[s]} onChange={(v) => set('sources', { ...form.sources, [s]: v })} label={s} />
@@ -96,51 +99,51 @@ export function ClassifierEditor({
         </Field>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Field label="Threshold">
-            <Input mono {...text('threshold')} placeholder="0.7 (blank = runtime default)" inputMode="decimal" />
+          <Field label={t('safety.classifier.threshold')}>
+            <Input mono {...text('threshold')} placeholder={t('safety.classifier.thresholdPlaceholder')} inputMode="decimal" />
           </Field>
-          <Field label="Timeout">
+          <Field label={t('safety.classifier.timeout')}>
             <Input mono {...text('timeout')} placeholder="2s" />
           </Field>
-          <Field label="On error">
+          <Field label={t('safety.classifier.onError')}>
             <Select value={form.onError} onChange={(v) => set('onError', v)} options={withCurrent(FAIL_ACTIONS, form.onError)} />
           </Field>
-          <Field label="On saturated">
+          <Field label={t('safety.classifier.onSaturated')}>
             <Select value={form.onSaturated} onChange={(v) => set('onSaturated', v)} options={withCurrent(FAIL_ACTIONS, form.onSaturated)} />
           </Field>
-          <Field label="On budget exhausted">
+          <Field label={t('safety.classifier.onBudget')}>
             <Select value={form.onBudget} onChange={(v) => set('onBudget', v)} options={withCurrent(FAIL_ACTIONS, form.onBudget)} />
           </Field>
-          <Field label="Max tokens">
+          <Field label={t('safety.classifier.maxTokens')}>
             <Input mono {...text('maxTokens')} placeholder="64" inputMode="numeric" />
           </Field>
-          <Field label="Max input chars">
+          <Field label={t('safety.classifier.maxInputChars')}>
             <Input mono {...text('maxInputChars')} placeholder="8000" inputMode="numeric" />
           </Field>
-          <Field label="Max concurrency">
+          <Field label={t('safety.classifier.maxConcurrency')}>
             <Input mono {...text('maxConcurrency')} placeholder="8" inputMode="numeric" />
           </Field>
-          <Field label="Cache size">
+          <Field label={t('safety.classifier.cacheSize')}>
             <Input mono {...text('cacheSize')} placeholder="10000" inputMode="numeric" />
           </Field>
-          <Field label="Cache TTL">
+          <Field label={t('safety.classifier.cacheTTL')}>
             <Input mono {...text('cacheTTL')} placeholder="5m" />
           </Field>
-          <Field label="Daily token budget">
+          <Field label={t('safety.classifier.budget')}>
             <Input mono {...text('budget')} placeholder="500000" inputMode="numeric" />
           </Field>
         </div>
 
-        <Field label="Categories" hint="One per line, label: allow|review|block. At least one allow label is required.">
+        <Field label={t('safety.classifier.categories')} hint={t('safety.classifier.categoriesHint')}>
           <Textarea mono rows={4} {...text('categories')} placeholder={'safe: allow\nself_harm: block\nharassment: review'} />
         </Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Refusal (ingress block)">
-            <Input {...text('refusal')} placeholder="optional ingress refusal text" />
+          <Field label={t('safety.classifier.refusal')}>
+            <Input {...text('refusal')} placeholder={t('safety.classifier.refusalPlaceholder')} />
           </Field>
-          <Field label="Fallback (egress block)">
-            <Input {...text('fallback')} placeholder="optional egress fallback text" />
+          <Field label={t('safety.classifier.fallback')}>
+            <Input {...text('fallback')} placeholder={t('safety.classifier.fallbackPlaceholder')} />
           </Field>
         </div>
       </div>

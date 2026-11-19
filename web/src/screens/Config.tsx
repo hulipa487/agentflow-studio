@@ -10,6 +10,7 @@ import { EditorView } from '@codemirror/view'
 import { ApiError, errorMessage } from '@/api/client'
 import { AsyncView, Banner, Button, CopyButton, Page, Panel, Segmented, Tabs, type Tone } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
+import { t, type Params } from '@/i18n'
 import { useAsync, useScreenActions, useStored, useUnsavedGuard } from '@/lib/hooks'
 import { copyText } from '@/lib/format'
 import { MOD } from '@/nav'
@@ -27,19 +28,24 @@ interface Loaded {
 
 interface Notice {
   tone: Tone
-  text: string
+  /** A message key, read when drawn so a language change re-reads it. */
+  key?: string
+  params?: Params
+  /** Text shown as is: the runtime's own words. */
+  text?: string
   /** The save was refused because the file changed on disk. */
   conflict?: boolean
 }
 
-const DIRECTORY_NOTE =
-  'In a directory deployment Studio edits the fragments through Agents, Channels, Models and Safety; other sections are edited in the files themselves.'
+function noticeText(n: Notice): string {
+  return n.key ? t(n.key, n.params) : (n.text ?? '')
+}
 
 const FRAGMENT_SCREENS = [
-  { label: 'Agents', path: '/agents' },
-  { label: 'Channels', path: '/channels' },
-  { label: 'Models', path: '/models' },
-  { label: 'Safety', path: '/safety' },
+  { labelKey: 'config.screenAgents', path: '/agents' },
+  { labelKey: 'config.screenChannels', path: '/channels' },
+  { labelKey: 'config.screenModels', path: '/models' },
+  { labelKey: 'config.screenSafety', path: '/safety' },
 ]
 
 export default function Config() {
@@ -85,9 +91,9 @@ export default function Config() {
   const reloadFile = async (ask: boolean) => {
     if (ask && dirty) {
       const ok = await confirm({
-        title: 'Discard changes',
-        message: 'Reload the file from disk and discard your unsaved edits?',
-        confirmLabel: 'Discard',
+        title: t('config.discardTitle'),
+        message: t('config.reloadDiscard'),
+        confirmLabel: t('common.discard'),
         danger: true,
       })
       if (!ok || !alive.current) return
@@ -100,9 +106,9 @@ export default function Config() {
   const revert = async () => {
     if (!doc || !dirty) return
     const ok = await confirm({
-      title: 'Discard changes',
-      message: 'Revert the editor to the file as it was loaded and discard your unsaved edits?',
-      confirmLabel: 'Discard',
+      title: t('config.discardTitle'),
+      message: t('config.revertDiscard'),
+      confirmLabel: t('common.discard'),
       danger: true,
     })
     if (!ok || !alive.current) return
@@ -113,19 +119,15 @@ export default function Config() {
   const validate = async () => {
     if (!doc || busy) return
     setBusy('validate')
-    setNotice({ tone: 'neutral', text: 'Validating…' })
+    setNotice({ tone: 'neutral', key: 'config.validating' })
     try {
       const r = await client.validateConfig(text)
       if (!alive.current) return
       if (!r.ok) {
-        setNotice({ tone: 'danger', text: 'Does not validate: ' + r.error })
+        setNotice({ tone: 'danger', key: 'config.invalid', params: { error: r.error } })
         return
       }
-      const note = r.note ? ' ' + r.note : ''
-      setNotice({
-        tone: 'success',
-        text: 'Valid: the runtime would boot with this config (strict fields, env expansion and cross-references checked).' + note,
-      })
+      setNotice(r.note ? { tone: 'success', key: 'config.validWithNote', params: { note: r.note } } : { tone: 'success', key: 'config.valid' })
     } catch (err) {
       if (alive.current) setNotice({ tone: 'danger', text: errorMessage(err) })
     } finally {
@@ -136,15 +138,15 @@ export default function Config() {
   const save = async () => {
     if (!doc || busy) return
     if (!dirty) {
-      toast('no changes to save')
+      toast(t('config.noChanges'))
       return
     }
     const raw = text
     const mtime = doc.mtime
     const ok = await confirm({
-      title: 'Save config',
-      message: `Validate and replace ${doc.path}? The current file is kept as .bak. Most changes apply when AgentFlow restarts.`,
-      confirmLabel: 'Save',
+      title: t('config.saveTitle'),
+      message: t('config.saveMessage', { path: doc.path }),
+      confirmLabel: t('common.save'),
     })
     if (!ok || !alive.current) return
     setBusy('save')
@@ -156,7 +158,7 @@ export default function Config() {
         return
       }
       setDoc((d) => (d ? { ...d, original: raw, mtime: r.mtime > 0 ? r.mtime : d.mtime } : d))
-      setNotice({ tone: 'success', text: r.note || 'saved; restart agentflow to apply' })
+      setNotice(r.note ? { tone: 'success', text: r.note } : { tone: 'success', key: 'config.saved' })
       void useSession.getState().reloadCatalog()
       // The masked view shows the file on disk, which just changed. Only the
       // view is taken from this read, so typing meanwhile is never undone.
@@ -171,7 +173,7 @@ export default function Config() {
       if (err instanceof ApiError && err.status === 409) {
         setNotice({
           tone: 'warning',
-          text: 'The file changed on disk since it was loaded. Reload it (your edits are discarded) and apply them again.',
+          key: 'config.conflict',
           conflict: true,
         })
       } else {
@@ -201,23 +203,24 @@ export default function Config() {
   const lines = useMemo(() => text.split('\n').length, [text])
   const viewText = useMemo(() => (tab === 'masked' && doc ? renderView(doc.view, format) : ''), [tab, doc, format])
   const directory = data !== undefined && !data.ok
-  const badLine = notice?.tone === 'danger' ? errorLine(notice.text) : null
+  const shownNotice = notice ? noticeText(notice) : ''
+  const badLine = notice?.tone === 'danger' ? errorLine(shownNotice) : null
 
   const meta = refreshing ? (
-    <span>loading…</span>
+    <span>{t('config.loadingMeta')}</span>
   ) : directory ? (
-    <span>config directory deployment</span>
+    <span>{t('config.directoryMeta')}</span>
   ) : doc ? (
     <>
       <span className="inline-flex min-w-0 items-center gap-1">
         <span className="truncate" title={doc.path}>
           {doc.path}
         </span>
-        <CopyButton text={doc.path} what="path" />
+        <CopyButton text={doc.path} what={t('config.whatPath')} />
       </span>
-      {doc.mtime > 0 && <span>modified {stamp(doc.mtime)}</span>}
-      <span>{lines} lines</span>
-      {dirty && <span className="text-warning">● unsaved changes</span>}
+      {doc.mtime > 0 && <span>{t('config.modified', { time: stamp(doc.mtime) })}</span>}
+      <span>{t('config.lines', { n: lines })}</span>
+      {dirty && <span className="text-warning">{t('config.unsaved')}</span>}
     </>
   ) : null
 
@@ -228,31 +231,31 @@ export default function Config() {
   const banner = !reloadFailed && !directory && !notice ? null : (
     <>
       {reloadFailed && <Banner tone="danger">{errorMessage(error)}</Banner>}
-      {directory && <Banner tone="warning">{`${data?.error ?? ''}\n\n${DIRECTORY_NOTE}`}</Banner>}
+      {directory && <Banner tone="warning">{`${data?.error ?? ''}\n\n${t('config.directoryNote')}`}</Banner>}
       {notice && (
         <Banner tone={notice.tone} onClose={() => setNotice(null)}>
-          {notice.text}
+          {shownNotice}
           {(notice.conflict || badLine !== null) && (
             <span className="mt-2 flex flex-wrap gap-2">
               {badLine !== null && (
                 <Button size="sm" onClick={() => goToLine(badLine)}>
-                  Go to line {badLine}
+                  {t('config.goToLine', { n: badLine })}
                 </Button>
               )}
               {notice.conflict && (
                 <>
                   <Button size="sm" icon={RotateCw} onClick={() => void reloadFile(true)}>
-                    Reload from disk
+                    {t('config.reloadFromDisk')}
                   </Button>
                   <Button
                     size="sm"
                     onClick={async () => {
                       // Reloading discards the edits; this is how they survive it.
-                      if (await copyText(text)) toast('your edits are on the clipboard', 'success')
-                      else toast('could not reach the clipboard', 'danger')
+                      if (await copyText(text)) toast(t('config.editsCopied'), 'success')
+                      else toast(t('common.copyFailed'), 'danger')
                     }}
                   >
-                    Copy my edits
+                    {t('config.copyEdits')}
                   </Button>
                 </>
               )}
@@ -267,16 +270,16 @@ export default function Config() {
     <Page
       title={
         <>
-          Config
+          {t('config.title')}
           {dirty && (
-            <span className="text-warning" title="Unsaved changes">
+            <span className="text-warning" title={t('config.unsavedTitle')}>
               {' '}
               ●
             </span>
           )}
         </>
       }
-      subtitle="The deployment's config file, for everything without its own screen: memory, prompts, tools, MCP, triggers, search, files, net and runtime settings. Saving keeps a .bak; topology changes apply at the next restart."
+      subtitle={t('config.subtitle')}
       scroll={false}
       meta={meta}
       banner={banner}
@@ -284,39 +287,36 @@ export default function Config() {
         <>
           {dirty && (
             <Button icon={Undo2} onClick={() => void revert()} disabled={busy !== ''}>
-              Revert
+              {t('common.revert')}
             </Button>
           )}
           <Button icon={RotateCw} onClick={() => void reloadFile(true)} loading={refreshing && data !== undefined} disabled={busy !== ''}>
-            Reload
+            {t('config.reload')}
           </Button>
           <Button icon={Check} onClick={() => void validate()} loading={busy === 'validate'} disabled={!doc || busy !== '' || refreshing}>
-            Validate
+            {t('config.validate')}
           </Button>
           <Button variant="primary" icon={Save} onClick={() => void save()} loading={busy === 'save'} disabled={!doc || busy !== '' || refreshing}>
-            Save
+            {t('common.save')}
           </Button>
         </>
       }
     >
-      <AsyncView loading={loading} error={error} hasData={data !== undefined} retry={() => reload()} loadingText="Reading the config file…">
+      <AsyncView loading={loading} error={error} hasData={data !== undefined} retry={() => reload()} loadingText={t('config.loadingFile')}>
         {directory && (
           <Panel className="flex flex-col gap-3">
             <div className="min-w-0">
-              <div className="text-xs text-muted">Config directory</div>
+              <div className="text-xs text-muted">{t('config.directoryLabel')}</div>
               <div className="flex min-w-0 items-center gap-1">
                 <span className="truncate font-mono text-xs text-text">{configDir || '—'}</span>
-                {configDir && <CopyButton text={configDir} what="path" />}
+                {configDir && <CopyButton text={configDir} what={t('config.whatPath')} />}
               </div>
-              <p className="mt-1 text-xs leading-snug text-muted">
-                The directory is on the runtime's machine. Edit the fragments there and restart AgentFlow, or use the screens below for the parts Studio
-                manages.
-              </p>
+              <p className="mt-1 text-xs leading-snug text-muted">{t('config.directoryHelp')}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {FRAGMENT_SCREENS.map((s) => (
                 <Button key={s.path} size="sm" onClick={() => navigate(s.path)}>
-                  {s.label}
+                  {t(s.labelKey)}
                 </Button>
               ))}
             </div>
@@ -328,15 +328,15 @@ export default function Config() {
               value={tab}
               onChange={setTab}
               tabs={[
-                { id: 'edit', label: 'Edit', icon: Pencil },
-                { id: 'masked', label: 'Masked view', icon: Eye },
+                { id: 'edit', label: t('common.edit'), icon: Pencil },
+                { id: 'masked', label: t('config.tabMasked'), icon: Eye },
               ]}
             />
             {/* The editor stays mounted behind the masked tab so its undo history and scroll position survive the visit. */}
             <EditorFrame
               hidden={tab !== 'edit'}
               title={baseName(doc.path)}
-              hint={`Env placeholders stay as written (\${VAR}); secrets are never resolved into this text. ${MOD}+S validates and saves.`}
+              hint={t('config.editHint', { placeholder: '${VAR}', mod: MOD })}
             >
               <CodeEditor
                 value={text}
@@ -349,11 +349,8 @@ export default function Config() {
             </EditorFrame>
             {tab === 'masked' && (
               <EditorFrame
-                title="Parsed config"
-                hint={
-                  'What the runtime parsed from the file on disk, with sensitive keys masked. Read-only.' +
-                  (dirty ? ' Your unsaved edits are not in it.' : '')
-                }
+                title={t('config.parsedTitle')}
+                hint={t(dirty ? 'config.maskedHintDirty' : 'config.maskedHint')}
                 trailing={
                   <>
                     <Segmented
@@ -364,13 +361,13 @@ export default function Config() {
                         { value: 'yaml', label: 'YAML' },
                       ]}
                     />
-                    {viewText !== '' && <CopyButton text={viewText} what="masked view" size="md" />}
+                    {viewText !== '' && <CopyButton text={viewText} what={t('config.whatMasked')} size="md" />}
                   </>
                 }
               >
                 {viewText === '' ? (
                   <div className="flex min-h-0 flex-1 items-center justify-center rounded-ctl border border-line bg-bg px-6 text-center text-sm text-muted">
-                    The file on disk does not parse as YAML, so there is no structured view of it.
+                    {t('config.noParse')}
                   </div>
                 ) : (
                   <CodeEditor value={viewText} language={format} readOnly className="min-h-0 flex-1" />

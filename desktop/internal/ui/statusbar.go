@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"image/color"
 	"strings"
 
@@ -21,9 +20,9 @@ import (
 const statusBarHeight = float32(24)
 
 func (a *App) newStatusBar() fyne.CanvasObject {
-	a.statusState = barText("● connected", colorSuccess)
+	a.statusState = barText("● "+T("common.connected"), colorSuccess)
 	a.statusFacts = barText(a.statusAddress(), colorFaint)
-	right := container.NewCenter(barText(fmt.Sprintf("prelude v%d · studio %s", a.catalog.PreludeVersion, appVersion), colorFaint))
+	right := container.NewCenter(barText(T("shell.versions", "prelude", a.catalog.PreludeVersion, "version", appVersion), colorFaint))
 	left := hstack(spaceM, container.NewCenter(a.statusState), container.NewCenter(a.statusFacts))
 
 	bg := canvas.NewRectangle(colorFloat)
@@ -55,10 +54,10 @@ func (a *App) setStatusBarState(online bool) {
 		return
 	}
 	if online {
-		a.statusState.Text = "● connected"
+		a.statusState.Text = "● " + T("common.connected")
 		a.statusState.Color = colorSuccess
 	} else {
-		a.statusState.Text = "● offline"
+		a.statusState.Text = "● " + T("common.offline")
 		a.statusState.Color = colorDanger
 	}
 	a.statusState.Refresh()
@@ -71,7 +70,7 @@ func (a *App) setRuntimeFacts(st api.State) {
 	}
 	parts := []string{a.statusAddress()}
 	if st.Instance != "" {
-		parts = append(parts, "instance "+shortID(st.Instance))
+		parts = append(parts, T("shell.instance", "id", shortID(st.Instance)))
 	}
 	if st.Region != "" {
 		parts = append(parts, st.Region)
@@ -82,8 +81,8 @@ func (a *App) setRuntimeFacts(st api.State) {
 	if st.Version != "" {
 		parts = append(parts, st.Version)
 	}
-	parts = append(parts, "up "+humanDuration(st.UptimeS),
-		fmt.Sprintf("%d busy / %d idle", st.SessionsActive, st.SessionsIdle))
+	parts = append(parts, T("shell.uptime", "duration", humanDuration(st.UptimeS)),
+		T("shell.sessions", "busy", st.SessionsActive, "idle", st.SessionsIdle))
 	a.statusFacts.Text = strings.Join(parts, "  ·  ")
 	a.statusFacts.Refresh()
 }

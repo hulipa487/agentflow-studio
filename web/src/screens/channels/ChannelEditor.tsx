@@ -7,6 +7,7 @@ import { ApiError, errorMessage } from '@/api/client'
 import type { Channel, ChannelList } from '@/api/types'
 import { Banner, Button, Checkbox, Field, Input, Modal, Select, type Tone } from '@/components/ui'
 import { useClient } from '@/state/session'
+import { t } from '@/i18n'
 import {
   CHANNEL_TYPES,
   JOURNAL_MODES,
@@ -112,7 +113,7 @@ export function ChannelEditor({
     try {
       const errors = await client.validateChannel(index, draft)
       if (!alive.current) return
-      setNotice(errors.length > 0 ? { tone: 'danger', text: errors.join('\n') } : { tone: 'success', text: 'Valid. Restart the runtime to bind it.' })
+      setNotice(errors.length > 0 ? { tone: 'danger', text: errors.join('\n') } : { tone: 'success', text: t('channels.valid') })
     } catch (err) {
       if (alive.current) setNotice({ tone: 'danger', text: errorMessage(err) })
     } finally {
@@ -141,7 +142,7 @@ export function ChannelEditor({
     // A new channel is appended, so the form survives the reload. An edit is
     // addressed by index, which the hand edit may have shifted: the list
     // closes this dialog rather than let it save over the wrong channel.
-    setNotice(existing ? null : { tone: 'accent', text: 'Channel list reloaded. Save again to add the channel.' })
+    setNotice(existing ? null : { tone: 'accent', text: t('channels.reloadedSaveAgain') })
     onReload()
   }
 
@@ -155,7 +156,7 @@ export function ChannelEditor({
       stored={hasSecret}
       clear={form.clearSecret}
       onClear={(v) => set('clearSecret', v)}
-      clearLabel="Remove the stored secret"
+      clearLabel={t('channels.clearSecret')}
     />
   )
   const tokenField = (label: string, empty: string, hint?: string) => (
@@ -168,7 +169,7 @@ export function ChannelEditor({
       stored={hasToken}
       clear={form.clearToken}
       onClear={(v) => set('clearToken', v)}
-      clearLabel="Remove the stored token"
+      clearLabel={t('channels.clearToken')}
     />
   )
 
@@ -185,19 +186,19 @@ export function ChannelEditor({
       onClose={() => {
         if (!busy) onClose()
       }}
-      title={existing ? 'Edit ' + channelTitle(existing) : 'New channel'}
-      subtitle="Route inbound messages into an agent. Changes take effect on the next runtime start."
+      title={existing ? t('channels.editNamed', { name: channelTitle(existing) }) : t('channels.newChannel')}
+      subtitle={t('channels.editorSubtitle')}
       width={660}
       footer={
         <>
           <Button onClick={onClose} disabled={busy !== null}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button icon={Check} onClick={validate} loading={busy === 'validate'} disabled={busy !== null || reloading}>
-            Validate
+            {t('channels.validate')}
           </Button>
           <Button variant="primary" onClick={save} loading={busy === 'save'} disabled={busy !== null || reloading}>
-            Save
+            {t('common.save')}
           </Button>
         </>
       }
@@ -207,184 +208,184 @@ export function ChannelEditor({
         {conflict && (
           <div className="flex items-center gap-3">
             <Button icon={RotateCw} onClick={reloadAfterConflict}>
-              Reload channels
+              {t('channels.reloadChannels')}
             </Button>
             <span className="text-xs text-muted">
-              {existing ? 'Reloading closes this dialog: reopen the channel to edit the version on disk.' : 'Nothing was saved. Reload the list, then save again.'}
+              {existing ? t('channels.conflictEdit') : t('channels.conflictNew')}
             </span>
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Name">
+          <Field label={t('common.name')}>
             <Input placeholder="telegram-main" {...text('name')} />
           </Field>
-          <Field label="Type">
-            <Select value={form.type} onChange={(v) => set('type', v)} options={CHANNEL_TYPES} placeholder={form.type === '' ? 'choose a channel type' : undefined} />
+          <Field label={t('channels.field.type')}>
+            <Select value={form.type} onChange={(v) => set('type', v)} options={CHANNEL_TYPES} placeholder={form.type === '' ? t('channels.chooseType') : undefined} />
           </Field>
           {openai ? (
-            <Field label="Agents exposed as model ids" hint="Comma-separated. A client selects one by name as its model.">
+            <Field label={t('channels.field.agentsExposed')} hint={t('channels.hint.agentsExposed')}>
               <Input mono placeholder="coder, helper" {...text('agents')} />
             </Field>
           ) : (
-            <Field label="Agent" hint={staleAgent && form.agent === '' ? `Agent "${staleAgent}" no longer exists. Choose the agent this channel routes to.` : undefined}>
-              <Select value={form.agent} onChange={(v) => set('agent', v)} options={agents} mono placeholder={form.agent === '' ? 'choose an agent' : undefined} />
+            <Field label={t('channels.field.agent')} hint={staleAgent && form.agent === '' ? t('channels.hint.staleAgent', { name: staleAgent }) : undefined}>
+              <Select value={form.agent} onChange={(v) => set('agent', v)} options={agents} mono placeholder={form.agent === '' ? t('channels.chooseAgent') : undefined} />
             </Field>
           )}
           {!(qq && form.qqMode === 'websocket') && (
             <Field
-              label="Path"
+              label={t('channels.field.path')}
               hint={
                 bridge
-                  ? 'Path is required for a bridge and must end with /.'
+                  ? t('channels.hint.pathBridge')
                   : qq
-                    ? 'Defaults to /webhook/qq/<name>/. Must end with /.'
-                    : 'Optional route on the shared listener. An explicit path must end with /.'
+                    ? t('channels.hint.pathQQ')
+                    : t('channels.hint.pathDefault')
               }
             >
-              <Input mono placeholder={bridge ? 'e.g. /bridge/' : qq ? 'optional · /webhook/qq/<name>/' : 'optional · e.g. /webhook/'} {...text('path')} />
+              <Input mono placeholder={bridge ? t('channels.placeholder.pathBridge') : qq ? t('channels.placeholder.pathQQ') : t('channels.placeholder.pathDefault')} {...text('path')} />
             </Field>
           )}
         </div>
 
         {form.type === 'telegram' && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Telegram mode" hint="Webhook and auto modes need gateway.public_url. Polling ignores the path.">
+            <Field label={t('channels.field.telegramMode')} hint={t('channels.hint.telegramMode')}>
               <Select value={form.mode} onChange={(v) => set('mode', v)} options={TELEGRAM_MODES} />
             </Field>
-            <Field label="Allowed Telegram user IDs" hint="Comma-separated numeric IDs; empty accepts anyone the bot can see.">
+            <Field label={t('channels.field.allowedUsers')} hint={t('channels.hint.allowedUsers')}>
               <Input mono placeholder="123456789, 987654321" {...text('allowUsers')} />
             </Field>
-            {tokenField('Bot token', 'bot token')}
+            {tokenField(t('channels.field.botToken'), t('channels.placeholder.botToken'))}
             <SecretField
-              label="Webhook secret token"
+              label={t('channels.field.webhookSecretToken')}
               value={form.secretToken}
               onChange={(v) => set('secretToken', v)}
-              placeholder={secretPlaceholder(hasSecretToken, existing?.secret_token_ref, 'telegram webhook secret (optional)')}
+              placeholder={secretPlaceholder(hasSecretToken, existing?.secret_token_ref, t('channels.placeholder.telegramWebhookSecret'))}
               stored={hasSecretToken}
               clear={form.clearSecretToken}
               onClear={(v) => set('clearSecretToken', v)}
-              clearLabel="Remove the stored webhook secret"
+              clearLabel={t('channels.clearWebhookSecret')}
             />
           </div>
         )}
 
         {qq && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="AppID" hint="From the bot's page on the QQ Open Platform (q.qq.com).">
+            <Field label="AppID" hint={t('channels.hint.appId')}>
               <Input mono placeholder="102xxxxxx" {...text('appID')} />
             </Field>
-            {secretField('AppSecret', 'AppSecret, e.g. ${QQ_BOT_SECRET}', 'Fetches the access token and verifies webhook callbacks.')}
+            {secretField('AppSecret', t('channels.placeholder.appSecret'), t('channels.hint.appSecret'))}
             <Field
-              label="Event delivery"
+              label={t('channels.field.eventDelivery')}
               hint={
                 form.qqMode === 'webhook'
-                  ? 'Set <public https url><path> as the callback URL in the console (ports 80, 443, 8080 or 8443).'
-                  : 'The runtime connects out to the QQ gateway; nothing needs to be reachable from the internet.'
+                  ? t('channels.hint.qqWebhook')
+                  : t('channels.hint.qqWebsocket')
               }
             >
               <Select value={form.qqMode} onChange={(v) => set('qqMode', v)} options={QQ_MODES} />
             </Field>
-            <Field label="API base" hint="Optional. Defaults to https://api.bot.qq.com.">
+            <Field label={t('channels.field.apiBase')} hint={t('channels.hint.apiBase')}>
               <Input mono placeholder="https://api.bot.qq.com" {...text('apiBase')} />
             </Field>
-            <Field label="Scenes" hint="Guild DMs need an intent the platform grants on application." className="sm:col-span-2">
+            <Field label={t('channels.field.scenes')} hint={t('channels.hint.scenes')} className="sm:col-span-2">
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                 {QQ_SCENES.map((s) => (
-                  <Checkbox key={s.id} checked={form.scenes.includes(s.id)} onChange={(v) => toggleScene(s.id, v)} label={s.label} />
+                  <Checkbox key={s.id} checked={form.scenes.includes(s.id)} onChange={(v) => toggleScene(s.id, v)} label={t(s.labelKey)} />
                 ))}
               </div>
             </Field>
             <Field
-              label="Replies"
-              hint="Private chats and groups only; the platform grants markdown per bot. A refused markdown reply is resent as plain text."
+              label={t('channels.field.replies')}
+              hint={t('channels.hint.replies')}
               className="sm:col-span-2"
             >
-              <Checkbox checked={form.markdown} onChange={(v) => set('markdown', v)} label="Send replies as Markdown" />
+              <Checkbox checked={form.markdown} onChange={(v) => set('markdown', v)} label={t('channels.markdownReplies')} />
             </Field>
           </div>
         )}
 
-        {form.type === 'ghhook' && secretField('Webhook secret', 'GitHub webhook secret', 'Required. The HMAC signature is the only thing authenticating a delivery.')}
+        {form.type === 'ghhook' && secretField(t('channels.field.webhookSecret'), t('channels.placeholder.githubSecret'), t('channels.hint.githubSecret'))}
 
         {form.type === 'webhook' && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Reply timeout" hint="Default 55s. Raise it for pipelines that outrun a single turn.">
+            <Field label={t('channels.field.replyTimeout')} hint={t('channels.hint.replyTimeout')}>
               <Input mono placeholder="55s" {...text('timeout')} />
             </Field>
             {/* Full width: the kit truncates a checkbox label that does not fit. */}
-            <Checkbox className="sm:col-span-2" checked={form.async} onChange={(v) => set('async', v)} label="Async (202 + job id instead of a blocking reply)" />
+            <Checkbox className="sm:col-span-2" checked={form.async} onChange={(v) => set('async', v)} label={t('channels.asyncReply')} />
           </div>
         )}
 
         {bridge && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Deliver URL" hint="The adapter receives neutral replies here as JSON. Absolute http(s) URL.">
+            <Field label={t('channels.field.deliverUrl')} hint={t('channels.hint.deliverUrl')}>
               <Input mono placeholder="https://adapter.example.com/deliver" {...text('deliverURL')} />
             </Field>
-            <Field label="Delivery timeout" hint="Default 10s. The adapter must answer each delivery within it.">
+            <Field label={t('channels.field.deliveryTimeout')} hint={t('channels.hint.deliveryTimeout')}>
               <Input mono placeholder="10s" {...text('timeout')} />
             </Field>
-            {secretField('Inbound HMAC secret', 'inbound HMAC secret', 'Required. The adapter signs each inbound body with X-Agentflow-Signature.')}
-            {tokenField('Outbound bearer token', 'bearer token (optional)', 'Optional. Sent as Authorization: Bearer when delivering to the adapter.')}
+            {secretField(t('channels.field.inboundSecret'), t('channels.placeholder.inboundSecret'), t('channels.hint.inboundSecret'))}
+            {tokenField(t('channels.field.outboundToken'), t('channels.placeholder.outboundToken'), t('channels.hint.outboundToken'))}
           </div>
         )}
 
         {openai && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field
-              label="Auth"
+              label={t('channels.field.auth')}
               hint={
                 form.auth === 'user_token'
-                  ? 'Per-user bearer tokens issued by the identity layer; runtime.identity.enabled must be on. Stored shared keys are removed on save.'
+                  ? t('channels.hint.authUserToken')
                   : form.auth === 'none'
-                    ? 'No auth: only allowed when gateway.listen is a loopback address. Stored shared keys are removed on save.'
+                    ? t('channels.hint.authNone')
                     : undefined
               }
             >
-              <Select value={form.auth} onChange={(v) => set('auth', v)} options={OPENAI_AUTH_MODES} placeholder={form.auth === '' ? 'choose an auth mode' : undefined} />
+              <Select value={form.auth} onChange={(v) => set('auth', v)} options={OPENAI_AUTH_MODES} placeholder={form.auth === '' ? t('channels.chooseAuth') : undefined} />
             </Field>
             {form.auth === 'key' ? (
               <SecretField
-                label="API keys"
-                hint="Bearer keys clients send, comma-separated. ${VAR} and cred:<service> references are resolved at start."
+                label={t('channels.field.apiKeys')}
+                hint={t('channels.hint.apiKeys')}
                 value={form.keys}
                 onChange={(v) => set('keys', v)}
                 placeholder={keysPlaceholder(existing)}
                 stored={hasKeys}
                 clear={form.clearKeys}
                 onClear={(v) => set('clearKeys', v)}
-                clearLabel="Remove the stored keys"
+                clearLabel={t('channels.clearKeys')}
               />
             ) : (
               <div className="hidden sm:block" />
             )}
-            <Field label="Journal" hint="metadata keeps ids and sizes and never the conversation text; full keeps text; off writes nothing.">
-              <Select value={form.journal} onChange={(v) => set('journal', v)} options={JOURNAL_MODES} placeholder={form.journal === '' ? 'default · metadata' : undefined} />
+            <Field label={t('channels.field.journal')} hint={t('channels.hint.journal')}>
+              <Select value={form.journal} onChange={(v) => set('journal', v)} options={JOURNAL_MODES} placeholder={form.journal === '' ? t('channels.placeholder.journalDefault') : undefined} />
             </Field>
-            <Field label="Request timeout" hint="Default 600s for the whole request, including tool rounds.">
+            <Field label={t('channels.field.requestTimeout')} hint={t('channels.hint.requestTimeout')}>
               <Input mono placeholder="600s" {...text('timeout')} />
             </Field>
-            <Field label="Max request bytes" hint="Empty or 0 uses the default, 32 MiB.">
+            <Field label={t('channels.field.maxRequestBytes')} hint={t('channels.hint.maxRequestBytes')}>
               <Input mono inputMode="numeric" placeholder="33554432" {...text('maxRequestBytes')} />
             </Field>
             <Checkbox
               className="sm:col-span-2"
               checked={form.exposeReasoning}
               onChange={(v) => set('exposeReasoning', v)}
-              label="Send model reasoning as reasoning_content"
-              hint="Exposing reasoning shows the model's thinking to the caller; off by default."
+              label={t('channels.exposeReasoning')}
+              hint={t('channels.hint.exposeReasoning')}
             />
           </div>
         )}
 
         <div className="mt-1 border-t border-line pt-3">
-          <h3 className="mb-2 text-base font-semibold">Inbound media</h3>
+          <h3 className="mb-2 text-base font-semibold">{t('channels.mediaHeading')}</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Allowed MIME patterns" hint="Comma-separated, e.g. image/*, application/pdf. Empty disables attachments.">
+            <Field label={t('channels.field.mediaAllow')} hint={t('channels.hint.mediaAllow')}>
               <Input mono placeholder="image/*, application/pdf" {...text('mediaAllow')} />
             </Field>
-            <Field label="Max bytes" hint="Defaults to 8 MiB when media is enabled.">
+            <Field label={t('channels.field.mediaMax')} hint={t('channels.hint.mediaMax')}>
               <Input mono inputMode="numeric" placeholder="8388608" {...text('mediaMax')} />
             </Field>
           </div>

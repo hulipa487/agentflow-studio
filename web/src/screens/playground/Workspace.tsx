@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import type { Client } from '@/api/client'
 import { Button, Page } from '@/components/ui'
+import { t } from '@/i18n'
 import { useAsync, useScreenActions } from '@/lib/hooks'
 import { ChatPane, type ChatPaneHandle } from './ChatPane'
 import { Panes } from './Panes'
@@ -14,8 +15,8 @@ import { TracePane } from './TracePane'
 import type { TraceFilter } from './model'
 import { useChatSession } from './useChatSession'
 
-export const TITLE = 'Playground'
-export const SUBTITLE = 'Chat with an agent turn by turn. Each thread is its own session, with every operation traced.'
+export const TITLE_KEY = 'playground.title'
+export const SUBTITLE_KEY = 'playground.subtitle'
 
 export function Workspace({ client, agents, reloadAgents }: { client: Client; agents: string[]; reloadAgents: () => void }) {
   const [params, setParams] = useSearchParams()
@@ -79,12 +80,12 @@ export function Workspace({ client, agents, reloadAgents }: { client: Client; ag
 
   return (
     <Page
-      title={TITLE}
-      subtitle={SUBTITLE}
+      title={t(TITLE_KEY)}
+      subtitle={t(SUBTITLE_KEY)}
       scroll={false}
       actions={
         <Button variant="primary" icon={Plus} onClick={newThread}>
-          New thread
+          {t('playground.newThread')}
         </Button>
       }
     >

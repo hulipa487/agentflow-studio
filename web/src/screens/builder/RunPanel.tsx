@@ -5,6 +5,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { ExternalLink, Plus } from 'lucide-react'
 import type { Client } from '@/api/client'
 import { IconButton } from '@/components/ui'
+import { t } from '@/i18n'
 import { MOD } from '@/nav'
 import { ChatPane, type ChatPaneHandle } from '@/screens/playground/ChatPane'
 import type { TraceFilter } from '@/screens/playground/model'
@@ -60,7 +61,7 @@ export const RunPanel = forwardRef<
           return false
         }
         if (s.busy()) {
-          toast('a turn is still running; stop it or wait', 'warning')
+          toast(t('builder.turnRunning'), 'warning')
           return false
         }
         if (!s.send(text)) return false
@@ -79,9 +80,9 @@ export const RunPanel = forwardRef<
       <div className="flex min-h-0 flex-[3] flex-col">
         <ChatPane
           ref={chat}
-          agent={agent === '' ? 'Not applied yet' : agent}
+          agent={agent === '' ? t('builder.notAppliedYet') : agent}
           thread={s.thread}
-          status={agent === '' ? { text: 'apply to start', tone: 'neutral' } : s.status}
+          status={agent === '' ? { key: 'builder.applyToStart', tone: 'neutral' } : s.status}
           messages={s.messages}
           sending={s.sending}
           stopping={s.stopping}
@@ -89,12 +90,12 @@ export const RunPanel = forwardRef<
           onDraft={setDraft}
           onSend={onRun}
           onStop={() => void s.stop()}
-          hint={`${MOD}+Enter applies edits and sends · empty repeats the last message`}
-          emptyHint="Each send applies pending edits first, so the turn runs the definition you see."
+          hint={t('builder.runHint', { mod: MOD })}
+          emptyHint={t('builder.runEmptyHint')}
           actions={
             <>
-              <IconButton icon={Plus} label="New thread" onClick={s.newThread} disabled={agent === ''} />
-              <IconButton icon={ExternalLink} label="Open in the Playground" onClick={onOpenPlayground} disabled={agent === ''} />
+              <IconButton icon={Plus} label={t('builder.newThread')} onClick={s.newThread} disabled={agent === ''} />
+              <IconButton icon={ExternalLink} label={t('builder.openPlayground')} onClick={onOpenPlayground} disabled={agent === ''} />
             </>
           }
         />

@@ -3,6 +3,7 @@
 // sent to the runtime. A port of the desktop Studio's builder.go; buildYAML
 // emits the same bytes the Go builder does for the same form.
 import type { AgentDetail, AgentJSON, Catalog, Template } from '@/api/types'
+import { t } from '@/i18n'
 import { splitList } from '@/lib/format'
 import type { LuauDiagnostic } from '@/lua'
 import type { Tone } from '@/state/ui'
@@ -11,9 +12,12 @@ export const AGENT_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/
 
 /** The model picker's first entry: the definition names no model. */
 export const DEFAULT_MODEL_OPTION = 'default (per call)'
+/** The label the picker shows for DEFAULT_MODEL_OPTION's entry. */
+export const DEFAULT_MODEL_LABEL_KEY = 'builder.defaultModel'
 
-export const NAME_REQUIRED = 'An agent name is required.'
-export const NAME_INVALID = 'The name must be 1-64 characters of letters, digits, _ or -.'
+// Message keys: nameError returns one of these, the caller translates it.
+export const NAME_REQUIRED = 'builder.nameRequired'
+export const NAME_INVALID = 'builder.nameInvalid'
 
 export interface BuilderForm {
   name: string
@@ -45,14 +49,14 @@ export const MEMORY_BUILTIN = 'conversational'
  */
 export function memoryOptions(catalog: Catalog, current: string): { value: string; label: string }[] {
   const opts = [
-    { value: '', label: 'none' },
-    { value: MEMORY_BUILTIN, label: 'conversational (built-in)' },
+    { value: '', label: t('builder.memoryNone') },
+    { value: MEMORY_BUILTIN, label: t('builder.memoryBuiltin') },
   ]
   const named = (catalog.memory_profiles ?? []).filter((p) => p !== MEMORY_BUILTIN)
   for (const p of named) opts.push({ value: p, label: p })
-  if (current === MEMORY_INLINE) opts.push({ value: MEMORY_INLINE, label: 'inline profile (edit in Raw YAML)' })
+  if (current === MEMORY_INLINE) opts.push({ value: MEMORY_INLINE, label: t('builder.memoryInline') })
   else if (current !== '' && current !== MEMORY_BUILTIN && !named.includes(current)) {
-    opts.push({ value: current, label: `${current} · not in catalog` })
+    opts.push({ value: current, label: t('builder.notInCatalog', { name: current }) })
   }
   return opts
 }
@@ -63,7 +67,7 @@ export interface Notice {
 }
 
 export function displayName(name: string): string {
-  return name === '' ? 'New agent' : name
+  return name === '' ? t('builder.newAgent') : name
 }
 
 /** The safety picker's choices; a catalog without any falls back to the built-ins. */
@@ -132,13 +136,13 @@ export function historyValid(text: string): boolean {
 
 /** The JSON error for the extras field, or '' when it is empty or parses. */
 export function extrasError(text: string): string {
-  const t = text.trim()
-  if (t === '') return ''
+  const trimmed = text.trim()
+  if (trimmed === '') return ''
   try {
-    JSON.parse(t)
+    JSON.parse(trimmed)
     return ''
   } catch (err) {
-    return 'extras is not valid JSON: ' + (err instanceof Error ? err.message : String(err))
+    return t('builder.extrasInvalid', { error: err instanceof Error ? err.message : String(err) })
   }
 }
 
@@ -213,7 +217,7 @@ export function buildYAML(form: BuilderForm, detail: AgentDetail | null): string
     try {
       v = JSON.parse(extras)
     } catch (err) {
-      throw new Error('extras is not valid JSON: ' + (err instanceof Error ? err.message : String(err)))
+      throw new Error(t('builder.extrasInvalid', { error: err instanceof Error ? err.message : String(err) }))
     }
     write('extras', v)
   }
@@ -233,13 +237,13 @@ export function effectiveCapabilities(selected: string[], catalog: Catalog): str
 
 /** The title line's one short, unambiguous state. */
 export function headerStatus(dirty: boolean, detail: AgentDetail | null): Notice {
-  if (dirty) return { text: 'Unsaved changes', tone: 'accent' }
-  if (!detail) return { text: 'Not applied', tone: 'warning' }
-  if (detail.persisted) return { text: 'Saved', tone: 'success' }
-  return { text: 'Live', tone: 'accent' }
+  if (dirty) return { text: t('builder.statusUnsaved'), tone: 'accent' }
+  if (!detail) return { text: t('builder.statusNotApplied'), tone: 'warning' }
+  if (detail.persisted) return { text: t('builder.statusSaved'), tone: 'success' }
+  return { text: t('builder.statusLive'), tone: 'accent' }
 }
 
-/** Checks the name the way validate and apply do; returns the message or ''. */
+/** Checks the name the way validate and apply do; returns the message key or ''. */
 export function nameError(name: string): string {
   const n = name.trim()
   if (n === '') return NAME_REQUIRED
@@ -247,23 +251,18 @@ export function nameError(name: string): string {
   return ''
 }
 
-export function countLabel(n: number, one: string, many: string): string {
-  return n === 1 ? `1 ${one}` : `${n} ${many}`
-}
-
 /** The loop editor's status line: errors lead, warnings follow, anything else is clean. */
 export function loopStatus(diagnostics: LuauDiagnostic[], checking: boolean, failure: string): Notice {
-  if (failure) return { text: 'language service error: ' + failure, tone: 'danger' }
-  if (checking) return { text: 'checking…', tone: 'neutral' }
+  if (failure) return { text: t('lua.status.failed', { error: failure }), tone: 'danger' }
+  if (checking) return { text: t('lua.status.checking'), tone: 'neutral' }
   const errors = diagnostics.filter((d) => d.severity === 'error').length
   const warnings = diagnostics.filter((d) => d.severity === 'warning').length
   if (errors > 0) {
-    let text = countLabel(errors, 'error', 'errors')
-    if (warnings > 0) text += ' · ' + countLabel(warnings, 'warning', 'warnings')
+    const text = warnings > 0 ? t('lua.status.errorsAndWarnings', { errors, warnings }) : t('lua.status.errors', { errors })
     return { text, tone: 'danger' }
   }
-  if (warnings > 0) return { text: countLabel(warnings, 'warning', 'warnings'), tone: 'warning' }
-  return { text: 'no issues', tone: 'success' }
+  if (warnings > 0) return { text: t('lua.status.warnings', { warnings }), tone: 'warning' }
+  return { text: t('lua.status.noIssues'), tone: 'success' }
 }
 
 /** CodeMirror stores lines LF-joined; normalising up front keeps a load from reading as an edit. */

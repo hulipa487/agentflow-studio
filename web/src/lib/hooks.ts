@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useBlocker } from 'react-router-dom'
 import { confirm, useUI, type ConfirmOptions, type ScreenActions } from '@/state/ui'
+import { t } from '@/i18n'
 
 export interface AsyncState<T> {
   data: T | undefined
@@ -171,9 +172,9 @@ export function useUnsavedGuard(dirty: boolean, opts?: Partial<ConfirmOptions>):
     if (blocker.state !== 'blocked') return
     let live = true
     void confirm({
-      title: 'Discard changes?',
-      message: 'There are unsaved edits on this screen. Leave without saving them?',
-      confirmLabel: 'Discard',
+      title: t('common.discardTitle'),
+      message: t('common.discardMessage'),
+      confirmLabel: t('common.discard'),
       danger: true,
       ...optsRef.current,
     }).then((ok) => {
@@ -191,8 +192,8 @@ export function useUnsavedGuard(dirty: boolean, opts?: Partial<ConfirmOptions>):
 export function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value)
   useEffect(() => {
-    const t = setTimeout(() => setV(value), ms)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setV(value), ms)
+    return () => clearTimeout(timer)
   }, [value, ms])
   return v
 }

@@ -7,16 +7,18 @@ import type { Grant, Pool, PoolDraft } from '@/api/types'
 import { Banner, Button, Chip, ComboInput, CopyButton, Field, IconButton, Input, KV, Loading, Panel, Section, Segmented, Select, Table } from '@/components/ui'
 import { Split } from '@/components/ui/Split'
 import { useAsync } from '@/lib/hooks'
+import { t } from '@/i18n'
+import { tr } from '@/i18n/rich'
 import { relTime, shortID } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { confirm, toast } from '@/state/ui'
-import { byText, parseWhole, quoted, useAlive } from '../users/helpers'
+import { byText, parseWhole, useAlive } from '../users/helpers'
 import { PaneNote, RailRow } from '../users/rail'
 import { FormModal, Ident, type Directory, type PaneProps } from './shared'
 
 const MODES = [
-  { value: 'rw', label: 'rw · read/write' },
-  { value: 'r', label: 'r · read only' },
+  { value: 'rw', labelKey: 'tenancy.pools.modeOptRW' },
+  { value: 'r', labelKey: 'tenancy.pools.modeOptR' },
 ]
 
 /** The grant that covers every active member is stored as "*". */
@@ -29,18 +31,18 @@ export function PoolsPane({ dir, selected, onSelect, rev, reloadAll, notify }: P
   const left = (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <Button icon={Plus} className="self-start" onClick={() => setCreating(true)}>
-        New pool
+        {t('tenancy.pools.new')}
       </Button>
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
-        {dir.pools.length === 0 && <PaneNote>No pools. Create one, grant agents access, then bind a store to it with pool: &lt;name&gt;.</PaneNote>}
+        {dir.pools.length === 0 && <PaneNote>{t('tenancy.pools.empty')}</PaneNote>}
         {dir.pools.map((p) => {
-          const owner = p.owner?.group ? 'group ' + shortID(p.owner.group) : 'tenant ' + shortID(p.owner?.tenant)
+          const owner = p.owner?.group ? t('tenancy.pools.ownerGroup', { id: shortID(p.owner.group) }) : t('tenancy.pools.ownerTenant', { id: shortID(p.owner?.tenant) })
           return (
             <RailRow
               key={p.uuid}
               icon={Database}
               title={p.name}
-              caption={`${owner} · ${p.retention_days}d retention`}
+              caption={owner + ' · ' + t('tenancy.pools.retentionShort', { days: p.retention_days })}
               active={p.uuid === selected}
               onClick={() => onSelect(p.uuid)}
             />
@@ -55,7 +57,7 @@ export function PoolsPane({ dir, selected, onSelect, rev, reloadAll, notify }: P
       {pool ? (
         <PoolDetail key={pool.uuid} pool={pool} dir={dir} rev={rev} notify={notify} />
       ) : (
-        <PaneNote lowered>Select a pool to manage its grants.</PaneNote>
+        <PaneNote lowered>{t('tenancy.pools.selectHint')}</PaneNote>
       )}
     </div>
   )
@@ -70,7 +72,7 @@ export function PoolsPane({ dir, selected, onSelect, rev, reloadAll, notify }: P
           onCreated={(p) => {
             setCreating(false)
             onSelect(p.uuid)
-            toast(`pool ${p.name} created · grant agents before binding it`, 'success')
+            toast(t('tenancy.pools.created', { name: p.name }), 'success')
             reloadAll()
           }}
         />
@@ -120,11 +122,11 @@ function PoolDetail({ pool: p, dir, rev, notify }: { pool: Pool; dir: Directory;
   const grant = () => {
     const ag = agent.trim()
     if (ag === '') {
-      notify({ text: 'Choose the agent to grant.', tone: 'warning' })
+      notify({ text: t('tenancy.pools.chooseAgent'), tone: 'warning' })
       return
     }
     // An empty tenant is the member wildcard.
-    void run('grant', () => client.setGrant(p.uuid, ag, tenant.trim(), mode), 'grant saved', 'success').then((ok) => {
+    void run('grant', () => client.setGrant(p.uuid, ag, tenant.trim(), mode), t('tenancy.pools.grantSaved'), 'success').then((ok) => {
       if (ok && alive.current) {
         setAgent('')
         setTenant('')
@@ -135,14 +137,14 @@ function PoolDetail({ pool: p, dir, rev, notify }: { pool: Pool; dir: Directory;
 
   const revoke = async (g: Grant) => {
     const ok = await confirm({
-      title: 'Revoke grant',
-      message: `Revoke ${g.agent}'s ${g.mode} access to pool ${quoted(p.name)}?`,
-      confirmLabel: 'Revoke',
+      title: t('tenancy.pools.revokeTitle'),
+      message: t('tenancy.pools.revokeMessage', { agent: g.agent, mode: g.mode, name: p.name }),
+      confirmLabel: t('tenancy.pools.revoke'),
       danger: true,
     })
     if (!ok) return
-    const t = g.tenant === '*' ? '' : (g.tenant ?? '')
-    await run(`revoke:${g.agent}:${g.tenant}`, () => client.removeGrant(p.uuid, g.agent, t), 'grant revoked', 'warning')
+    const tenantID = g.tenant === '*' ? '' : (g.tenant ?? '')
+    await run(`revoke:${g.agent}:${g.tenant}`, () => client.removeGrant(p.uuid, g.agent, tenantID), t('tenancy.pools.grantRevoked'), 'warning')
   }
 
   return (
@@ -150,25 +152,28 @@ function PoolDetail({ pool: p, dir, rev, notify }: { pool: Pool; dir: Directory;
       <Panel className="flex flex-col gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-md font-semibold">{p.name}</span>
-          <Chip tone="accent">{ownerGroup !== '' ? 'group' : 'tenant'} pool</Chip>
+          <Chip tone="accent">{ownerGroup !== '' ? t('tenancy.pools.kindGroup') : t('tenancy.pools.kindTenant')}</Chip>
           <span className="flex-1" />
-          <CopyButton text={'pool: ' + p.name} what="store binding" size="md" />
+          <CopyButton text={'pool: ' + p.name} what={t('tenancy.pools.whatBinding')} size="md" />
         </div>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <KV label="pool uuid" value={p.uuid} copy={p.uuid} />
-          <KV label="owner" value={owner} copy={ownerGroup !== '' ? ownerGroup : ownerTenant || undefined} />
-          <KV label="retention" value={`${p.retention_days} days (immutable)`} />
-          <KV label="created" value={`${relTime(p.created_at)} by ${shortID(p.created_by)}`} />
+          <KV label={t('tenancy.pools.kvUuid')} value={p.uuid} copy={p.uuid} />
+          <KV label={t('tenancy.pools.kvOwner')} value={owner} copy={ownerGroup !== '' ? ownerGroup : ownerTenant || undefined} />
+          <KV label={t('tenancy.pools.kvRetention')} value={t('tenancy.pools.retentionValue', { days: p.retention_days })} />
+          <KV label={t('tenancy.kvCreated')} value={t('tenancy.pools.createdBy', { when: relTime(p.created_at), who: shortID(p.created_by) })} />
         </div>
         <p className="break-words text-xs leading-snug text-faint">
-          Bind a memory store to it:{' '}
-          <code className="font-mono text-muted">{`stores: { shared: { backend: <name>, table: <table>, pool: ${p.name} } }`}</code>
+          {tr(
+            'tenancy.pools.bindStore',
+            { binding: `stores: { shared: { backend: <name>, table: <table>, pool: ${p.name} } }` },
+            { code: (c) => <code className="font-mono text-muted">{c}</code> },
+          )}
         </p>
       </Panel>
 
       <Section
-        title="Grants"
-        subtitle="Per (agent, tenant). The member wildcard covers everyone active in the owning group; a tenant pool's wildcard covers nobody but its owner."
+        title={t('tenancy.pools.grantsTitle')}
+        subtitle={t('tenancy.pools.grantsSubtitle')}
         flush
       >
         {!data ? (
@@ -177,21 +182,21 @@ function PoolDetail({ pool: p, dir, rev, notify }: { pool: Pool; dir: Directory;
               <Banner tone="danger">{errorMessage(error)}</Banner>
             </div>
           ) : (
-            <Loading text="Loading grants…" />
+            <Loading text={t('tenancy.pools.loadingGrants')} />
           )
         ) : (
           <Table<Grant>
             rows={grants}
             rowKey={(g) => g.agent + '\u0000' + g.tenant}
-            empty="No grants: no agent can read or write this pool yet."
+            empty={t('tenancy.pools.noGrants')}
             columns={[
-              { key: 'agent', title: 'agent', width: 160, render: (g) => g.agent },
+              { key: 'agent', title: t('tenancy.colAgent'), width: 160, render: (g) => g.agent },
               {
                 key: 'tenant',
-                title: 'tenant',
-                render: (g) => (everyMember(g.tenant) ? <span className="text-muted">every active member</span> : <Ident label={who(g.tenant)} id={g.tenant} what="tenant uuid" />),
+                title: t('tenancy.colTenant'),
+                render: (g) => (everyMember(g.tenant) ? <span className="text-muted">{t('tenancy.pools.everyMember')}</span> : <Ident label={who(g.tenant)} id={g.tenant} what={t('tenancy.whatTenantUuid')} />),
               },
-              { key: 'mode', title: 'mode', width: 104, render: (g) => (g.mode === 'r' ? <Chip>read only</Chip> : <Chip tone="success">read/write</Chip>) },
+              { key: 'mode', title: t('tenancy.pools.colMode'), width: 104, render: (g) => (g.mode === 'r' ? <Chip>{t('tenancy.pools.modeR')}</Chip> : <Chip tone="success">{t('tenancy.pools.modeRW')}</Chip>) },
               {
                 key: 'revoke',
                 title: '',
@@ -202,7 +207,7 @@ function PoolDetail({ pool: p, dir, rev, notify }: { pool: Pool; dir: Directory;
                     icon={X}
                     size="sm"
                     tone="danger"
-                    label="Revoke"
+                    label={t('tenancy.pools.revoke')}
                     loading={busy === `revoke:${g.agent}:${g.tenant}`}
                     disabled={busy !== ''}
                     onClick={() => revoke(g)}
@@ -219,18 +224,18 @@ function PoolDetail({ pool: p, dir, rev, notify }: { pool: Pool; dir: Directory;
             if (busy === '') grant()
           }}
         >
-          <ComboInput aria-label="Agent" options={dir.agents} placeholder="agent" value={agent} onChange={(e) => setAgent(e.target.value)} />
+          <ComboInput aria-label={t('tenancy.pools.agentAria')} options={dir.agents} placeholder={t('tenancy.pools.agentPlaceholder')} value={agent} onChange={(e) => setAgent(e.target.value)} />
           <ComboInput
             mono
-            aria-label="Tenant uuid"
+            aria-label={t('tenancy.pools.tenantAria')}
             options={dir.userIDs}
-            placeholder="tenant uuid (empty = every member)"
+            placeholder={t('tenancy.pools.tenantPlaceholder')}
             value={tenant}
             onChange={(e) => setTenant(e.target.value)}
           />
-          <Select aria-label="Mode" value={mode} onChange={setMode} options={MODES} />
+          <Select aria-label={t('tenancy.pools.modeAria')} value={mode} onChange={setMode} options={MODES.map((m) => ({ value: m.value, label: t(m.labelKey) }))} />
           <Button type="submit" icon={Check} loading={busy === 'grant'} disabled={busy !== ''}>
-            Grant
+            {t('tenancy.pools.grant')}
           </Button>
         </form>
       </Section>
@@ -267,14 +272,14 @@ function NewPoolDialog({ dir, onClose, onCreated }: { dir: Directory; onClose: (
   const submit = async () => {
     const days = parseWhole(retention.trim())
     if (days === null || days <= 0) {
-      setError('Retention must be a positive number of days.')
+      setError(t('tenancy.pools.retentionInvalid'))
       return
     }
     const draft: PoolDraft = { name: name.trim(), creator: creator.trim(), retention_days: days }
     if (kind === 'tenant') draft.owner_tenant = ownerTenant.trim()
     else draft.owner_group = resolveGroup(ownerGroup.trim())
     if (draft.name === '' || draft.creator === '' || (!draft.owner_tenant && !draft.owner_group)) {
-      setError('A name, a creator and an owner are required.')
+      setError(t('tenancy.pools.required'))
       return
     }
     setBusy(true)
@@ -294,40 +299,40 @@ function NewPoolDialog({ dir, onClose, onCreated }: { dir: Directory; onClose: (
 
   return (
     <FormModal
-      title="New memory pool"
-      subtitle="A named shared store owned by exactly one tenant or group."
-      okLabel="Create pool"
+      title={t('tenancy.pools.newTitle')}
+      subtitle={t('tenancy.pools.newSubtitle')}
+      okLabel={t('tenancy.pools.create')}
       busy={busy}
       error={error}
       onSubmit={submit}
       onClose={onClose}
     >
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Name">
+        <Field label={t('common.name')}>
           <Input autoFocus placeholder="team-notes" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
         </Field>
-        <Field label="Retention (days)">
+        <Field label={t('tenancy.pools.retentionLabel')}>
           <Input mono inputMode="numeric" value={retention} onChange={(e) => setRetention(e.target.value)} disabled={busy} />
         </Field>
       </div>
-      <Field label="Creator">
-        <ComboInput mono options={dir.userIDs} placeholder="creator tenant uuid" value={creator} onChange={(e) => setCreator(e.target.value)} disabled={busy} />
+      <Field label={t('tenancy.creator')}>
+        <ComboInput mono options={dir.userIDs} placeholder={t('tenancy.pools.creatorPlaceholder')} value={creator} onChange={(e) => setCreator(e.target.value)} disabled={busy} />
       </Field>
-      <Field label="Owner">
+      <Field label={t('tenancy.pools.owner')}>
         <Segmented
           className="self-start"
           value={kind}
           onChange={setKind}
           options={[
-            { value: 'tenant', label: 'Tenant', disabled: busy },
-            { value: 'group', label: 'Group', disabled: busy },
+            { value: 'tenant', label: t('tenancy.pools.ownerKindTenant'), disabled: busy },
+            { value: 'group', label: t('tenancy.pools.ownerKindGroup'), disabled: busy },
           ]}
         />
         {kind === 'group' ? (
           <ComboInput
-            aria-label="Owner group"
+            aria-label={t('tenancy.pools.ownerGroupAria')}
             options={groupLabels}
-            placeholder="group (name or uuid)"
+            placeholder={t('tenancy.pools.ownerGroupPlaceholder')}
             value={ownerGroup}
             onChange={(e) => setOwnerGroup(e.target.value)}
             disabled={busy}
@@ -335,18 +340,16 @@ function NewPoolDialog({ dir, onClose, onCreated }: { dir: Directory; onClose: (
         ) : (
           <ComboInput
             mono
-            aria-label="Owner tenant"
+            aria-label={t('tenancy.pools.ownerTenantAria')}
             options={dir.userIDs}
-            placeholder="owner tenant uuid"
+            placeholder={t('tenancy.pools.ownerTenantPlaceholder')}
             value={ownerTenant}
             onChange={(e) => setOwnerTenant(e.target.value)}
             disabled={busy}
           />
         )}
       </Field>
-      <p className="text-xs leading-snug text-faint">
-        Names are global and are what config stores bind to. Retention is immutable once set: extending it means a new pool.
-      </p>
+      <p className="text-xs leading-snug text-faint">{t('tenancy.pools.namesNote')}</p>
     </FormModal>
   )
 }

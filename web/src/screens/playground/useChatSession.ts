@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, type Client } from '@/api/client'
 import type { ChatEvent, Reply, Thread, TraceEvent } from '@/api/types'
+import { t } from '@/i18n'
 import { newThreadID, shortID } from '@/lib/format'
 import { toastError } from '@/state/ui'
 import { READY, appendEvent, joinReply, messageID, transcriptFromTrace, type Message, type Status } from './model'
@@ -17,7 +18,7 @@ function replyNote(r: WireReply): string {
   const notes: string[] = []
   if (r.status && r.status !== 'delivered') notes.push(r.status)
   const n = r.attachments?.length ?? 0
-  if (n > 0) notes.push(`${n} attachment(s) not shown`)
+  if (n > 0) notes.push(t('playground.attachmentsNotShown', { n }))
   return notes.join(' · ')
 }
 
@@ -135,7 +136,8 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
   const newThread = useCallback(() => {
     const id = newThreadID()
     enter(session.current.agent, id, {
-      text: 'new thread ' + shortID(id),
+      key: 'playground.statusNewThread',
+      params: { id: shortID(id) },
       tone: 'accent',
     })
     loadThreadsFor(session.current.agent)
@@ -143,14 +145,14 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
 
   /** Fetches the thread's whole trace ring. Resolves null if superseded or failed. */
   const fetchTrace = useCallback(async (): Promise<TraceEvent[] | null> => {
-    const { agent: a, thread: t } = session.current
+    const { agent: a, thread: th } = session.current
     if (a === '') return null
     traceCtl.current?.abort()
     const c = new AbortController()
     traceCtl.current = c
     setTracing(true)
     try {
-      const evs = await client.trace(a, t, c.signal)
+      const evs = await client.trace(a, th, c.signal)
       return c.signal.aborted ? null : evs
     } catch (err) {
       if (!c.signal.aborted) toastError(err)
@@ -163,7 +165,8 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
   const openThread = useCallback(
     async (id: string) => {
       enter(session.current.agent, id, {
-        text: 'thread ' + shortID(id),
+        key: 'playground.statusThread',
+        params: { id: shortID(id) },
         tone: 'accent',
       })
       const evs = await fetchTrace()
@@ -187,15 +190,15 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
     if (mine.agent === '') return
     // Aborting first lets the turn report "turn canceled" before the stop lands.
     chatCtl.current?.abort()
-    setStatus({ text: 'stopping…', tone: 'warning' })
+    setStatus({ key: 'playground.statusStopping', tone: 'warning' })
     setStopping(true)
     try {
       await client.stopThread(mine.agent, mine.thread)
-      if (alive.current && session.current === mine) setStatus({ text: 'stop requested', tone: 'warning' })
+      if (alive.current && session.current === mine) setStatus({ key: 'playground.statusStopRequested', tone: 'warning' })
     } catch (err) {
       if (alive.current) {
         toastError(err)
-        if (session.current === mine) setStatus({ text: 'error', tone: 'danger' })
+        if (session.current === mine) setStatus({ key: 'playground.statusError', tone: 'danger' })
       }
     } finally {
       if (alive.current) setStopping(false)
@@ -203,11 +206,11 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
   }, [client])
 
   const send = (text: string, actAs = ''): boolean => {
-    const { agent: a, thread: t } = session.current
+    const { agent: a, thread: th } = session.current
     if (inFlight.current || a === '' || text.trim() === '') return false
     inFlight.current = true
     setSending(true)
-    setStatus({ text: 'running…', tone: 'accent' })
+    setStatus({ key: 'playground.statusRunning', tone: 'accent' })
     // The trace shows this turn alone while it streams; refresh brings the thread's ring back.
     setEvents(null)
 
@@ -233,7 +236,7 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
       setMessages((m) => [...m, bubble])
     }
     const fail = (statusText: string, bubble: string) => {
-      setStatus({ text: 'error: ' + statusText, tone: 'danger' })
+      setStatus({ key: 'playground.statusErrorWith', params: { message: statusText }, tone: 'danger' })
       complain(bubble)
     }
 
@@ -259,7 +262,7 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
             // runtimes send nothing more and run out the chat timeout).
             if (tr.kind === 'error' && tr.err) {
               loopFailed = true
-              complain(tr.err, 'loop error')
+              complain(tr.err, t('playground.loopError'))
             }
           }
           break
@@ -285,8 +288,8 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
           // handed to the agent, or its loop failed while answering.
           const msg = ev.error ?? ''
           settled = true
-          if (loopFailed) setStatus({ text: 'error: ' + msg, tone: 'danger' })
-          else fail(msg, msg || 'The runtime reported an error without a message.')
+          if (loopFailed) setStatus({ key: 'playground.statusErrorWith', params: { message: msg }, tone: 'danger' })
+          else fail(msg, msg || t('playground.noErrorMessage'))
           break
         }
         case 'done':
@@ -294,7 +297,7 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
           if (ev.done?.timed_out) {
             settled = true
             setStatus({
-              text: 'turn timed out; the loop is still running',
+              key: 'playground.statusTimedOut',
               tone: 'warning',
             })
           }
@@ -310,28 +313,27 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
       setSending(false)
       setMessages((m) => m.map((x) => (x.id === pending ? { ...x, pending: false } : x)))
       if (ctl.signal.aborted) {
-        setStatus({ text: 'turn canceled', tone: 'warning' })
+        setStatus({ key: 'playground.statusCanceled', tone: 'warning' })
       } else if (err instanceof ApiError) {
         // Refused or unreachable before the stream began (unknown agent, 4xx, no route).
         fail(err.message, err.message)
       } else if (err) {
         // The connection broke mid-stream. The runtime only stops streaming; the loop goes on.
-        const msg = 'stream: ' + errorMessage(err)
-        fail(msg, msg + '\n\nThe turn may still be running on the runtime. Refresh the trace to see how far it got.')
+        const reason = errorMessage(err)
+        fail(t('playground.streamError', { message: reason }), t('playground.streamBroken', { message: reason }))
       } else if (!sawEvent) {
         // Older runtimes answer 200 and close the stream when they refuse a
         // turn before delivery (current ones answer 400 with the reason); the
         // one refusal a non-empty message can meet there is an act-as id that
         // is not a known profile.
-        const msg = 'the runtime closed the stream without running a turn'
-        fail(msg, acting ? `${msg}.\n\nAct as user "${acting}" is probably not a known profile.` : msg + '.')
+        fail(t('playground.noTurn'), acting ? t('playground.noTurnActAs', { user: acting }) : t('playground.noTurnBubble'))
       } else if (!sawDone && !settled) {
         setStatus({
-          text: 'stream ended before the turn finished',
+          key: 'playground.statusStreamEnded',
           tone: 'warning',
         })
       } else if (!settled) {
-        setStatus({ text: 'done', tone: 'success' })
+        setStatus({ key: 'playground.statusDone', tone: 'success' })
       }
       loadThreadsFor(a)
     }
@@ -340,7 +342,7 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
       .chat(
         {
           agent: a,
-          thread: t,
+          thread: th,
           text,
           ...(acting ? { act_as_user: acting } : {}),
         },

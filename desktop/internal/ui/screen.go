@@ -82,7 +82,7 @@ func (s *screen) setBody(objs ...fyne.CanvasObject) {
 
 func (s *screen) loading(text string) {
 	if text == "" {
-		text = "Loading…"
+		text = T("common.loading")
 	}
 	act := widget.NewActivity()
 	act.Start()
@@ -94,13 +94,13 @@ func (s *screen) loading(text string) {
 func (s *screen) fail(err error, retry func()) {
 	if msg, off := featureOff(err); off {
 		s.banner.Clear()
-		s.setBody(layout.NewSpacer(), emptyStateCard("Not enabled on this runtime", msg, "", nil), layout.NewSpacer())
+		s.setBody(layout.NewSpacer(), emptyStateCard(T("common.notEnabled"), msg, "", nil), layout.NewSpacer())
 		return
 	}
 	s.notice(err.Error(), toneDanger)
 	var objs []fyne.CanvasObject
 	if retry != nil {
-		objs = append(objs, vSpacer(spaceL), container.NewCenter(actionButton("Retry", theme.ViewRefreshIcon(), retry)))
+		objs = append(objs, vSpacer(spaceL), container.NewCenter(actionButton(T("common.retry"), theme.ViewRefreshIcon(), retry)))
 	}
 	s.setBody(objs...)
 }
@@ -119,9 +119,9 @@ func featureOff(err error) (string, bool) {
 	msg := ae.Message
 	switch {
 	case strings.Contains(msg, "identity"):
-		msg += "\n\nSet runtime.identity.enabled: true (and runtime.users.enabled for the public user API), then restart AgentFlow."
+		msg = T("common.featureOffIdentity", "message", msg)
 	case strings.Contains(msg, "tenancy"):
-		msg += "\n\nTenancy needs a runtime store (runtime.persistence)."
+		msg = T("common.featureOffTenancy", "message", msg)
 	}
 	return msg, true
 }
@@ -351,7 +351,7 @@ func (r *sparkRenderer) Destroy() {}
 // meterBar shows used against limit; limit <= 0 renders an "unlimited" chip.
 func meterBar(used, limit int64) fyne.CanvasObject {
 	if limit <= 0 {
-		return hstack(spaceXS, vCenter(cellMono(humanCount(used))), vCenter(chip("unlimited", toneNeutral)))
+		return hstack(spaceXS, vCenter(cellMono(humanCount(used))), vCenter(chip(T("common.unlimited"), toneNeutral)))
 	}
 	frac := float64(used) / float64(limit)
 	bar := widget.NewProgressBar()
@@ -392,13 +392,13 @@ func humanDuration(seconds int64) string {
 	d := time.Duration(seconds) * time.Second
 	switch {
 	case d < time.Minute:
-		return fmt.Sprintf("%ds", seconds)
+		return T("common.durSeconds", "s", seconds)
 	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
+		return T("common.durMinutes", "m", int(d.Minutes()))
 	case d < 48*time.Hour:
-		return fmt.Sprintf("%dh %dm", int(d.Hours()), int(d.Minutes())%60)
+		return T("common.durHours", "h", int(d.Hours()), "m", int(d.Minutes())%60)
 	default:
-		return fmt.Sprintf("%dd %dh", int(d.Hours())/24, int(d.Hours())%24)
+		return T("common.durDays", "d", int(d.Hours())/24, "h", int(d.Hours())%24)
 	}
 }
 
@@ -413,22 +413,15 @@ func relTime(unix int64) string {
 	case d < 0:
 		return t.Local().Format("2006-01-02 15:04")
 	case d < time.Minute:
-		return "just now"
+		return T("common.justNow")
 	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+		return T("common.minutesAgo", "n", int(d.Minutes()))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
+		return T("common.hoursAgo", "n", int(d.Hours()))
 	case d < 7*24*time.Hour:
-		return fmt.Sprintf("%dd ago", int(d.Hours())/24)
+		return T("common.daysAgo", "n", int(d.Hours())/24)
 	}
 	return t.Local().Format("2006-01-02")
-}
-
-func plural(n int, noun string) string {
-	if n == 1 {
-		return "1 " + noun
-	}
-	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 func orDash(s string) string {
@@ -438,15 +431,16 @@ func orDash(s string) string {
 	return s
 }
 
-// copyButton puts text on the clipboard and confirms with a toast.
+// copyButton puts text on the clipboard and confirms with a toast. what is
+// already translated ("endpoint", "agent id").
 func (a *App) copyButton(text, what string) *widget.Button {
-	return iconButton(theme.ContentCopyIcon(), "Copy", func() {
+	return iconButton(theme.ContentCopyIcon(), T("common.copyWhat", "what", what), func() {
 		if a.fyneApp != nil && a.fyneApp.Clipboard() != nil {
 			a.fyneApp.Clipboard().SetContent(text)
 		} else if a.win != nil {
 			a.win.Clipboard().SetContent(text)
 		}
-		a.setStatus(what+" copied", toneSuccess)
+		a.setStatus(T("common.copiedWhat", "what", what), toneSuccess)
 	})
 }
 
@@ -475,7 +469,7 @@ func (a *App) promptText(title, subtitle, label, placeholder, initial, okLabel s
 	}
 	entry.OnSubmitted = func(string) { submit() }
 	form := vstack(spaceS, vstack(spaceXS, fieldLabel(label), controlFrame(entry)), errBanner)
-	cancel := widthBox(100, controlFrame(actionButton("Cancel", nil, closePopup)))
+	cancel := widthBox(100, controlFrame(actionButton(T("common.cancel"), nil, closePopup)))
 	ok := widthBox(140, controlFrame(primaryButton(okLabel, nil, submit)))
 	footer := container.NewBorder(nil, nil, nil, hstack(spaceS, cancel, ok), nil)
 	popup = showModalCard(a.win, title, subtitle, widthBox(520, form), footer)
@@ -505,7 +499,7 @@ func (a *App) loadUserIDs(done func([]string)) {
 func requireNonEmpty(what string) func(string) error {
 	return func(v string) error {
 		if v == "" {
-			return fmt.Errorf("%s is required", what)
+			return errors.New(T("common.required", "what", what))
 		}
 		return nil
 	}

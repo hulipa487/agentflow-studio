@@ -8,11 +8,12 @@ import { ApiError, errorMessage } from '@/api/client'
 import type { Credential, CredentialList } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, EmptyState, IconButton, Page, Panel, Select, Table, type Column } from '@/components/ui'
 import { useAsync, useScreenActions } from '@/lib/hooks'
-import { localDateTime, plural, relTime } from '@/lib/format'
+import { localDateTime, relTime } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { confirm, toast } from '@/state/ui'
+import { t } from '@/i18n'
 import { BucketDialog, CredentialEditor, useMounted } from './credentials/dialogs'
-import { DISABLED_NOTE, bucketLabel, bucketOptions, bucketPhrase, disabledList, injectionShape } from './credentials/helpers'
+import { DISABLED_NOTE_KEY, bucketLabel, bucketOptions, bucketPhrase, credentialNote, disabledList, injectionShape } from './credentials/helpers'
 
 type Dialog = { kind: 'edit'; existing: Credential | null } | { kind: 'bucket' }
 
@@ -32,9 +33,9 @@ export default function Credentials() {
         return await client.credentials(bucket, signal)
       } catch (err) {
         // A runtime without the store is a state to explain, not a failure.
-        if (err instanceof ApiError && err.status === 503) return disabledList(DISABLED_NOTE)
+        if (err instanceof ApiError && err.status === 503) return disabledList(DISABLED_NOTE_KEY)
         if (err instanceof ApiError && err.status === 404) {
-          throw new ApiError(404, 'This runtime does not expose the Studio credentials API yet; rebuild and restart AgentFlow, then reopen Credentials.')
+          throw new ApiError(404, t('credentials.apiMissing'))
         }
         throw err
       }
@@ -67,9 +68,9 @@ export default function Credentials() {
     if (!list) return
     const user = list.bucket
     const ok = await confirm({
-      title: 'Delete credential',
-      message: `Delete credential "${c.service}" from ${user === '' ? 'the engine-wide bucket' : 'user ' + user}?\n\nAny loop or config reference that resolves it will fail until a new secret is stored.`,
-      confirmLabel: 'Delete',
+      title: t('credentials.deleteTitle'),
+      message: user === '' ? t('credentials.deleteMessageEngine', { service: c.service }) : t('credentials.deleteMessageUser', { service: c.service, user }),
+      confirmLabel: t('common.delete'),
       danger: true,
     })
     if (!ok || !mounted.current) return
@@ -79,7 +80,7 @@ export default function Credentials() {
       if (!mounted.current) return
       setActionError('')
       setData(next)
-      toast(`credential ${c.service} deleted`, 'warning')
+      toast(t('credentials.deleted', { service: c.service }), 'warning')
     } catch (err) {
       if (!mounted.current) return
       // The store went away under the screen: show the disabled state.
@@ -93,38 +94,38 @@ export default function Credentials() {
   const columns: Column<Credential>[] = [
     {
       key: 'service',
-      title: 'Service',
+      title: t('credentials.col.service'),
       render: (c) => (
         <span className="font-mono text-xs font-semibold text-text" title={c.service}>
           {c.service}
         </span>
       ),
     },
-    { key: 'kind', title: 'Kind', width: 104, render: (c) => <Chip tone="accent">{c.kind || 'api_key'}</Chip> },
+    { key: 'kind', title: t('credentials.col.kind'), width: 104, render: (c) => <Chip tone="accent">{c.kind || 'api_key'}</Chip> },
     {
       key: 'fingerprint',
-      title: 'Fingerprint',
+      title: t('credentials.col.fingerprint'),
       width: 112,
       render: (c) =>
         c.fingerprint ? (
-          <Chip tone="success" title="The last four characters of the secret">
+          <Chip tone="success" title={t('credentials.fingerprintTitle')}>
             {c.fingerprint}
           </Chip>
         ) : (
-          <span className="font-mono text-xs text-faint">no fingerprint</span>
+          <span className="font-mono text-xs text-faint">{t('credentials.noFingerprint')}</span>
         ),
     },
     {
       key: 'injection',
-      title: 'Sent as',
+      title: t('credentials.col.sentAs'),
       render: (c) => (
         <span className="font-mono text-xs text-muted" title={injectionShape(c)}>
           {injectionShape(c)}
         </span>
       ),
     },
-    { key: 'created', title: 'Created', width: 104, render: (c) => <When unix={c.created_at} /> },
-    { key: 'updated', title: 'Last changed', width: 112, render: (c) => <When unix={c.updated_at} /> },
+    { key: 'created', title: t('credentials.col.created'), width: 104, render: (c) => <When unix={c.created_at} /> },
+    { key: 'updated', title: t('credentials.col.updated'), width: 112, render: (c) => <When unix={c.updated_at} /> },
     {
       key: 'actions',
       title: '',
@@ -132,11 +133,11 @@ export default function Credentials() {
       align: 'right',
       render: (c) => (
         <span className="inline-flex items-center justify-end">
-          <IconButton icon={Pencil} label={`Edit ${c.service}`} onClick={() => setDialog({ kind: 'edit', existing: c })} />
+          <IconButton icon={Pencil} label={t('credentials.editNamed', { name: c.service })} onClick={() => setDialog({ kind: 'edit', existing: c })} />
           <IconButton
             icon={Trash2}
             tone="danger"
-            label={`Delete ${c.service}`}
+            label={t('credentials.deleteNamed', { name: c.service })}
             disabled={deleting !== ''}
             loading={deleting === c.service}
             onClick={() => void remove(c)}
@@ -148,14 +149,14 @@ export default function Credentials() {
 
   return (
     <Page
-      title="Credentials"
-      subtitle="Encrypted secrets resolved by the runtime at request time. Values are write-only: Studio can replace a secret but never read it back."
+      title={t('credentials.title')}
+      subtitle={t('credentials.subtitle')}
       actions={
         <>
           <Select
             mono
             className="w-64"
-            aria-label="Bucket"
+            aria-label={t('credentials.bucket')}
             value={bucket}
             onChange={selectBucket}
             options={bucketOptions(data?.users, bucket).map((u) => ({ value: u, label: bucketLabel(u) }))}
@@ -163,14 +164,14 @@ export default function Credentials() {
           />
           {list && enabled && (
             <Button icon={User} onClick={() => setDialog({ kind: 'bucket' })}>
-              User bucket…
+              {t('credentials.userBucketButton')}
             </Button>
           )}
-          {list && <span className="font-mono text-xs text-faint">{plural(rows.length, 'secret')}</span>}
-          <IconButton icon={RotateCw} label="Refresh" loading={refreshing} onClick={refresh} />
+          {list && <span className="font-mono text-xs text-faint">{t('credentials.count', { n: rows.length })}</span>}
+          <IconButton icon={RotateCw} label={t('common.refresh')} loading={refreshing} onClick={refresh} />
           {list && enabled && rows.length > 0 && (
             <Button variant="primary" icon={Plus} onClick={() => setDialog({ kind: 'edit', existing: null })}>
-              New credential
+              {t('credentials.newCredential')}
             </Button>
           )}
         </>
@@ -180,11 +181,11 @@ export default function Credentials() {
         (enabled ? (
           <>
             <span>{bucketPhrase(list.bucket)}</span>
-            <span>write-only values</span>
-            <span>saves are live immediately</span>
+            <span>{t('credentials.writeOnlyValues')}</span>
+            <span>{t('credentials.savesLive')}</span>
           </>
         ) : (
-          <span>credential store disabled</span>
+          <span>{t('credentials.storeDisabled')}</span>
         ))
       }
       banner={
@@ -195,22 +196,22 @@ export default function Credentials() {
                 {actionError}
               </Banner>
             )}
-            {!enabled && list.note && <Banner tone="warning">{list.note}</Banner>}
+            {!enabled && list.note && <Banner tone="warning">{credentialNote(list)}</Banner>}
           </>
         ) : undefined
       }
     >
-      <AsyncView loading={loading || (!!data && !list)} error={error} hasData={!!list} retry={refresh} loadingText="Loading credentials…">
+      <AsyncView loading={loading || (!!data && !list)} error={error} hasData={!!list} retry={refresh} loadingText={t('credentials.loading')}>
         {!list ? null : !enabled ? (
           <EmptyState
-            title="Credentials are disabled"
-            guidance="Set runtime.credentials.enabled: true and CREDENTIALS_MASTER_KEY, restart AgentFlow, then reopen this screen."
+            title={t('credentials.disabledTitle')}
+            guidance={t('credentials.disabledGuidance')}
           />
         ) : rows.length === 0 ? (
           <EmptyState
-            title="No credentials in this bucket"
-            guidance="Store an API key or token here; loops reference it by name and the runtime injects the value at request time."
-            actionLabel="Add a credential"
+            title={t('credentials.emptyTitle')}
+            guidance={t('credentials.emptyGuidance')}
+            actionLabel={t('credentials.emptyAction')}
             onAction={() => setDialog({ kind: 'edit', existing: null })}
           />
         ) : (
@@ -230,7 +231,7 @@ export default function Credentials() {
             setDialog(null)
             setActionError('')
             setData(next)
-            toast(`credential ${draft.service} saved · live`, 'success')
+            toast(t('credentials.saved', { service: draft.service }), 'success')
           }}
         />
       )}

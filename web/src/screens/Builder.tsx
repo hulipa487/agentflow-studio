@@ -12,6 +12,7 @@ import type { AgentDetail, ApplyResult, Template } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, CopyButton, Dot, IconButton, Spinner, SplitButton, Tabs, cx, toneText, type TabDef } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
 import { Split } from '@/components/ui/Split'
+import { t, useLang } from '@/i18n'
 import { SKIP_GUARD, useAsync, useDebounced, useScreenActions, useStored, useUnsavedGuard } from '@/lib/hooks'
 import { analyze, luauSupport, type LuauDiagnostic, type LuauOptions } from '@/lua'
 import { MOD } from '@/nav'
@@ -26,7 +27,6 @@ import { RunPanel, type RunPanelHandle } from './builder/RunPanel'
 import {
   buildYAML,
   checkLabels,
-  countLabel,
   displayName,
   effectiveCapabilities,
   headerStatus,
@@ -92,7 +92,7 @@ interface Handoff {
 function NewAgent({ template, onAdopt, onReopen }: Handoff & { template: string }) {
   const catalog = useCatalog()
   // Resolved once: a later catalog reload must not reseed a form in progress.
-  const [seed] = useState<Template | null>(() => (catalog.templates ?? []).find((t) => t.name === template) ?? null)
+  const [seed] = useState<Template | null>(() => (catalog.templates ?? []).find((tpl) => tpl.name === template) ?? null)
   const missing = template !== '' && !seed ? template : ''
   return <BuilderView initialName="" initialDetail={null} template={seed} missingTemplate={missing} onAdopt={onAdopt} onReopen={onReopen} />
 }
@@ -112,11 +112,11 @@ function LoadState({ name, loading, error, retry }: { name: string; loading: boo
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-center gap-2 border-b border-line px-5 py-3">
-        <IconButton icon={ArrowLeft} label="Back" onClick={back} />
+        <IconButton icon={ArrowLeft} label={t('common.back')} onClick={back} />
         <h1 className="min-w-0 truncate text-xl font-semibold leading-tight tracking-[-0.01em]">{name}</h1>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
-        <AsyncView loading={loading} error={error} hasData={false} retry={retry} loadingText="Loading agent…">
+        <AsyncView loading={loading} error={error} hasData={false} retry={retry} loadingText={t('builder.loadingAgent')}>
           {null}
         </AsyncView>
       </div>
@@ -128,11 +128,14 @@ function LoadState({ name, loading, error, retry }: { name: string; loading: boo
 // two display utilities never compete.
 const PANEL = 'flex min-h-0 flex-1 flex-col py-3'
 
-const DISCARD = {
-  title: 'Discard changes?',
-  message: 'The agent has unsaved edits in this window. Leave without applying them?',
-  confirmLabel: 'Discard',
-  danger: true,
+/** The discard question, built when asked so it reads the current language. */
+function discardPrompt() {
+  return {
+    title: t('common.discardTitle'),
+    message: t('builder.discardMessage'),
+    confirmLabel: t('common.discard'),
+    danger: true,
+  }
 }
 
 function BuilderView({
@@ -182,7 +185,7 @@ function BuilderView({
   const dock: Dock = dockChoice === 'run' || dockChoice === 'docs' ? dockChoice : ''
   const runPanel = useRef<RunPanelHandle>(null)
   const [notice, setNotice] = useState<Notice | null>(() =>
-    missingTemplate ? { text: `Template "${missingTemplate}" is not in this runtime's catalog. Starting from a blank agent.`, tone: 'warning' } : null,
+    missingTemplate ? { text: t('builder.missingTemplate', { name: missingTemplate }), tone: 'warning' } : null,
   )
   // The verb shown on the Apply button while a request is in flight.
   const [busy, setBusy] = useState('')
@@ -236,7 +239,7 @@ function BuilderView({
 
   // Every way out of a dirty builder (back, Test, the rail, the palette, a
   // shortcut, the browser's Back button) asks this one question.
-  useUnsavedGuard(dirty, DISCARD)
+  useUnsavedGuard(dirty, discardPrompt())
 
   // Entries the loaded definition selects but the catalog does not list stay
   // in the grids for the life of this view, checked or not.
@@ -267,13 +270,15 @@ function BuilderView({
     }
   }, [luaOptions])
   const linted = useDebounced(loop, 220)
+  // Diagnostics are written in the language current when they are computed.
+  const lang = useLang()
   const analysis = useMemo<{ diagnostics: LuauDiagnostic[]; failure: string }>(() => {
     try {
       return { diagnostics: analyze(linted, luaOptions), failure: '' }
     } catch (err) {
       return { diagnostics: [], failure: errorMessage(err) }
     }
-  }, [linted, luaOptions])
+  }, [linted, luaOptions, lang])
   const loopErrors = analysis.diagnostics.filter((d) => d.severity === 'error').length
   const loopWarnings = analysis.diagnostics.filter((d) => d.severity === 'warning').length
 
@@ -285,7 +290,7 @@ function BuilderView({
   const prepare = (): { name: string; yaml: string } | null => {
     const bad = nameError(form.name)
     if (bad) {
-      setError(bad)
+      setError(t(bad))
       return null
     }
     try {
@@ -310,7 +315,7 @@ function BuilderView({
     const draft = prepare()
     if (!draft) return
     setNotice(null)
-    begin('Checking…')
+    begin(t('builder.checking'))
     const ctl = new AbortController()
     request.current = ctl
     const timer = setTimeout(() => ctl.abort(), 30_000)
@@ -323,14 +328,13 @@ function BuilderView({
         return
       }
       const warnings = res.warnings ?? []
-      let text = 'Valid. The loop compiles and the definition passes boot validation.'
-      if (warnings.length > 0) text += '\nWarnings: ' + warnings.join('; ')
+      const text = warnings.length > 0 ? t('builder.validWithWarnings', { warnings: warnings.join('; ') }) : t('builder.valid')
       setNotice({ text, tone: warnings.length > 0 ? 'warning' : 'success' })
-      toast('validation passed', 'success')
+      toast(t('builder.validationPassed'), 'success')
     } catch (err) {
       if (!alive.current) return
       end()
-      setError(ctl.signal.aborted ? 'The runtime did not answer the validation within 30 seconds.' : errorMessage(err))
+      setError(ctl.signal.aborted ? t('builder.validateTimeout') : errorMessage(err))
     } finally {
       clearTimeout(timer)
     }
@@ -344,7 +348,7 @@ function BuilderView({
     const first = isNew
     const editsAtSend = edits.current
     setNotice(null)
-    begin('Applying…')
+    begin(t('builder.applying'))
     let res: ApplyResult
     try {
       res = await client.putAgent(draft.name, {
@@ -387,15 +391,15 @@ function BuilderView({
     }
     if (!res.applied) {
       // Not a path this screen asks for, but never claim a swap that did not happen.
-      setNotice({ text: res.note || 'Validated but not applied.', tone: 'warning' })
+      setNotice({ text: res.note || t('builder.notApplied'), tone: 'warning' })
     } else if (res.persist_error) {
-      setNotice({ text: 'Applied live, but persisting failed: ' + res.persist_error, tone: 'warning' })
+      setNotice({ text: t('builder.persistFailed', { error: res.persist_error }), tone: 'warning' })
     } else if (res.persisted) {
-      setNotice({ text: 'Applied live and persisted. The definition loads at the next boot.', tone: 'success' })
+      setNotice({ text: t('builder.appliedPersisted'), tone: 'success' })
     } else {
-      setNotice({ text: 'Applied live on this instance.', tone: 'success' })
+      setNotice({ text: t('builder.appliedLive'), tone: 'success' })
     }
-    toast('applied ' + draft.name, 'success')
+    toast(t('builder.applied', { name: draft.name }), 'success')
     return res.applied
   }
 
@@ -425,8 +429,8 @@ function BuilderView({
    * Runs `go` at once, or after the operator agrees to lose unapplied edits.
    * For actions that stay on this route; leaving it is the guard's job.
    */
-  const leave = async (go: () => void, message = DISCARD.message) => {
-    if (dirty && !(await confirm({ ...DISCARD, message }))) return
+  const leave = async (go: () => void, message = t('builder.discardMessage')) => {
+    if (dirty && !(await confirm({ ...discardPrompt(), message }))) return
     if (alive.current) go()
   }
 
@@ -450,7 +454,7 @@ function BuilderView({
     void leave(() => {
       void useSession.getState().reloadCatalog()
       onReopen(name)
-    }, 'The agent has unsaved edits in this window. Reload the definition from the runtime and lose them?')
+    }, t('builder.reloadMessage'))
   }
 
   const remove = async () => {
@@ -483,29 +487,29 @@ function BuilderView({
 
   const locked = busy !== '' || deleting
   const status = headerStatus(dirty, detail)
-  const applyLabel = busy || (persist ? 'Apply & save' : 'Apply')
+  const applyLabel = busy || (persist ? t('builder.applySave') : t('common.apply'))
   const dockToggle = (on: boolean) => cx(on && 'border-accent/50 bg-surface2 text-text')
 
   const tabs: TabDef<TabID>[] = [
-    { id: 'config', label: 'Config', icon: Settings },
+    { id: 'config', label: t('builder.tabConfig'), icon: Settings },
     {
       id: 'loop',
-      label: 'Loop',
+      label: t('builder.tabLoop'),
       icon: FileCode,
       // The verdict stays visible from the other tabs: toggling a capability
       // on Config can break (or fix) the loop.
       badge:
         loopErrors > 0 ? (
-          <span className="font-mono text-xs text-danger" title={countLabel(loopErrors, 'error', 'errors') + ' in the loop'}>
+          <span className="font-mono text-xs text-danger" title={t('builder.loopErrors', { n: loopErrors })}>
             {loopErrors}
           </span>
         ) : loopWarnings > 0 ? (
-          <span className="font-mono text-xs text-warning" title={countLabel(loopWarnings, 'warning', 'warnings') + ' in the loop'}>
+          <span className="font-mono text-xs text-warning" title={t('builder.loopWarnings', { n: loopWarnings })}>
             {loopWarnings}
           </span>
         ) : undefined,
     },
-    { id: 'instructions', label: 'Instructions', icon: FileText },
+    { id: 'instructions', label: t('builder.tabInstructions'), icon: FileText },
     { id: 'yaml', label: 'YAML', icon: Braces },
   ]
 
@@ -514,12 +518,12 @@ function BuilderView({
   const toolbar = (
     <header className="shrink-0 border-b border-line pb-2.5 pl-3 pr-5 pt-2.5">
         <div className="flex items-center gap-2">
-          <IconButton icon={ArrowLeft} label="Back" onClick={back} disabled={locked} />
+          <IconButton icon={ArrowLeft} label={t('common.back')} onClick={back} disabled={locked} />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-semibold leading-tight tracking-[-0.01em]">
             {displayName(name)}
             {dirty && (
-              <span className="text-accent" title="Unsaved changes">
+              <span className="text-accent" title={t('builder.statusUnsaved')}>
                 {' '}
                 •
               </span>
@@ -532,7 +536,7 @@ function BuilderView({
         </div>
         {busy !== '' && <Spinner />}
         <Button icon={Check} onClick={() => void validate()} disabled={locked}>
-          Validate
+          {t('builder.validate')}
         </Button>
         <SplitButton
           label={applyLabel}
@@ -540,11 +544,11 @@ function BuilderView({
           onClick={() => void apply()}
           disabled={locked}
           className="min-w-[136px]"
-          menuLabel="Apply options"
+          menuLabel={t('builder.applyOptions')}
           options={[
             {
-              label: 'Apply',
-              hint: 'Swap the live definition on this instance.',
+              label: t('common.apply'),
+              hint: t('builder.applyHint'),
               checked: !persist,
               onSelect: () => {
                 setPersist(false)
@@ -552,8 +556,8 @@ function BuilderView({
               },
             },
             {
-              label: 'Apply & save',
-              hint: 'Also write it to the config, so it loads at the next boot.',
+              label: t('builder.applySave'),
+              hint: t('builder.applySaveHint'),
               checked: persist,
               onSelect: () => {
                 setPersist(true)
@@ -567,12 +571,12 @@ function BuilderView({
           onClick={() => toggleDock('run')}
           aria-pressed={dock === 'run'}
           className={dockToggle(dock === 'run')}
-          title={`Chat with this agent beside the editor (${MOD}+Enter applies and runs)`}
+          title={t('builder.runTitle', { mod: MOD })}
         >
-          Run
+          {t('builder.run')}
         </Button>
-        <IconButton icon={BookOpen} label="Luau reference (F1)" onClick={() => toggleDock('docs')} aria-pressed={dock === 'docs'} className={dockToggle(dock === 'docs')} />
-        <IconButton icon={Trash2} label="Delete" tone="danger" onClick={() => void remove()} disabled={locked || isNew} />
+        <IconButton icon={BookOpen} label={t('builder.docsButton')} onClick={() => toggleDock('docs')} aria-pressed={dock === 'docs'} className={dockToggle(dock === 'docs')} />
+        <IconButton icon={Trash2} label={t('common.delete')} tone="danger" onClick={() => void remove()} disabled={locked || isNew} />
       </div>
       {notice && (
         <Banner tone={notice.tone} onClose={() => setNotice(null)} className="mt-2">
@@ -609,9 +613,9 @@ function BuilderView({
       {visited.instructions && (
         <div className={tab === 'instructions' ? PANEL : 'hidden'}>
           <EditorFrame
-            title="Instructions"
-            hint="Saved next to the loop as a prompt file; the definition points at it."
-            actions={<CopyButton text={instructions} what="instructions" size="md" />}
+            title={t('builder.tabInstructions')}
+            hint={t('builder.instructionsHint')}
+            actions={<CopyButton text={instructions} what={t('builder.whatInstructions')} size="md" />}
           >
             <CodeEditor language="markdown" lineWrapping value={instructions} onChange={editInstructions} className="flex-1" />
           </EditorFrame>
@@ -621,17 +625,17 @@ function BuilderView({
       {visited.yaml && (
         <div className={tab === 'yaml' ? PANEL : 'hidden'}>
           <EditorFrame
-            title="Raw YAML"
-            hint="Sent to the runtime. The loop and instructions sources above are sent separately; editing here overrides the form until you rebuild."
+            title={t('builder.rawYaml')}
+            hint={t('builder.rawYamlHint')}
             actions={
               <>
                 {rawDirty && (
-                  <Chip tone="warning" title="Apply sends this text as written; the Config tab is ignored until you rebuild.">
-                    overrides the form
+                  <Chip tone="warning" title={t('builder.overridesFormTitle')}>
+                    {t('builder.overridesForm')}
                   </Chip>
                 )}
                 <Button size="sm" icon={RefreshCw} onClick={rebuild}>
-                  Rebuild from form
+                  {t('builder.rebuild')}
                 </Button>
                 <CopyButton text={yaml} what="YAML" size="md" />
               </>

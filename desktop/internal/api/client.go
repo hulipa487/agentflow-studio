@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"agentflow-studio/internal/i18n"
 )
 
 // Error is an HTTP or transport failure. Status 0 means the request never got
@@ -20,6 +22,26 @@ type Error struct {
 }
 
 func (e *Error) Error() string { return e.Message }
+
+// wrapped is a message Studio composes around a cause, translated, keeping the
+// cause for errors.Is and errors.As.
+type wrapped struct {
+	msg string
+	err error
+}
+
+func (w *wrapped) Error() string { return w.msg }
+func (w *wrapped) Unwrap() error { return w.err }
+
+// wrap translates key with the cause as its {error} parameter.
+func wrap(key string, err error) error {
+	return &wrapped{msg: i18n.T(key, "error", err.Error()), err: err}
+}
+
+// unreachable is the error for a request that got no response.
+func (c *Client) unreachable(err error) *Error {
+	return &Error{Message: i18n.T("connection.cannotReach", "url", c.display(), "error", err.Error())}
+}
 
 // Client talks to one AgentFlow instance's admin API. It has no cookie jar and
 // no browser: every request carries the bearer token explicitly.
@@ -70,7 +92,7 @@ func (c *Client) display() string {
 
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
 	if c.BaseURL == "" {
-		return &Error{Message: "instance URL is required"}
+		return &Error{Message: i18n.T("connection.urlRequired")}
 	}
 	var rdr io.Reader
 	if body != nil {
@@ -95,7 +117,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return &Error{Message: fmt.Sprintf("cannot reach %s: %v", c.display(), err)}
+		return c.unreachable(err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode/100 != 2 {
@@ -103,7 +125,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 	if out != nil {
 		if err := json.NewDecoder(res.Body).Decode(out); err != nil {
-			return fmt.Errorf("decode response: %w", err)
+			return wrap("connection.decodeFailed", err)
 		}
 	}
 	return nil
@@ -134,7 +156,7 @@ func errorFromBody(res *http.Response) error {
 		msg = res.Status
 	}
 	if res.StatusCode == http.StatusUnauthorized {
-		msg = "admin token rejected: " + msg
+		msg = i18n.T("connection.tokenRejected", "message", msg)
 	}
 	return &Error{Status: res.StatusCode, Message: msg}
 }
@@ -233,7 +255,7 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest, onEvent func(ChatEve
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return &Error{Message: fmt.Sprintf("cannot reach %s: %v", c.display(), err)}
+		return c.unreachable(err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode/100 != 2 {
@@ -252,7 +274,7 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest, onEvent func(ChatEve
 		}
 		var ev ChatEvent
 		if err := json.Unmarshal([]byte(strings.Join(data, "\n")), &ev); err != nil {
-			return fmt.Errorf("bad stream event: %w", err)
+			return wrap("connection.badEventDetail", err)
 		}
 		if ev.Type == "" {
 			ev.Type = event
@@ -281,7 +303,7 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest, onEvent func(ChatEve
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return fmt.Errorf("stream: %w", err)
+		return wrap("connection.streamFailed", err)
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()

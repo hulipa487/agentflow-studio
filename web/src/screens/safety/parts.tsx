@@ -6,7 +6,8 @@ import { Check, RotateCw, Upload } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
 import type { SafetyList } from '@/api/types'
 import { Banner, Button, Chip, StatusChip, cx, type Tone } from '@/components/ui'
-import { EMPTY_CHAIN, chainText, isClassifierFilter } from './helpers'
+import { t } from '@/i18n'
+import { chainText, emptyChain, isClassifierFilter } from './helpers'
 
 /** True until the component unmounts, so a late answer is not applied. */
 export function useMounted(): RefObject<boolean> {
@@ -21,12 +22,12 @@ export function useMounted(): RefObject<boolean> {
 }
 
 export function LiveChip({ live }: { live: boolean }) {
-  return live ? <StatusChip tone="success">live</StatusChip> : <StatusChip tone="warning">restart required</StatusChip>
+  return live ? <StatusChip tone="success">{t('safety.live')}</StatusChip> : <StatusChip tone="warning">{t('safety.restartRequired')}</StatusChip>
 }
 
 /** A filter chain, left to right; classifier filters stand out from builtins. */
 export function ChainView({ filters, className }: { filters: string[]; className?: string }) {
-  if (filters.length === 0) return <span className={cx('font-mono text-sm text-faint', className)}>{EMPTY_CHAIN}</span>
+  if (filters.length === 0) return <span className={cx('font-mono text-sm text-faint', className)}>{emptyChain()}</span>
   return (
     <span className={cx('flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1', className)} title={chainText(filters)}>
       {filters.map((f, i) => (
@@ -65,8 +66,8 @@ export function useEditorActions<D, L = SafetyList>(opts: {
   onSaved: (list: L) => void
   /** Reloads the list (and with it the mtime the next save sends). */
   reload: () => Promise<void>
-  /** What the editor edits, for the reload notice. */
-  what?: string
+  /** What the editor edits, for the reload notice: 'memory' or 'safety' (the default). */
+  what?: 'memory' | 'safety'
 }) {
   const mounted = useMounted()
   const [busy, setBusy] = useState<Busy>('')
@@ -118,7 +119,7 @@ export function useEditorActions<D, L = SafetyList>(opts: {
     void run('reload', async () => {
       await opts.reload()
       if (mounted.current) {
-        setNotice({ tone: 'warning', text: `Reloaded the ${opts.what ?? 'safety'} configuration; your draft is unchanged. Validate or save it again.` })
+        setNotice({ tone: 'warning', text: t('safety.reloadedNotice', { what: opts.what ?? 'safety' }) })
       }
     })
 
@@ -137,7 +138,7 @@ export function EditorNotice({ actions }: { actions: Pick<EditorActions, 'notice
       {notice.conflict && (
         <div className="mt-2">
           <Button size="sm" icon={RotateCw} loading={busy === 'reload'} disabled={busy !== ''} onClick={reload}>
-            Reload
+            {t('safety.reload')}
           </Button>
         </div>
       )}
@@ -150,13 +151,13 @@ export function EditorFooter({ actions, onCancel }: { actions: Pick<EditorAction
   return (
     <>
       <Button onClick={onCancel} disabled={busy !== ''}>
-        Cancel
+        {t('common.cancel')}
       </Button>
       <Button icon={Check} loading={busy === 'validate'} disabled={busy !== ''} onClick={validate}>
-        Validate
+        {t('safety.validate')}
       </Button>
       <Button variant="primary" icon={Upload} loading={busy === 'save'} disabled={busy !== ''} onClick={save}>
-        Save
+        {t('common.save')}
       </Button>
     </>
   )

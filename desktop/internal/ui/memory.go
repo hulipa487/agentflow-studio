@@ -2,7 +2,7 @@ package ui
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -46,10 +46,9 @@ func (a *App) newMemoryView() *memoryView {
 	v.banner = newBanner()
 	v.count = oneLine("")
 	v.meta = oneLine("")
-	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh", v.load)
-	guide := actionButton("Memory guide", theme.HelpIcon(), func() { a.showDocs("memory") })
-	head := pageHeader("Memory",
-		"Where agents keep what they remember: backends are the databases, profiles are the stores an agent reads and writes. Saves go to the deployment config and open on the next runtime start.",
+	refresh := iconButton(theme.ViewRefreshIcon(), T("common.refresh"), v.load)
+	guide := actionButton(T("memory.guide"), theme.HelpIcon(), func() { a.showDocs("memory") })
+	head := pageHeader(T("memory.title"), T("memory.subtitle"),
 		hstack(spaceS, widthBox(150, v.count), guide, refresh))
 	v.root = container.NewBorder(
 		vstack(0, pageInset(vstack(spaceS, head, v.meta)), hInset(v.banner), widget.NewSeparator()),
@@ -69,7 +68,7 @@ func (v *memoryView) setBanner(text string, t tone) {
 
 func (v *memoryView) load() {
 	v.banner.Clear()
-	v.meta.SetText("loading…")
+	v.meta.SetText(T("common.loading"))
 	v.loadSeq++
 	seq := v.loadSeq
 	go func() {
@@ -84,11 +83,11 @@ func (v *memoryView) load() {
 				v.meta.SetText("")
 				msg := err.Error()
 				if ae, ok := err.(*api.Error); ok && ae.Status == 404 {
-					msg = "This runtime does not expose the Studio memory API yet; rebuild and restart AgentFlow, then reopen Memory."
+					msg = T("memory.apiMissing")
 				}
 				v.setBanner(msg, toneDanger)
 				clearBox(v.list)
-				v.list.Add(container.NewCenter(widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), v.load)))
+				v.list.Add(container.NewCenter(widget.NewButtonWithIcon(T("common.retry"), theme.ViewRefreshIcon(), v.load)))
 				v.list.Refresh()
 				return
 			}
@@ -101,49 +100,47 @@ func (v *memoryView) load() {
 func (v *memoryView) render() {
 	v.banner.Clear()
 	clearBox(v.list)
-	v.count.SetText(plural(len(v.data.Profiles), "profile"))
-	meta := plural(len(v.data.Backends), "backend")
+	v.count.SetText(T("memory.profileCount", "n", len(v.data.Profiles)))
+	meta := T("memory.backendCount", "n", len(v.data.Backends))
 	if v.data.RestartRequired {
-		meta += " · restart required"
+		meta += " · " + T("safety.restartRequired")
 	} else {
-		meta += " · live"
+		meta += " · " + T("safety.live")
 	}
 	v.meta.SetText(meta)
 	switch {
 	case !v.data.Editable:
 		note := v.data.Note
 		if note == "" {
-			note = "This deployment has no editable config source for memory."
+			note = T("memory.readOnlyBanner")
 		}
 		v.setBanner(note, toneWarning)
 	case v.data.RestartRequired && v.data.SavedNote != "":
-		v.setBanner("Restart required — "+v.data.SavedNote, toneWarning)
+		v.setBanner(T("safety.restartRequiredNote", "note", v.data.SavedNote), toneWarning)
 	}
 
-	profileAction := iconButton(theme.ContentAddIcon(), "New profile", func() { v.editProfile(nil) })
-	backendAction := iconButton(theme.ContentAddIcon(), "New backend", func() { v.editBackend(nil) })
+	profileAction := iconButton(theme.ContentAddIcon(), T("memory.newProfile"), func() { v.editProfile(nil) })
+	backendAction := iconButton(theme.ContentAddIcon(), T("memory.newBackend"), func() { v.editBackend(nil) })
 	if !v.data.Editable {
 		profileAction.Disable()
 		backendAction.Disable()
 	}
 
-	profileSub := `Named store sets agents pick in the builder, besides the built-in "conversational" one.`
+	profileSub := T("memory.profilesSubtitle")
 	if len(v.data.BuiltinAgents) > 0 {
-		profileSub = fmt.Sprintf(`Named store sets agents pick in the builder. The built-in "conversational" profile is used by %s.`, strings.Join(v.data.BuiltinAgents, ", "))
+		profileSub = T("memory.profilesSubtitleBuiltin", "agents", strings.Join(v.data.BuiltinAgents, ", "))
 	}
-	v.list.Add(safetySectionHeader("Profiles", profileSub, profileAction))
+	v.list.Add(safetySectionHeader(T("memory.profiles"), profileSub, profileAction))
 	profiles := vstack(spaceM)
 	for _, p := range v.data.Profiles {
 		profiles.Add(v.profileCard(p))
 	}
 	if len(v.data.Profiles) == 0 {
-		profiles.Add(subpanel(muted("No named memory profiles yet.")))
+		profiles.Add(subpanel(muted(T("memory.noProfiles"))))
 	}
 	v.list.Add(profiles)
 
-	v.list.Add(safetySectionHeader("Backends",
-		"The databases stores live in. Secrets are never shown; use ${VAR} or cred:<service> to keep them out of the file.",
-		backendAction))
+	v.list.Add(safetySectionHeader(T("memory.backends"), T("memory.backendsSubtitle"), backendAction))
 	backends := vstack(spaceM)
 	for _, b := range v.data.Backends {
 		backends.Add(v.backendCard(b))
@@ -158,25 +155,25 @@ func (v *memoryView) render() {
 
 func liveChip(live bool) fyne.CanvasObject {
 	if live {
-		return chip("live", toneSuccess)
+		return chip(T("safety.live"), toneSuccess)
 	}
-	return chip("restart required", toneWarning)
+	return chip(T("safety.restartRequired"), toneWarning)
 }
 
 func (v *memoryView) profileCard(p api.MemoryProfile) fyne.CanvasObject {
 	title := widget.NewLabelWithStyle(p.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	chips := []fyne.CanvasObject{vCenter(title), vCenter(chip(plural(len(p.Stores), "store"), toneAccent))}
+	chips := []fyne.CanvasObject{vCenter(title), vCenter(chip(T("memory.storeCount", "n", len(p.Stores)), toneAccent))}
 	if p.Recall != "" {
 		chips = append(chips, vCenter(chip(p.Recall, toneNeutral)))
 	}
 	chips = append(chips, vCenter(liveChip(p.Live)))
-	del := iconButton(theme.DeleteIcon(), "Delete", func() { v.confirmDelete("profile", p.Name) })
+	del := iconButton(theme.DeleteIcon(), T("common.delete"), func() { v.confirmDelete("profile", p.Name) })
 	if memoryProfileInUse(p) {
 		del.Disable()
 	}
 	top := container.NewBorder(nil, nil, hstack(spaceS, chips...),
 		hstack(spaceXS,
-			vCenter(actionButton("Edit", theme.DocumentCreateIcon(), func() { v.editProfile(&p) })),
+			vCenter(actionButton(T("common.edit"), theme.DocumentCreateIcon(), func() { v.editProfile(&p) })),
 			vCenter(del),
 		), nil)
 	rows := []fyne.CanvasObject{}
@@ -186,11 +183,11 @@ func (v *memoryView) profileCard(p api.MemoryProfile) fyne.CanvasObject {
 	if p.EmbedModel != "" {
 		e := p.EmbedModel
 		if p.RerankModel != "" {
-			e += " · rerank " + p.RerankModel
+			e = T("memory.embeddingRerank", "embed", p.EmbedModel, "rerank", p.RerankModel)
 		}
-		rows = append(rows, detailRow("embedding", detailText(e)))
+		rows = append(rows, detailRow(T("memory.row.embedding"), detailText(e)))
 	}
-	rows = append(rows, detailRow("used by", detailText(memoryProfileUsedBy(p))))
+	rows = append(rows, detailRow(T("memory.row.usedBy"), detailText(memoryProfileUsedBy(p))))
 	return panel(vstack(spaceS, top, widget.NewSeparator(), container.NewVBox(rows...)))
 }
 
@@ -198,11 +195,11 @@ func (v *memoryView) backendCard(b api.MemoryBackend) fyne.CanvasObject {
 	title := widget.NewLabelWithStyle(b.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	state := liveChip(b.Live)
 	if b.Implicit {
-		state = chip("built-in", toneNeutral)
+		state = chip(T("memory.builtinChip"), toneNeutral)
 	}
-	actions := []fyne.CanvasObject{vCenter(actionButton("Edit", theme.DocumentCreateIcon(), func() { v.editBackend(&b) }))}
+	actions := []fyne.CanvasObject{vCenter(actionButton(T("common.edit"), theme.DocumentCreateIcon(), func() { v.editBackend(&b) }))}
 	if !b.Implicit {
-		del := iconButton(theme.DeleteIcon(), "Delete", func() { v.confirmDelete("backend", b.Name) })
+		del := iconButton(theme.DeleteIcon(), T("common.delete"), func() { v.confirmDelete("backend", b.Name) })
 		if backendInUse(b, v.data.BuiltinAgents) {
 			del.Disable()
 		}
@@ -213,13 +210,13 @@ func (v *memoryView) backendCard(b api.MemoryBackend) fyne.CanvasObject {
 		hstack(spaceXS, actions...), nil)
 	used := backendUsedBy(b, v.data.BuiltinAgents)
 	if b.Implicit && len(v.data.BuiltinAgents) > 0 {
-		used = "built-in profile: " + strings.Join(v.data.BuiltinAgents, ", ")
+		used = T("memory.builtinProfileUsedBy", "agents", strings.Join(v.data.BuiltinAgents, ", "))
 	}
-	rows := []fyne.CanvasObject{detailRow("target", detailText(backendTarget(b)))}
+	rows := []fyne.CanvasObject{detailRow(T("memory.row.target"), detailText(backendTarget(b)))}
 	if b.Dim > 0 {
-		rows = append(rows, detailRow("dimensions", detailText(strconv.Itoa(b.Dim))))
+		rows = append(rows, detailRow(T("memory.row.dimensions"), detailText(strconv.Itoa(b.Dim))))
 	}
-	rows = append(rows, detailRow("used by", detailText(used)))
+	rows = append(rows, detailRow(T("memory.row.usedBy"), detailText(used)))
 	return panel(vstack(spaceS, top, widget.NewSeparator(), container.NewVBox(rows...)))
 }
 
@@ -229,9 +226,9 @@ func (v *memoryView) readOnly() bool {
 	}
 	note := v.data.Note
 	if note == "" {
-		note = "This deployment has no editable config source, so memory cannot be changed from Studio."
+		note = T("memory.readOnlyMessage")
 	}
-	showInfoPrompt(v.app.win, "Memory is read-only", note)
+	showInfoPrompt(v.app.win, T("memory.readOnlyTitle"), note)
 	return true
 }
 
@@ -239,11 +236,13 @@ func (v *memoryView) confirmDelete(kind, name string) {
 	if v.readOnly() {
 		return
 	}
-	msg := fmt.Sprintf("Delete memory profile %q from the deployment config?\n\nThe stored records are not deleted.", name)
+	title, msg := T("memory.deleteProfileTitle"), T("memory.deleteProfileMessage", "name", name)
+	deleted := T("memory.profileDeleted")
 	if kind == "backend" {
-		msg = fmt.Sprintf("Delete memory backend %q from the deployment config?\n\nThe database itself and its records are not touched.", name)
+		title, msg = T("memory.deleteBackendTitle"), T("memory.deleteBackendMessage", "name", name)
+		deleted = T("memory.backendDeleted")
 	}
-	showConfirmPrompt(v.app.win, "Delete memory "+kind, msg, "Delete", true, func(ok bool) {
+	showConfirmPrompt(v.app.win, title, msg, T("common.delete"), true, func(ok bool) {
 		if !ok {
 			return
 		}
@@ -262,7 +261,7 @@ func (v *memoryView) confirmDelete(kind, name string) {
 					v.setBanner(err.Error(), toneDanger)
 					return
 				}
-				v.applied(list, "memory "+kind+" deleted · restart required")
+				v.applied(list, deleted)
 			})
 		}()
 	})
@@ -299,9 +298,9 @@ func memoryEditor[D any](v *memoryView, title, subtitle string, body fyne.Canvas
 			popup.Hide()
 		}
 	}
-	cancel := widthBox(100, controlFrame(actionButton("Cancel", nil, closePopup)))
-	validateBtn := actionButton("Validate", checkMarkIcon, nil)
-	saveBtn := primaryButton("Save", theme.UploadIcon(), nil)
+	cancel := widthBox(100, controlFrame(actionButton(T("common.cancel"), nil, closePopup)))
+	validateBtn := actionButton(T("safety.validate"), checkMarkIcon, nil)
+	saveBtn := primaryButton(T("common.save"), theme.UploadIcon(), nil)
 	footer := container.NewBorder(nil, nil, nil,
 		hstack(spaceS, cancel, widthBox(108, controlFrame(validateBtn)), widthBox(104, controlFrame(saveBtn))), nil)
 	busy := false
@@ -381,11 +380,14 @@ func (v *memoryView) editBackend(existing *api.MemoryBackend) {
 	urlEntry.SetPlaceHolder("${PG_URL}")
 	apiKey := widget.NewPasswordEntry()
 	apiKey.SetPlaceHolder("cred:qdrant")
-	clearKey := widget.NewCheck("Remove the stored API key", nil)
+	clearKey := widget.NewCheck(T("memory.backend.clearApiKey"), nil)
 	collection := monoEntry(false)
 	collection.SetPlaceHolder("agentflow")
-	distance := widget.NewSelect(append([]string{"Cosine (default)"}, qdrantDistances...), nil)
-	distance.SetSelected("Cosine (default)")
+	// The first option stands for no distance (the driver default); its
+	// label is read once, so a later language change cannot unmatch it.
+	distanceDefault := T("memory.backend.distanceDefault")
+	distance := widget.NewSelect(append([]string{distanceDefault}, qdrantDistances...), nil)
+	distance.SetSelected(distanceDefault)
 	timeout := monoEntry(false)
 	timeout.SetPlaceHolder("5s")
 	dim := monoEntry(false)
@@ -424,25 +426,25 @@ func (v *memoryView) editBackend(existing *api.MemoryBackend) {
 	render := func() {
 		clearBox(fields)
 		p := provider.Selected
-		providerHint.SetText(providerHints[p])
+		providerHint.SetText(providerHintText(p))
 		sameProvider := existing != nil && !existing.Implicit && existing.Provider == p
 		has := func(k string) bool { return providerHas(p, k) }
 		if has("path") {
-			fields.Add(field("Path", "A file path, relative to the config. Empty uses ./data/agentflow.db.", path))
+			fields.Add(field(T("memory.backend.path"), T("memory.backend.pathHint"), path))
 		}
 		if has("url") {
-			hint := "Required."
+			hint := T("memory.backend.urlRequired")
 			if sameProvider {
 				hint = storedSecretHint(existing.HasURL, existing.URLRef, existing.URLDisplay)
 			}
-			fields.Add(field("URL", hint+" Use ${VAR} or cred:<service> to keep the secret out of the file.", urlEntry))
+			fields.Add(field(T("memory.backend.url"), T("memory.backend.urlHint", "stored", hint), urlEntry))
 		}
 		if has("api_key") {
-			hint := "Optional."
+			hint := T("memory.backend.optional")
 			if sameProvider {
 				hint = storedSecretHint(existing.HasAPIKey, existing.APIKeyRef, "")
 			}
-			box := field("API key", hint, apiKey)
+			box := field(T("memory.backend.apiKey"), hint, apiKey)
 			if sameProvider && existing.HasAPIKey {
 				box.(*fyne.Container).Add(compactCheck(clearKey))
 			}
@@ -450,31 +452,31 @@ func (v *memoryView) editBackend(existing *api.MemoryBackend) {
 		}
 		cells := []fyne.CanvasObject{}
 		if has("collection") {
-			cells = append(cells, field("Collection", "Empty uses the driver default.", collection))
+			cells = append(cells, field(T("memory.backend.collection"), T("memory.backend.collectionHint"), collection))
 		}
 		if has("distance") {
-			cells = append(cells, field("Distance", "", distance))
+			cells = append(cells, field(T("memory.backend.distance"), "", distance))
 		}
 		if has("timeout") {
-			cells = append(cells, field("Timeout", "A duration, e.g. 5s.", timeout))
+			cells = append(cells, field(T("memory.backend.timeout"), T("memory.backend.timeoutHint"), timeout))
 		}
 		if has("dim") {
-			cells = append(cells, field("Dimensions", "The embedding model's vector size.", dim))
+			cells = append(cells, field(T("memory.backend.dimensions"), T("memory.backend.dimensionsHint"), dim))
 		}
 		if has("vector_scan_limit") {
-			cells = append(cells, field("Vector scan limit", "Rows a vector search may scan. Default 50000.", scan))
+			cells = append(cells, field(T("memory.backend.vectorScanLimit"), T("memory.backend.vectorScanLimitHint"), scan))
 		}
 		if has("max_entries") {
-			cells = append(cells, field("Max entries", "Bounds memory. Without it every store on this backend needs a retention.", maxEntries))
+			cells = append(cells, field(T("memory.backend.maxEntries"), T("memory.backend.maxEntriesHint"), maxEntries))
 		}
 		if len(cells) > 0 {
 			fields.Add(grid(2, cells...))
 		}
 		if !sameProvider && existing != nil && !existing.Implicit {
-			fields.Add(caption("Changing provider drops the settings the old one used."))
+			fields.Add(caption(T("memory.backend.providerChanged")))
 		}
 		if existing != nil && len(existing.OtherKeys) > 0 {
-			fields.Add(caption("Also in the file and kept as they are: " + strings.Join(existing.OtherKeys, ", ") + ". Edit them in Config."))
+			fields.Add(caption(T("memory.backend.otherKeysPlain", "keys", strings.Join(existing.OtherKeys, ", "))))
 		}
 		fields.Refresh()
 	}
@@ -484,15 +486,15 @@ func (v *memoryView) editBackend(existing *api.MemoryBackend) {
 
 	body := vstack(spaceM,
 		grid(2,
-			field("Name", "Stores refer to the backend by name, so it cannot change later.", name),
-			field("Provider", "", provider),
+			field(T("common.name"), T("memory.backend.nameHint"), name),
+			field(T("memory.backend.provider"), "", provider),
 		),
 		providerHint,
 		fields,
 	)
 	build := func() (api.MemoryBackendDraft, error) {
 		dist := distance.Selected
-		if strings.HasSuffix(dist, "(default)") {
+		if dist == distanceDefault {
 			dist = ""
 		}
 		return buildBackendDraft(backendInput{
@@ -501,14 +503,14 @@ func (v *memoryView) editBackend(existing *api.MemoryBackend) {
 			Distance: dist, Timeout: timeout.Text, Dim: dim.Text, VectorScanLimit: scan.Text, MaxEntries: maxEntries.Text,
 		})
 	}
-	title := "New memory backend"
+	title := T("memory.backend.newTitle")
 	if existing != nil {
-		title = "Edit " + existing.Name
+		title = T("memory.editWhat", "name", existing.Name)
 		if existing.Implicit {
-			title = "Write out main_db"
+			title = T("memory.backend.writeOutTitle")
 		}
 	}
-	memoryEditor(v, title, "A backend is a database the memory stores live in. Backends open when agentflow starts.",
+	memoryEditor(v, title, T("memory.backend.subtitle"),
 		body, fyne.NewSize(640, 420), build,
 		func(ctx context.Context, d api.MemoryBackendDraft) ([]string, error) {
 			return v.app.api.ValidateMemory(ctx, api.MemoryValidateRequest{Kind: "backend", Creating: creating, Backend: &d})
@@ -516,8 +518,8 @@ func (v *memoryView) editBackend(existing *api.MemoryBackend) {
 		func(ctx context.Context, d api.MemoryBackendDraft) (api.MemoryList, error) {
 			return v.app.api.SaveMemoryBackend(ctx, d.Name, creating, d, v.data.MTime)
 		},
-		"Valid. Save it to open the backend on the next runtime start.",
-		"memory backend saved · restart required")
+		T("memory.backend.validText"),
+		T("memory.backendSaved"))
 }
 
 // ---- profile editor --------------------------------------------------------
@@ -555,8 +557,12 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 	recall.SetPlaceHolder("plugin:recency")
 	write := widget.NewSelectEntry(v.data.WritePlugins)
 	write.SetPlaceHolder("plugin:routing_table")
-	embed := widget.NewSelect(append([]string{"none"}, v.data.Models...), nil)
-	rerank := widget.NewSelect(append([]string{"none"}, v.data.RerankModels...), nil)
+	// Labels read once per dialog: the options and the checks in build must
+	// agree even if the language changes while it is open.
+	none := T("common.none")
+	scopeUser, scopeAgent := T("memory.scopeUser"), T("memory.scopeAgent")
+	embed := widget.NewSelect(append([]string{none}, v.data.Models...), nil)
+	rerank := widget.NewSelect(append([]string{none}, v.data.RerankModels...), nil)
 	oversample := monoEntry(false)
 	oversample.SetPlaceHolder("4")
 
@@ -568,8 +574,8 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 	}
 	recall.SetText(draft.Recall)
 	write.SetText(strings.Join(draft.Write, ", "))
-	selectOrAdd(embed, draft.EmbedModel, "none")
-	selectOrAdd(rerank, draft.RerankModel, "none")
+	selectOrAdd(embed, draft.EmbedModel, none)
+	selectOrAdd(rerank, draft.RerankModel, none)
 	setIntEntry(oversample, draft.Oversample)
 
 	storesBox := vstack(spaceS)
@@ -579,22 +585,22 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 		w := &storeWidgets{
 			name: monoEntry(false), backend: widget.NewSelect(backendNames, nil), table: monoEntry(false),
 			retention: monoEntry(false), window: monoEntry(false), requires: map[string]*widget.Check{},
-			scope: widget.NewSelect([]string{"per user (default)", "whole agent"}, nil), pool: monoEntry(false),
-			locality: widget.NewCheck("instance-local is fine", nil),
+			scope: widget.NewSelect([]string{scopeUser, scopeAgent}, nil), pool: monoEntry(false),
+			locality: widget.NewCheck(T("memory.store.localityOk"), nil),
 		}
-		w.name.SetPlaceHolder("store")
-		w.table.SetPlaceHolder("table")
-		w.retention.SetPlaceHolder("retention")
-		w.window.SetPlaceHolder("window")
-		w.pool.SetPlaceHolder("shared pool")
+		w.name.SetPlaceHolder(T("memory.col.store"))
+		w.table.SetPlaceHolder(T("memory.col.table"))
+		w.retention.SetPlaceHolder(T("memory.col.retention"))
+		w.window.SetPlaceHolder(T("memory.col.window"))
+		w.pool.SetPlaceHolder(T("memory.store.poolPlaceholder"))
 		w.name.SetText(s.Name)
 		selectOrAdd(w.backend, s.Backend, "")
 		w.table.SetText(s.Table)
 		w.retention.SetText(s.Retention)
 		setIntEntry(w.window, s.Window)
-		w.scope.SetSelected("per user (default)")
+		w.scope.SetSelected(scopeUser)
 		if s.Scope == "agent" {
-			w.scope.SetSelected("whole agent")
+			w.scope.SetSelected(scopeAgent)
 		}
 		w.pool.SetText(s.Pool)
 		w.locality.SetChecked(s.LocalityOK)
@@ -605,7 +611,7 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 			w.requires[r] = c
 			checks = append(checks, compactCheck(c))
 		}
-		remove := iconButton(theme.ContentClearIcon(), "Remove store", nil)
+		remove := iconButton(theme.ContentClearIcon(), T("memory.store.remove"), nil)
 		w.row = panel(vstack(spaceXS,
 			container.NewBorder(nil, nil, nil, remove, grid(5,
 				controlFrame(w.name), controlFrame(w.backend), controlFrame(w.table), controlFrame(w.retention), controlFrame(w.window))),
@@ -632,7 +638,7 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 	if len(backendNames) > 0 {
 		firstBackend = backendNames[0]
 	}
-	addBtn := actionButton("Add store", theme.ContentAddIcon(), func() { addStore(api.MemoryStoreDraft{Backend: firstBackend}) })
+	addBtn := actionButton(T("memory.store.add"), theme.ContentAddIcon(), func() { addStore(api.MemoryStoreDraft{Backend: firstBackend}) })
 
 	field := func(label, hint string, control fyne.CanvasObject) fyne.CanvasObject {
 		box := vstack(spaceXS, fieldLabel(label), controlFrame(control))
@@ -644,25 +650,26 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 		return box
 	}
 	header := container.NewBorder(nil, nil, nil, widthBox(36, layout.NewSpacer()), grid(5,
-		caption("store"), caption("backend"), caption("table"), caption("retention"), caption("window")))
+		caption(T("memory.col.store")), caption(T("memory.col.backend")), caption(T("memory.col.table")),
+		caption(T("memory.col.retention")), caption(T("memory.col.window"))))
 	body := vstack(spaceM,
-		field("Name", `Agents refer to the profile by name, so it cannot change later. "conversational" is the built-in one.`, name),
-		vstack(spaceXS, fieldLabel("Stores"), header, storesBox, hstack(spaceS, widthBox(130, controlFrame(addBtn))),
-			caption("Each logical store is a table on a backend. Retention is a duration such as 30d, or forever.")),
+		field(T("common.name"), T("memory.profile.nameHint"), name),
+		vstack(spaceXS, fieldLabel(T("memory.profile.stores")), header, storesBox, hstack(spaceS, widthBox(130, controlFrame(addBtn))),
+			caption(T("memory.profile.storesHint"))),
 		grid(2,
-			field("Recall", "plugin:recency reads dialogue and facts; plugin:semantic searches the semantic store by meaning.", recall),
-			field("Write", "Passed to loops as agent.info().memory.write. memory.write always runs the routing table, so leave it as plugin:routing_table.", write),
-			field("Embed model", "Embeds each record on write; required for semantic recall.", embed),
-			field("Rerank model", "Optional: oversample vector hits and let a provider: rerank model order them.", rerank),
-			field("Oversample", "With a rerank model: how many times k hits to rerank. Default 4.", oversample),
+			field(T("memory.profile.recall"), T("memory.profile.recallHint"), recall),
+			field(T("memory.profile.write"), T("memory.profile.writeHint"), write),
+			field(T("memory.profile.embedModel"), T("memory.profile.embedHintAlways"), embed),
+			field(T("memory.profile.rerankModel"), T("memory.profile.rerankHint"), rerank),
+			field(T("memory.profile.oversample"), T("memory.profile.oversampleHintAlways"), oversample),
 		),
 	)
 	build := func() (api.MemoryProfileDraft, error) {
 		in := profileInput{Name: name.Text, Recall: recall.Text, Write: write.Text, Oversample: oversample.Text}
-		if embed.Selected != "none" {
+		if embed.Selected != none {
 			in.EmbedModel = embed.Selected
 		}
-		if rerank.Selected != "none" {
+		if rerank.Selected != none {
 			in.RerankModel = rerank.Selected
 		}
 		for _, w := range stores {
@@ -670,7 +677,7 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 				Name: w.name.Text, Backend: w.backend.Selected, Table: w.table.Text, Retention: w.retention.Text,
 				Window: w.window.Text, Pool: w.pool.Text, LocalityOK: w.locality.Checked,
 			}
-			if w.scope.Selected == "whole agent" {
+			if w.scope.Selected == scopeAgent {
 				s.Scope = "agent"
 			}
 			for _, r := range requires {
@@ -682,11 +689,11 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 		}
 		return buildProfileDraft(in)
 	}
-	title := "New memory profile"
+	title := T("memory.profile.newTitle")
 	if existing != nil {
-		title = "Edit " + existing.Name
+		title = T("memory.editWhat", "name", existing.Name)
 	}
-	memoryEditor(v, title, "Agents name a profile with memory: <name>. The built-in plugins look for stores called dialogue, facts and semantic.",
+	memoryEditor(v, title, T("memory.profile.subtitle"),
 		body, fyne.NewSize(880, 560), build,
 		func(ctx context.Context, d api.MemoryProfileDraft) ([]string, error) {
 			return v.app.api.ValidateMemory(ctx, api.MemoryValidateRequest{Kind: "profile", Creating: creating, Profile: &d})
@@ -694,8 +701,8 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 		func(ctx context.Context, d api.MemoryProfileDraft) (api.MemoryList, error) {
 			return v.app.api.SaveMemoryProfile(ctx, d.Name, creating, d, v.data.MTime)
 		},
-		"Valid. Save it, then pick it for an agent in the builder after the next restart.",
-		"memory profile saved · restart required")
+		T("memory.profile.validText"),
+		T("memory.profileSaved"))
 }
 
 // selectOrAdd selects value, adding it to the options when the list does not
@@ -727,14 +734,24 @@ var memoryProviderKeys = map[string][]string{
 	"volatile":    {"max_entries"},
 }
 
-var providerHints = map[string]string{
-	"sqlite":      "A local SQLite file: key-value, full-text and brute-force vector search. No server needed.",
-	"postgres":    "A PostgreSQL server: key-value and full-text search, shared by every instance.",
-	"pgvector":    "PostgreSQL with the pgvector extension: everything postgres does, plus indexed vector search.",
-	"redis":       "A Redis server: key-value only, fast and shared.",
-	"redisvector": "Redis Stack: key-value plus vector search.",
-	"qdrant":      "A Qdrant server: vector search at scale.",
-	"volatile":    "Process memory, lost on restart and shared by every session. Bound it with max entries or a store retention.",
+// providerHintKeys is the message key of the one-line hint for each provider.
+var providerHintKeys = map[string]string{
+	"sqlite":      "memory.providerHint.sqlite",
+	"postgres":    "memory.providerHint.postgres",
+	"pgvector":    "memory.providerHint.pgvector",
+	"redis":       "memory.providerHint.redis",
+	"redisvector": "memory.providerHint.redisvector",
+	"qdrant":      "memory.providerHint.qdrant",
+	"volatile":    "memory.providerHint.volatile",
+}
+
+// providerHintText is the hint for a provider in the current language, or ""
+// for one Studio does not know.
+func providerHintText(provider string) string {
+	if key, ok := providerHintKeys[provider]; ok {
+		return T(key)
+	}
+	return ""
 }
 
 var qdrantDistances = []string{"Cosine", "Euclid", "Dot", "Manhattan"}
@@ -744,13 +761,13 @@ func providerHas(provider, key string) bool { return hasString(memoryProviderKey
 func storedSecretHint(has bool, ref, display string) string {
 	switch {
 	case !has:
-		return "Nothing stored."
+		return T("memory.backend.storedNothing")
 	case ref != "":
-		return "Stored as the reference " + ref + "."
+		return T("memory.backend.storedRef", "ref", ref)
 	case display != "":
-		return "Stored: " + display + ". Leave empty to keep it."
+		return T("memory.backend.storedDisplay", "display", display)
 	default:
-		return "A value is stored. Leave empty to keep it."
+		return T("memory.backend.storedValue")
 	}
 }
 
@@ -764,18 +781,18 @@ func backendTarget(b api.MemoryBackend) string {
 		return b.Path
 	case "volatile":
 		if b.MaxEntries > 0 {
-			return fmt.Sprintf("max %d entries", b.MaxEntries)
+			return T("memory.target.maxEntries", "n", b.MaxEntries)
 		}
-		return "unbounded"
+		return T("memory.target.unbounded")
 	}
 	where := b.URLRef
 	if where == "" {
 		where = b.URLDisplay
 	}
 	if where == "" {
-		where = "no URL"
+		where = T("memory.target.noUrl")
 		if b.HasURL {
-			where = "URL set"
+			where = T("memory.target.urlSet")
 		}
 	}
 	if b.Provider == "qdrant" && b.Collection != "" {
@@ -784,50 +801,59 @@ func backendTarget(b api.MemoryBackend) string {
 	return where
 }
 
-func backendUsedBy(b api.MemoryBackend, builtin []string) string {
-	var parts []string
-	var profiles []string
+// backendUsers is the profiles and agents a backend row names: the built-in
+// profile counts only while an agent is on it, and agents on the built-in
+// profile are named through it.
+func backendUsers(b api.MemoryBackend, builtin []string) (profiles, agents []string) {
 	for _, p := range b.Profiles {
-		if p == "conversational" {
-			if len(builtin) == 0 {
-				continue
-			}
-			p = "conversational (built-in: " + strings.Join(builtin, ", ") + ")"
+		if p == "conversational" && len(builtin) == 0 {
+			continue
 		}
 		profiles = append(profiles, p)
 	}
-	if len(profiles) > 0 {
-		parts = append(parts, "profiles: "+strings.Join(profiles, ", "))
-	}
-	var agents []string
 	for _, a := range b.Agents {
 		if !hasString(builtin, a) {
 			agents = append(agents, a)
 		}
 	}
+	return profiles, agents
+}
+
+func backendUsedBy(b api.MemoryBackend, builtin []string) string {
+	var parts []string
+	profiles, agents := backendUsers(b, builtin)
+	for i, p := range profiles {
+		if p == "conversational" {
+			profiles[i] = T("memory.usedBy.builtin", "name", p, "agents", strings.Join(builtin, ", "))
+		}
+	}
+	if len(profiles) > 0 {
+		parts = append(parts, T("memory.usedBy.profiles", "list", strings.Join(profiles, ", ")))
+	}
 	if len(agents) > 0 {
-		parts = append(parts, "agents: "+strings.Join(agents, ", "))
+		parts = append(parts, T("memory.usedBy.agents", "list", strings.Join(agents, ", ")))
 	}
 	if len(parts) == 0 {
-		return "unused"
+		return T("memory.usedBy.unused")
 	}
 	return strings.Join(parts, " · ")
 }
 
 func backendInUse(b api.MemoryBackend, builtin []string) bool {
-	return backendUsedBy(b, builtin) != "unused"
+	profiles, agents := backendUsers(b, builtin)
+	return len(profiles) > 0 || len(agents) > 0
 }
 
 func memoryProfileUsedBy(p api.MemoryProfile) string {
 	var parts []string
 	if len(p.Agents) > 0 {
-		parts = append(parts, "agents: "+strings.Join(p.Agents, ", "))
+		parts = append(parts, T("memory.usedBy.agents", "list", strings.Join(p.Agents, ", ")))
 	}
 	if len(p.SpawnProfiles) > 0 {
-		parts = append(parts, "spawn: "+strings.Join(p.SpawnProfiles, ", "))
+		parts = append(parts, T("memory.usedBy.spawn", "list", strings.Join(p.SpawnProfiles, ", ")))
 	}
 	if len(parts) == 0 {
-		return "not used by an agent yet"
+		return T("memory.usedBy.noAgent")
 	}
 	return strings.Join(parts, " · ")
 }
@@ -847,15 +873,15 @@ func storeSummary(s api.MemoryStoreDraft) string {
 		parts = append(parts, s.Retention)
 	}
 	if s.Window > 0 {
-		parts = append(parts, fmt.Sprintf("window %d", s.Window))
+		parts = append(parts, T("memory.summary.window", "n", s.Window))
 	}
 	if len(s.Requires) > 0 {
 		parts = append(parts, strings.Join(s.Requires, "+"))
 	}
 	if s.Pool != "" {
-		parts = append(parts, "pool "+s.Pool)
+		parts = append(parts, T("memory.summary.pool", "pool", s.Pool))
 	} else if s.Scope == "agent" {
-		parts = append(parts, "whole agent")
+		parts = append(parts, T("memory.scopeAgent"))
 	}
 	return strings.Join(parts, " · ")
 }
@@ -873,7 +899,7 @@ func buildBackendDraft(in backendInput) (api.MemoryBackendDraft, error) {
 	d := api.MemoryBackendDraft{Name: strings.TrimSpace(in.Name), Provider: in.Provider}
 	has := func(k string) bool { return providerHas(in.Provider, k) }
 	if d.Name == "" {
-		return d, fmt.Errorf("a backend name is required")
+		return d, errors.New(T("memory.err.backendNameRequired"))
 	}
 	if has("path") {
 		d.Path = strings.TrimSpace(in.Path)
@@ -897,17 +923,17 @@ func buildBackendDraft(in backendInput) (api.MemoryBackendDraft, error) {
 	}
 	var err error
 	if has("dim") {
-		if d.Dim, err = optionalCount("dimensions", in.Dim); err != nil {
+		if d.Dim, err = optionalCount(T("memory.backend.dimensions"), in.Dim); err != nil {
 			return d, err
 		}
 	}
 	if has("vector_scan_limit") {
-		if d.VectorScanLimit, err = optionalCount("vector scan limit", in.VectorScanLimit); err != nil {
+		if d.VectorScanLimit, err = optionalCount(T("memory.backend.vectorScanLimit"), in.VectorScanLimit); err != nil {
 			return d, err
 		}
 	}
 	if has("max_entries") {
-		if d.MaxEntries, err = optionalCount("max entries", in.MaxEntries); err != nil {
+		if d.MaxEntries, err = optionalCount(T("memory.backend.maxEntries"), in.MaxEntries); err != nil {
 			return d, err
 		}
 	}
@@ -938,14 +964,14 @@ func buildProfileDraft(in profileInput) (api.MemoryProfileDraft, error) {
 		RerankModel: strings.TrimSpace(in.RerankModel),
 	}
 	if d.Name == "" {
-		return d, fmt.Errorf("a profile name is required")
+		return d, errors.New(T("memory.err.profileNameRequired"))
 	}
 	for i, s := range in.Stores {
-		label := fmt.Sprintf("store %d", i+1)
+		label := T("memory.storeWindowNumbered", "n", i+1)
 		if n := strings.TrimSpace(s.Name); n != "" {
-			label = fmt.Sprintf("store %q", n)
+			label = T("memory.storeWindowNamed", "name", n)
 		}
-		w, err := optionalCount(label+": window", s.Window)
+		w, err := optionalCount(label, s.Window)
 		if err != nil {
 			return d, err
 		}
@@ -961,7 +987,7 @@ func buildProfileDraft(in profileInput) (api.MemoryProfileDraft, error) {
 		d.Stores = append(d.Stores, st)
 	}
 	var err error
-	if d.Oversample, err = optionalCount("oversample", in.Oversample); err != nil {
+	if d.Oversample, err = optionalCount(T("memory.profile.oversample"), in.Oversample); err != nil {
 		return d, err
 	}
 	return d, nil
@@ -989,18 +1015,27 @@ func newProfileDraft(backends []string) api.MemoryProfileDraft {
 
 // ---- builder ---------------------------------------------------------------
 
+// The builder picker's fixed entries, as English text: memoryInline is also
+// the value the inline entry writes, which the builder checks for. What the
+// picker shows comes from the catalogues (memoryNoneLabel and friends); in
+// English the two are the same text.
 const (
 	memoryNone    = "none"
 	memoryBuiltin = "conversational (built-in)"
 	memoryInline  = "inline profile (edit in Raw YAML)"
 )
 
+func memoryNoneLabel() string    { return T("common.none") }
+func memoryBuiltinLabel() string { return T("memory.choice.builtin") }
+func memoryInlineLabel() string  { return T("memory.choice.inline") }
+
 // memoryChoices is the builder's memory picker: labels in order, and the
 // value each one writes ("" for none). A profile the definition names that
 // the catalog does not list stays selectable.
 func memoryChoices(catalog []string, current string, inline bool) ([]string, map[string]string) {
-	labels := []string{memoryNone, memoryBuiltin}
-	values := map[string]string{memoryNone: "", memoryBuiltin: "conversational"}
+	none, builtin := memoryNoneLabel(), memoryBuiltinLabel()
+	labels := []string{none, builtin}
+	values := map[string]string{none: "", builtin: "conversational"}
 	for _, p := range catalog {
 		if p == "conversational" || values[p] != "" {
 			continue
@@ -1010,10 +1045,10 @@ func memoryChoices(catalog []string, current string, inline bool) ([]string, map
 	}
 	switch {
 	case inline:
-		labels = append(labels, memoryInline)
-		values[memoryInline] = memoryInline
+		labels = append(labels, memoryInlineLabel())
+		values[memoryInlineLabel()] = memoryInline
 	case current != "" && current != "conversational" && !hasString(catalog, current):
-		l := current + " · not in catalog"
+		l := T("memory.choice.notInCatalog", "name", current)
 		labels = append(labels, l)
 		values[l] = current
 	}
@@ -1023,12 +1058,12 @@ func memoryChoices(catalog []string, current string, inline bool) ([]string, map
 // memoryLabel is the picker label for a definition's memory setting.
 func memoryLabel(current string, inline bool, values map[string]string) string {
 	if inline {
-		return memoryInline
+		return memoryInlineLabel()
 	}
 	for l, v := range values {
-		if v == current && l != memoryInline {
+		if v == current && v != memoryInline {
 			return l
 		}
 	}
-	return memoryNone
+	return memoryNoneLabel()
 }

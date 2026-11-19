@@ -2,6 +2,7 @@
 // Studio's internal/ui/users.go.
 import { useEffect, useRef, type RefObject } from 'react'
 import type { UserRow } from '@/api/types'
+import { t } from '@/i18n'
 import { humanCount, shortID } from '@/lib/format'
 import type { Tone } from '@/state/ui'
 
@@ -27,8 +28,8 @@ export function userSummary(u: UserRow): string {
   if (u.email && u.email !== title) sub = u.email + ' · ' + sub
   const used = u.quota ? u.quota.used : 0
   const limit = u.quota ? u.quota.limit : u.tokens_per_day
-  const quota = limit > 0 ? `${humanCount(used)} / ${humanCount(limit)}` : `${humanCount(used)} today`
-  const handles = u.identities === 1 ? '1 handle' : `${u.identities ?? 0} handles`
+  const quota = limit > 0 ? `${humanCount(used)} / ${humanCount(limit)}` : t('users.usedToday', { used: humanCount(used) })
+  const handles = t('users.handleCount', { n: u.identities ?? 0 })
   return `${sub} · ${quota} · ${handles}`
 }
 

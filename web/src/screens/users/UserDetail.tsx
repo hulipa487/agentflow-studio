@@ -5,11 +5,12 @@ import { Download, Gauge, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import { billable, type Identity, type JournalEntry, type UsageEvent, type UserDetail as Detail } from '@/api/types'
 import { Avatar, Button, Chip, Chips, CopyButton, IconButton, Meter, Panel, Section, StatTile, Table, type Tone } from '@/components/ui'
+import { t } from '@/i18n'
 import { downloadText, humanCount, orDash, relTime, shortID } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { confirm, prompt, toast } from '@/state/ui'
 import { SettingsDialog } from './dialogs'
-import { parseWhole, quoted, useAlive, type Notice } from './helpers'
+import { parseWhole, useAlive, type Notice } from './helpers'
 
 const NO_USAGE = { input: 0, output: 0, cached: 0, cache_write: 0, reasoning: 0, calls: 0, failed: 0 }
 
@@ -77,16 +78,16 @@ export function UserDetail({
 
   const editLimit = async () => {
     const value = await prompt({
-      title: 'Daily token limit',
-      subtitle: 'Billable tokens (input + output) per UTC day. 0 or empty inherits usage.default_tokens_per_day.',
-      label: 'Tokens per day',
-      placeholder: 'e.g. 200000',
+      title: t('users.limit.title'),
+      subtitle: t('users.limit.subtitle'),
+      label: t('users.limit.label'),
+      placeholder: t('users.limit.placeholder'),
       initial: p.tokens_per_day > 0 ? String(p.tokens_per_day) : '',
-      okLabel: 'Set limit',
+      okLabel: t('users.limit.ok'),
       validate: (s) => {
         if (s === '') return null
         const n = parseWhole(s.replace(/_/g, ''))
-        return n === null || n < 0 ? 'enter a whole number of tokens, 0 or more' : null
+        return n === null || n < 0 ? t('users.limit.invalid') : null
       },
     })
     if (value === null) return
@@ -95,7 +96,7 @@ export function UserDetail({
       'limit',
       () => client.setUserLimit(id, n),
       () => {
-        toast('limit updated', 'success')
+        toast(t('users.limit.updated'), 'success')
         onChanged('all')
       },
     )
@@ -110,15 +111,15 @@ export function UserDetail({
       (text) => {
         const name = `agentflow-user-${shortID(id)}.json`
         downloadText(name, text)
-        toast('exported to ' + name, 'success')
+        toast(t('users.exported', { name }), 'success')
       },
     )
 
   const unlink = async (idn: Identity) => {
     const ok = await confirm({
-      title: 'Unlink handle',
-      message: `Detach the ${idn.channel} handle ${quoted(orDash(idn.native_from))} from this profile?\n\nThat handle loses the personal scope until it is linked again.`,
-      confirmLabel: 'Unlink',
+      title: t('users.unlink.title'),
+      message: t('users.unlink.message', { channel: idn.channel, handle: orDash(idn.native_from) }),
+      confirmLabel: t('users.handles.unlink'),
       danger: true,
     })
     if (!ok) return
@@ -126,7 +127,7 @@ export function UserDetail({
       'unlink:' + idn.id,
       () => client.unlinkIdentity(id, idn.id),
       () => {
-        toast('handle unlinked', 'warning')
+        toast(t('users.unlink.done'), 'warning')
         onChanged('all')
       },
     )
@@ -134,10 +135,9 @@ export function UserDetail({
 
   const remove = async () => {
     const ok = await confirm({
-      title: 'Delete profile',
-      message:
-        'This purges the profile, its handles, usage, journal rows and files. Memory rows follow their store retention. It cannot be undone. Type the user id to confirm.',
-      confirmLabel: 'Delete forever',
+      title: t('users.deleteProfile'),
+      message: t('users.delete.message'),
+      confirmLabel: t('users.delete.confirm'),
       danger: true,
       typeToConfirm: id,
     })
@@ -146,7 +146,7 @@ export function UserDetail({
       'delete',
       () => client.deleteUser(id),
       () => {
-        toast('profile deleted', 'warning')
+        toast(t('users.delete.done'), 'warning')
         onDeleted()
       },
     )
@@ -161,52 +161,56 @@ export function UserDetail({
             <div className="truncate text-md font-semibold leading-tight">{title}</div>
             <div className="mt-0.5 flex min-w-0 items-center gap-1">
               <span className="truncate font-mono text-xs text-muted">{id}</span>
-              <CopyButton text={id} what="user id" />
+              <CopyButton text={id} what={t('users.whatUserId')} />
             </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          {p.model && <Chip tone="accent">model {p.model}</Chip>}
-          {p.instructions_append && <Chip tone="accent">+instructions</Chip>}
-          <Chip>{p.tokens_per_day > 0 ? humanCount(p.tokens_per_day) + '/day' : 'default limit'}</Chip>
+          {p.model && <Chip tone="accent">{t('users.chipModel', { model: p.model })}</Chip>}
+          {p.instructions_append && <Chip tone="accent">{t('users.chipInstructions')}</Chip>}
+          <Chip>{p.tokens_per_day > 0 ? t('users.chipLimit', { n: humanCount(p.tokens_per_day) }) : t('users.chipDefaultLimit')}</Chip>
         </div>
         <div className="border-t border-line" />
         <div className="flex flex-wrap items-center gap-2">
           <Button icon={Gauge} loading={busy === 'limit'} disabled={busy !== ''} onClick={editLimit}>
-            Daily limit…
+            {t('users.dailyLimit')}
           </Button>
           <Button icon={SlidersHorizontal} disabled={busy !== ''} onClick={() => setEditing(true)}>
-            Model &amp; instructions…
+            {t('users.modelAndInstructions')}
           </Button>
           <Button icon={Download} loading={busy === 'export'} disabled={busy !== ''} onClick={exportProfile}>
-            Export…
+            {t('users.export')}
           </Button>
-          <IconButton icon={Trash2} label="Delete profile" tone="danger" loading={busy === 'delete'} disabled={busy !== ''} onClick={remove} />
+          <IconButton icon={Trash2} label={t('users.deleteProfile')} tone="danger" loading={busy === 'delete'} disabled={busy !== ''} onClick={remove} />
         </div>
       </Panel>
 
-      <Section title="Quota" subtitle={`Day ${orDash(detail.day)} (UTC). The limit is the profile's own, or usage.default_tokens_per_day.`}>
+      <Section title={t('users.quota.title')} subtitle={t('users.quota.subtitle', { day: orDash(detail.day) })}>
         <div className="flex flex-col gap-3">
           <Meter used={used} limit={limit} />
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <StatTile label="Billable today" value={humanCount(billable(today))} sub={`in ${humanCount(today.input)} · out ${humanCount(today.output)}`} />
-            <StatTile label="Calls" value={humanCount(today.calls)} sub={`${today.failed ?? 0} failed`} />
-            <StatTile label="Cached" value={humanCount(today.cached)} sub={`reasoning ${humanCount(today.reasoning)}`} />
-            <StatTile label="In flight" value={humanCount(inFlight)} sub="held against the quota" />
+            <StatTile
+              label={t('users.quota.billableToday')}
+              value={humanCount(billable(today))}
+              sub={t('users.quota.inOut', { input: humanCount(today.input), output: humanCount(today.output) })}
+            />
+            <StatTile label={t('users.quota.calls')} value={humanCount(today.calls)} sub={t('users.quota.failed', { n: today.failed ?? 0 })} />
+            <StatTile label={t('users.quota.cached')} value={humanCount(today.cached)} sub={t('users.quota.reasoning', { n: humanCount(today.reasoning) })} />
+            <StatTile label={t('users.quota.inFlight')} value={humanCount(inFlight)} sub={t('users.quota.held')} />
           </div>
         </div>
       </Section>
 
-      <Section title="Linked handles" subtitle="A person links a handle by sending /link <code> from it. The last handle cannot be unlinked." flush>
+      <Section title={t('users.handles.title')} subtitle={t('users.handles.subtitle')} flush>
         <Table<Identity>
           rows={identities}
           rowKey={(idn) => idn.id}
-          empty="No linked handles."
+          empty={t('users.handles.empty')}
           columns={[
-            { key: 'channel', title: 'channel', width: 110, render: (idn) => <Chip>{idn.channel}</Chip> },
-            { key: 'handle', title: 'handle', render: (idn) => <span title={idn.native_from}>{handleName(idn)}</span> },
-            { key: 'trust', title: 'trust', width: 96, render: (idn) => <Chip tone={idn.trust === 'verified' ? 'success' : 'warning'}>{orDash(idn.trust)}</Chip> },
-            { key: 'seen', title: 'last seen', width: 100, render: (idn) => relTime(idn.last_seen) },
+            { key: 'channel', title: t('users.handles.colChannel'), width: 110, render: (idn) => <Chip>{idn.channel}</Chip> },
+            { key: 'handle', title: t('users.handles.colHandle'), render: (idn) => <span title={idn.native_from}>{handleName(idn)}</span> },
+            { key: 'trust', title: t('users.handles.colTrust'), width: 96, render: (idn) => <Chip tone={idn.trust === 'verified' ? 'success' : 'warning'}>{orDash(idn.trust)}</Chip> },
+            { key: 'seen', title: t('users.handles.colLastSeen'), width: 100, render: (idn) => relTime(idn.last_seen) },
             {
               key: 'unlink',
               title: '',
@@ -217,7 +221,7 @@ export function UserDetail({
                   icon={X}
                   size="sm"
                   tone="danger"
-                  label={identities.length <= 1 ? 'The last handle cannot be unlinked' : 'Unlink'}
+                  label={identities.length <= 1 ? t('users.handles.lastCannotUnlink') : t('users.handles.unlink')}
                   loading={busy === 'unlink:' + idn.id}
                   disabled={identities.length <= 1 || busy !== ''}
                   onClick={() => unlink(idn)}
@@ -229,40 +233,40 @@ export function UserDetail({
       </Section>
 
       {projects.length > 0 && (
-        <Section title="File projects" subtitle="The user-scoped file store (files.*).">
+        <Section title={t('users.projects.title')} subtitle={t('users.projects.subtitle')}>
           <Chips items={projects} />
         </Section>
       )}
 
       {calls.length > 0 && (
-        <Section title="Recent calls" subtitle="Per-call detail (usage.events), last 7 days." flush>
+        <Section title={t('users.calls.title')} subtitle={t('users.calls.subtitle')} flush>
           <Table<UsageEvent>
             rows={calls}
             rowKey={(_, i) => String(i)}
             columns={[
-              { key: 'when', title: 'when', width: 90, render: (e) => relTime(e.ts) },
-              { key: 'agent', title: 'agent', width: 130, render: (e) => e.agent },
-              { key: 'model', title: 'model', mono: true, render: (e) => <span title={e.model}>{e.model}</span> },
-              { key: 'tokens', title: 'tokens', width: 80, align: 'right', mono: true, render: (e) => humanCount(billable(e)) },
-              { key: 'ok', title: '', width: 76, render: (e) => (e.ok ? <Chip tone="success">ok</Chip> : <Chip tone="danger">failed</Chip>) },
+              { key: 'when', title: t('users.calls.colWhen'), width: 90, render: (e) => relTime(e.ts) },
+              { key: 'agent', title: t('users.calls.colAgent'), width: 130, render: (e) => e.agent },
+              { key: 'model', title: t('users.calls.colModel'), mono: true, render: (e) => <span title={e.model}>{e.model}</span> },
+              { key: 'tokens', title: t('users.calls.colTokens'), width: 80, align: 'right', mono: true, render: (e) => humanCount(billable(e)) },
+              { key: 'ok', title: '', width: 76, render: (e) => (e.ok ? <Chip tone="success">{t('users.calls.ok')}</Chip> : <Chip tone="danger">{t('users.calls.failed')}</Chip>) },
             ]}
           />
         </Section>
       )}
 
       {audit.length > 0 && (
-        <Section title="Audit trail" subtitle="The core-owned message journal for this person, newest first." flush>
+        <Section title={t('users.audit.title')} subtitle={t('users.audit.subtitle')} flush>
           <Table<JournalEntry>
             rows={audit}
             rowKey={(m, i) => m.id + ':' + i}
             columns={[
-              { key: 'when', title: 'when', width: 90, render: (m) => relTime(m.ts) },
-              { key: 'dir', title: 'dir', width: 56, render: (m) => (m.direction === 'out' ? <Chip>out</Chip> : <Chip tone="accent">in</Chip>) },
-              { key: 'status', title: 'status', width: 130, render: (m) => <Chip tone={statusTone(m.status)}>{m.status}</Chip> },
-              { key: 'agent', title: 'agent', width: 110, render: (m) => orDash(m.agent) },
+              { key: 'when', title: t('users.calls.colWhen'), width: 90, render: (m) => relTime(m.ts) },
+              { key: 'dir', title: t('users.audit.colDir'), width: 56, render: (m) => (m.direction === 'out' ? <Chip>{t('users.audit.out')}</Chip> : <Chip tone="accent">{t('users.audit.in')}</Chip>) },
+              { key: 'status', title: t('users.audit.colStatus'), width: 130, render: (m) => <Chip tone={statusTone(m.status)}>{m.status}</Chip> },
+              { key: 'agent', title: t('users.calls.colAgent'), width: 110, render: (m) => orDash(m.agent) },
               {
                 key: 'text',
-                title: 'text',
+                title: t('users.audit.colText'),
                 render: (m) => {
                   const text = m.err ? m.err : (m.text ?? '').replace(/\n/g, ' ')
                   return <span title={text}>{text}</span>
@@ -279,7 +283,7 @@ export function UserDetail({
           onClose={() => setEditing(false)}
           onSaved={() => {
             if (alive.current) setEditing(false)
-            toast('settings saved · applies from the next turn', 'success')
+            toast(t('users.settings.saved'), 'success')
             onChanged('detail')
           }}
         />

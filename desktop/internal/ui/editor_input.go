@@ -9,25 +9,26 @@ import (
 )
 
 // editorKeys documents the bindings; the context menu and the docs show it.
+// Each row is the keys and the message key of what they do.
 var editorKeys = [][2]string{
-	{"Ctrl+F / Ctrl+H", "Find / replace (F3, Shift+F3 for the next and previous match)"},
-	{"Ctrl+G", "Go to line"},
-	{"Ctrl+D", "Select the word, then add its next occurrence"},
-	{"Ctrl+Shift+L", "Select every occurrence"},
-	{"Ctrl+Alt+Up/Down", "Add a caret above or below"},
-	{"Alt+click, Alt+drag", "Add a caret, select a column"},
-	{"Ctrl+/", "Toggle comment"},
-	{"Alt+Up/Down", "Move lines"},
-	{"Shift+Alt+Up/Down", "Copy lines up or down"},
-	{"Ctrl+Shift+K", "Delete lines"},
-	{"Ctrl+J", "Join lines"},
-	{"Ctrl+L", "Select the line"},
-	{"Ctrl+] / Ctrl+[", "Indent / outdent"},
-	{"Ctrl+U / Ctrl+Shift+U", "Lower / upper case"},
-	{"Ctrl+Shift+[ / ]", "Fold / unfold"},
-	{"Ctrl+Shift+\\", "Go to the matching bracket"},
-	{"Alt+Z", "Toggle word wrap"},
-	{"Ctrl+= / Ctrl+- / Ctrl+0", "Zoom in, out, reset (also Ctrl+wheel)"},
+	{"Ctrl+F / Ctrl+H", "editor.keys.find"},
+	{"Ctrl+G", "editor.keys.goto"},
+	{"Ctrl+D", "editor.keys.addNext"},
+	{"Ctrl+Shift+L", "editor.keys.selectOccurrences"},
+	{"Ctrl+Alt+Up/Down", "editor.keys.addCaret"},
+	{"Alt+click, Alt+drag", "editor.keys.altClick"},
+	{"Ctrl+/", "editor.keys.toggleComment"},
+	{"Alt+Up/Down", "editor.keys.moveLines"},
+	{"Shift+Alt+Up/Down", "editor.keys.copyLines"},
+	{"Ctrl+Shift+K", "editor.keys.deleteLines"},
+	{"Ctrl+J", "editor.keys.joinLines"},
+	{"Ctrl+L", "editor.keys.selectLine"},
+	{"Ctrl+] / Ctrl+[", "editor.keys.indent"},
+	{"Ctrl+U / Ctrl+Shift+U", "editor.keys.changeCase"},
+	{"Ctrl+Shift+[ / ]", "editor.keys.fold"},
+	{"Ctrl+Shift+\\", "editor.keys.bracket"},
+	{"Alt+Z", "editor.keys.wrap"},
+	{"Ctrl+= / Ctrl+- / Ctrl+0", "editor.keys.zoom"},
 }
 
 // TypedRune is called for printable input while the editor is focused.
@@ -653,37 +654,37 @@ func (e *codeEditor) TappedSecondary(p *fyne.PointEvent) {
 	c.Focus(e)
 	item := func(label string, fn func()) *fyne.MenuItem { return fyne.NewMenuItem(label, fn) }
 	items := []*fyne.MenuItem{
-		item("Cut", e.cutSelection),
-		item("Copy", e.copySelection),
-		item("Paste", e.paste),
-		item("Select all", e.selectAll),
+		item(T("editor.menu.cut"), e.cutSelection),
+		item(T("editor.menu.copy"), e.copySelection),
+		item(T("editor.menu.paste"), e.paste),
+		item(T("editor.menu.selectAll"), e.selectAll),
 		fyne.NewMenuItemSeparator(),
-		item("Find…", func() {
+		item(T("editor.menu.find"), func() {
 			if e.onFind != nil {
 				e.onFind(false)
 			}
 		}),
-		item("Replace…", func() {
+		item(T("editor.menu.replace"), func() {
 			if e.onFind != nil {
 				e.onFind(true)
 			}
 		}),
-		item("Go to line…", func() {
+		item(T("editor.menu.goto"), func() {
 			if e.onGoto != nil {
 				e.onGoto()
 			}
 		}),
 		fyne.NewMenuItemSeparator(),
-		item("Select every occurrence", e.selectAllOccurrences),
+		item(T("editor.menu.selectOccurrences"), e.selectAllOccurrences),
 	}
 	if e.lang.lineComment != "" || e.lang.blockComment[0] != "" {
-		items = append(items, item("Toggle comment", e.toggleComment))
+		items = append(items, item(T("editor.menu.toggleComment"), e.toggleComment))
 	}
 	items = append(items,
-		item("Fold all", e.foldAll),
-		item("Unfold all", e.unfoldAll),
+		item(T("editor.menu.foldAll"), e.foldAll),
+		item(T("editor.menu.unfoldAll"), e.unfoldAll),
 	)
-	wrap := item("Word wrap", func() { e.SetWrap(!e.wrap) })
+	wrap := item(T("editor.menu.wordWrap"), func() { e.SetWrap(!e.wrap) })
 	wrap.Checked = e.wrap
 	items = append(items, wrap)
 	widget.ShowPopUpMenuAtPosition(fyne.NewMenu("", items...), c, p.AbsolutePosition)

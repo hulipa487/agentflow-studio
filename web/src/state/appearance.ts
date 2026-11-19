@@ -7,9 +7,11 @@ import { persist } from 'zustand/middleware'
 export type Mode = 'system' | 'light' | 'dark'
 export type Palette = 'trans' | 'obsidian'
 
-export const PALETTES: { id: Palette; title: string; description: string }[] = [
-  { id: 'trans', title: 'Trans Pride', description: 'Flag sky-blue, pastel pink & white over a calm deep-navy or ice shell.' },
-  { id: 'obsidian', title: 'Obsidian', description: 'Electric violet & teal accents over a carbon or alabaster shell.' },
+// The titles are proper names and stay as they are in every language; the
+// descriptions are catalogue keys.
+export const PALETTES: { id: Palette; title: string; descriptionKey: string }[] = [
+  { id: 'trans', title: 'Trans Pride', descriptionKey: 'settings.paletteTransDescription' },
+  { id: 'obsidian', title: 'Obsidian', descriptionKey: 'settings.paletteObsidianDescription' },
 ]
 
 interface AppearanceState {

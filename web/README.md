@@ -110,8 +110,8 @@ Everything the desktop app has:
 - **Config** — the raw config with boot-equivalent validate and an
   mtime-guarded save.
 - **Documentation** — the full guide set, bundled and searchable offline.
-- **Settings** — light / dark / system, the Trans Pride and Obsidian palettes,
-  connections.
+- **Settings** — language, light / dark / system, the Trans Pride and Obsidian
+  palettes, connections.
 
 ### Loop editor
 
@@ -154,6 +154,16 @@ the command bar, a flag-gradient logo, a blue-to-pink marker on the active
 rail row and tone-matched chips. Light and dark variants of both palettes; the
 first visit follows the OS.
 
+## Language
+
+English, Simplified Chinese and Traditional Chinese, switched with the
+**EN / 简体 / 繁體** control in the command bar (also on the welcome screen and
+in Settings). The choice applies without a reload and is saved in
+`localStorage`; a first visit follows the browser's languages and falls back
+to English. The messages are the shared catalogues in `../i18n`, read through
+`t()` from `src/i18n`; `../i18n/README.md` describes the syntax and the
+glossary. Text the runtime returns is shown as it is.
+
 ## Layout
 
 ```
@@ -165,6 +175,7 @@ src/components/ui       the component kit, CodeMirror editor, Markdown
 src/components/shell    command bar, rail, status bar, command palette, shortcuts
 src/lua                 the Luau analyzer and its CodeMirror extension
 src/docs                the library over ../docs, the guides shared with the desktop app
+src/i18n                t(), the current language, and the catalogues from ../i18n
 src/screens             one file per screen (+ a folder for its parts)
 src/nav.ts              destinations: rail, breadcrumb, shortcuts and palette
 ```

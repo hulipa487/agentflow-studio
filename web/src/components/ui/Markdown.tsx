@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Marked } from 'marked'
 import { assetFor, headingID, slugFor } from '@/docs/library'
+import { t, useLang } from '@/i18n'
 import { copyText } from '@/lib/format'
 import { toast } from '@/state/ui'
 import { cx } from './index'
@@ -117,29 +118,35 @@ export function Markdown({
 }) {
   const html = useMemo(() => marked.parse(source, { async: false }) as string, [source])
   const root = useRef<HTMLDivElement>(null)
+  const lang = useLang()
 
-  // Code blocks get a copy button without re-rendering the HTML.
+  // Code blocks get a copy button without re-rendering the HTML; a language
+  // change relabels the buttons already there.
   useEffect(() => {
     const el = root.current
     if (!el) return
     for (const pre of Array.from(el.querySelectorAll('pre'))) {
-      if (pre.querySelector('[data-copy]')) continue
+      const existing = pre.querySelector<HTMLElement>('[data-copy]')
+      if (existing) {
+        existing.textContent = t('editor.copyCode')
+        continue
+      }
       pre.style.position = 'relative'
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.dataset.copy = '1'
-      btn.textContent = 'copy'
+      btn.textContent = t('editor.copyCode')
       btn.className =
         'absolute right-1.5 top-1.5 rounded border border-line bg-surface2 px-1.5 py-0.5 font-mono text-xs text-muted opacity-0 transition-opacity hover:text-text'
       btn.onclick = async () => {
         const code = pre.querySelector('code')?.textContent ?? ''
-        if (await copyText(code)) toast('code copied', 'success')
+        if (await copyText(code)) toast(t('editor.codeCopied'), 'success')
       }
       pre.addEventListener('mouseenter', () => (btn.style.opacity = '1'))
       pre.addEventListener('mouseleave', () => (btn.style.opacity = '0'))
       pre.appendChild(btn)
     }
-  }, [html])
+  }, [html, lang])
 
   return (
     <div

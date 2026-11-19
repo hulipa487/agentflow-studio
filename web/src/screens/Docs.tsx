@@ -8,6 +8,7 @@ import { DOC_ASSETS, docOutline, docPages, readDoc, type DocPage } from '@/docs/
 import { Chip, EmptyState } from '@/components/ui'
 import { Markdown } from '@/components/ui/Markdown'
 import { useScreenActions } from '@/lib/hooks'
+import { t } from '@/i18n'
 import { AssetViewer } from './docs/AssetViewer'
 import { Outline } from './docs/Outline'
 import { Sidebar } from './docs/Sidebar'
@@ -28,7 +29,7 @@ function PagerLink({ page, dir }: { page: DocPage; dir: 'prev' | 'next' }) {
     >
       <span className="inline-flex items-center gap-1 text-xs text-faint">
         {!next && <ArrowLeft className="size-3" />}
-        {next ? 'Next' : 'Previous'}
+        {next ? t('docs.next') : t('docs.previous')}
         {next && <ArrowRight className="size-3" />}
       </span>
       <span className="max-w-full truncate text-base font-semibold text-text">{page.title}</span>
@@ -154,16 +155,16 @@ function Viewer({ pages }: { pages: DocPage[] }) {
           <div ref={scroller} tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
             <article className="mx-auto w-full max-w-[860px] px-8 pb-16 pt-5">
               <div className="mb-4 flex items-center gap-2">
-                <Chip tone="accent">{page.section}</Chip>
+                <Chip tone="accent">{t(page.sectionKey)}</Chip>
                 <span className="min-w-0 truncate text-xs text-muted">{page.title}</span>
               </div>
               {source === undefined ? (
-                <p className="text-sm text-muted">This page could not be read.</p>
+                <p className="text-sm text-muted">{t('docs.unreadable')}</p>
               ) : (
                 <Markdown source={source} onNavigate={(slug, a) => navigate(docPath(slug, a))} onAsset={openAsset} />
               )}
               {(prev || next) && (
-                <nav className="mt-10 grid grid-cols-2 gap-3 border-t border-line pt-4" aria-label="Previous and next page">
+                <nav className="mt-10 grid grid-cols-2 gap-3 border-t border-line pt-4" aria-label={t('docs.pager')}>
                   {prev ? <PagerLink page={prev} dir="prev" /> : <span />}
                   {next ? <PagerLink page={next} dir="next" /> : <span />}
                 </nav>
@@ -185,7 +186,7 @@ function Viewer({ pages }: { pages: DocPage[] }) {
 export default function Docs() {
   const pages = docPages()
   if (pages.length === 0) {
-    return <EmptyState title="Documentation is not bundled in this build" guidance="No documentation pages found." className="h-full" />
+    return <EmptyState title={t('docs.notBundled')} guidance={t('docs.noPages')} className="h-full" />
   }
   return <Viewer pages={pages} />
 }

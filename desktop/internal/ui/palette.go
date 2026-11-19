@@ -46,25 +46,25 @@ func (a *App) paletteCommands() []paletteCommand {
 	var out []paletteCommand
 	for _, it := range a.nav {
 		out = append(out, paletteCommand{
-			title: "Go to " + it.label, hint: it.hint, shortcut: it.keyLabel, icon: it.icon, run: it.show,
+			title: T("shell.palette.goTo", "screen", it.label), hint: it.hint, shortcut: it.keyLabel, icon: it.icon, run: it.show,
 		})
 	}
 	out = append(out,
-		paletteCommand{title: "New agent", hint: "Create an agent from a template", shortcut: "Ctrl+N", icon: theme.ContentAddIcon(), run: a.showNewAgent},
-		paletteCommand{title: "Refresh this screen", hint: "Reload the current view from the runtime", shortcut: "F5", icon: theme.ViewRefreshIcon(), run: a.refreshView},
-		paletteCommand{title: "Toggle light / dark", hint: "Switch the appearance", icon: theme.ColorPaletteIcon(), run: func() {
+		paletteCommand{title: T("shell.newAgent"), hint: T("shell.palette.newAgentHint"), shortcut: "Ctrl+N", icon: theme.ContentAddIcon(), run: a.showNewAgent},
+		paletteCommand{title: T("shell.palette.refresh"), hint: T("shell.palette.refreshHint"), shortcut: "F5", icon: theme.ViewRefreshIcon(), run: a.refreshView},
+		paletteCommand{title: T("shell.toggleTheme"), hint: T("shell.palette.toggleThemeHint"), icon: theme.ColorPaletteIcon(), run: func() {
 			if a.variant == themeDark {
 				a.chooseTheme(themeLight)
 			} else {
 				a.chooseTheme(themeDark)
 			}
 		}},
-		paletteCommand{title: "Toggle navigation rail", hint: "Collapse or restore the sidebar", icon: theme.MenuIcon(), run: a.toggleRail},
-		paletteCommand{title: "Issue a registration invite", hint: "Mint a single-use invite code (Users)", icon: theme.MailSendIcon(), run: func() {
+		paletteCommand{title: T("shell.toggleRail"), hint: T("shell.palette.toggleRailHint"), icon: theme.MenuIcon(), run: a.toggleRail},
+		paletteCommand{title: T("shell.palette.invite"), hint: T("shell.palette.inviteHint"), icon: theme.MailSendIcon(), run: func() {
 			a.showUsers()
 			a.issueInvite()
 		}},
-		paletteCommand{title: "Lock", hint: "Forget the admin token and return to the login screen", icon: theme.LogoutIcon(), run: a.lock},
+		paletteCommand{title: T("shell.palette.lock"), hint: T("shell.palette.lockHint"), icon: theme.LogoutIcon(), run: a.lock},
 	)
 	return out
 }
@@ -75,8 +75,10 @@ func paletteMatch(c paletteCommand, q string) (int, bool) {
 	}
 	title := strings.ToLower(c.title)
 	hint := strings.ToLower(c.hint)
+	// "Go to Users" matches "use" by the screen's name, in any language.
+	goTo := strings.ToLower(T("shell.palette.goTo", "screen", ""))
 	switch {
-	case strings.HasPrefix(strings.TrimPrefix(title, "go to "), q):
+	case strings.HasPrefix(strings.TrimPrefix(title, goTo), q):
 		return 0, true
 	case strings.Contains(title, q):
 		return 1, true
@@ -101,7 +103,7 @@ func (a *App) showCommandPalette() {
 	}
 	commands := a.paletteCommands()
 	entry := newPaletteEntry()
-	entry.SetPlaceHolder("Type a screen, an agent or an action…")
+	entry.SetPlaceHolder(T("shell.palette.placeholder"))
 	results := vstack(2)
 	selected := 0
 	var shown []paletteCommand
@@ -157,7 +159,7 @@ func (a *App) showCommandPalette() {
 		}
 		clearBox(results)
 		if len(shown) == 0 {
-			results.Add(container.NewPadded(muted("No match. Try a screen name such as users, logs or config.")))
+			results.Add(container.NewPadded(muted(T("shell.palette.noMatch"))))
 		}
 		for i, c := range shown {
 			c := c
@@ -206,7 +208,7 @@ func (a *App) showCommandPalette() {
 	render()
 
 	body := vstack(spaceS, controlFrame(entry), widthBox(560, results))
-	popup = showModalCard(a.win, "Go to", "Screens, agents and actions. Enter runs the highlighted entry.", body, nil)
+	popup = showModalCard(a.win, T("shell.palette.title"), T("shell.palette.subtitle"), body, nil)
 	a.win.Canvas().Focus(entry)
 
 	// Agents arrive asynchronously; add "Edit" and "Chat with" entries.
@@ -227,9 +229,9 @@ func (a *App) showCommandPalette() {
 					continue
 				}
 				commands = append(commands,
-					paletteCommand{title: "Edit agent " + name, hint: "Open " + name + " in the builder", icon: theme.DocumentCreateIcon(),
+					paletteCommand{title: T("shell.palette.editAgent", "name", name), hint: T("shell.palette.editAgentHint", "name", name), icon: theme.DocumentCreateIcon(),
 						run: func() { a.showBuilder(name, nil) }},
-					paletteCommand{title: "Chat with " + name, hint: "Open the playground on " + name, icon: theme.MediaPlayIcon(),
+					paletteCommand{title: T("shell.palette.chatWith", "name", name), hint: T("shell.palette.chatWithHint", "name", name), icon: theme.MediaPlayIcon(),
 						run: func() { a.showPlayground(name) }},
 				)
 			}

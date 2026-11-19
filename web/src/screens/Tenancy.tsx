@@ -5,7 +5,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { Database, RotateCw, Users } from 'lucide-react'
 import { AsyncView, Banner, IconButton, Page, Tabs } from '@/components/ui'
 import { useAsync, useScreenActions, useStored } from '@/lib/hooks'
-import { plural, shortID } from '@/lib/format'
+import { t } from '@/i18n'
+import { shortID } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { byText, useAlive, userTitle, type Notice } from './users/helpers'
 import { GroupsPane } from './tenancy/Groups'
@@ -78,14 +79,12 @@ export default function Tenancy() {
 
   return (
     <Page
-      title="Tenancy"
-      subtitle="Groups give several people one shared context; pools are named memory stores that agents bind with pool: <name>, opened to tenants by grants. Changes are live."
+      title={t('tenancy.title')}
+      subtitle={t('tenancy.subtitle')}
       scroll={false}
       meta={
         data ? (
-          <span>
-            {plural(dir.groups.length, 'group')} ({active} active) · {plural(dir.pools.length, 'pool')}
-          </span>
+          <span>{t('tenancy.meta', { groups: dir.groups.length, active, pools: dir.pools.length })}</span>
         ) : null
       }
       banner={
@@ -95,16 +94,16 @@ export default function Tenancy() {
           </Banner>
         ) : null
       }
-      actions={<IconButton icon={RotateCw} label="Refresh" onClick={reloadAll} />}
+      actions={<IconButton icon={RotateCw} label={t('common.refresh')} onClick={reloadAll} />}
     >
-      <AsyncView loading={loading} error={error} hasData={!!data} retry={reloadAll} loadingText="Loading…" offTitle="Tenancy is unavailable">
+      <AsyncView loading={loading} error={error} hasData={!!data} retry={reloadAll} loadingText={t('common.loading')} offTitle={t('tenancy.unavailable')}>
         <Tabs<Tab>
           className="mb-3"
           value={tab}
           onChange={setTab}
           tabs={[
-            { id: 'groups', label: 'Groups', icon: Users },
-            { id: 'pools', label: 'Memory pools', icon: Database },
+            { id: 'groups', label: t('tenancy.tabGroups'), icon: Users },
+            { id: 'pools', label: t('tenancy.tabPools'), icon: Database },
           ]}
         />
         {tab === 'groups' ? (

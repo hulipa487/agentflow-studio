@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import { BookOpen } from 'lucide-react'
 import { Button, Select } from '@/components/ui'
 import { Markdown } from '@/components/ui/Markdown'
+import { t } from '@/i18n'
 import { docPage, docPages, readDoc } from '@/docs/library'
 import { docPath } from '@/screens/docs/helpers'
 
 const BUILDER_DOC_PAGES = [
-  { slug: 'loops-reference', label: 'Loop API reference' },
-  { slug: 'loops', label: 'Luau coding tutorial' },
+  { slug: 'loops-reference', labelKey: 'builder.docLoopsReference' },
+  { slug: 'loops', labelKey: 'builder.docLoopsTutorial' },
 ]
 
 export function DocsPane({ onOpenDocs }: { onOpenDocs: (path: string) => void }) {
@@ -22,14 +23,14 @@ export function DocsPane({ onOpenDocs }: { onOpenDocs: (path: string) => void })
 
   let body
   if (docPages().length === 0) {
-    body = <p className="text-sm text-muted">Documentation is not bundled in this build.</p>
+    body = <p className="text-sm text-muted">{t('builder.docsNotBundled')}</p>
   } else if (!docPage(slug)) {
-    body = <p className="text-sm text-muted">This guide is not bundled in this build.</p>
+    body = <p className="text-sm text-muted">{t('builder.guideNotBundled')}</p>
   } else {
     const source = readDoc(slug)
     body =
       source === undefined ? (
-        <p className="text-sm text-muted">This guide could not be read.</p>
+        <p className="text-sm text-muted">{t('builder.guideUnreadable')}</p>
       ) : (
         <Markdown
           compact
@@ -49,12 +50,12 @@ export function DocsPane({ onOpenDocs }: { onOpenDocs: (path: string) => void })
     <aside className="flex min-h-0 flex-1 flex-col rounded-card border border-line bg-surface">
       <div className="flex shrink-0 flex-col gap-2 border-b border-line p-3">
         <div className="flex items-center gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-md font-semibold leading-tight">Luau Reference</h2>
-          <Button size="sm" variant="ghost" icon={BookOpen} title="Open this guide in the documentation viewer" onClick={() => onOpenDocs('/docs/' + slug)}>
-            Full Docs
+          <h2 className="min-w-0 flex-1 truncate text-md font-semibold leading-tight">{t('builder.luauReference')}</h2>
+          <Button size="sm" variant="ghost" icon={BookOpen} title={t('builder.fullDocsTitle')} onClick={() => onOpenDocs('/docs/' + slug)}>
+            {t('builder.fullDocs')}
           </Button>
         </div>
-        <Select value={slug} onChange={setSlug} aria-label="Guide" options={BUILDER_DOC_PAGES.map((p) => ({ value: p.slug, label: p.label }))} />
+        <Select value={slug} onChange={setSlug} aria-label={t('builder.guide')} options={BUILDER_DOC_PAGES.map((p) => ({ value: p.slug, label: t(p.labelKey) }))} />
       </div>
       <div ref={scroll} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {body}

@@ -188,16 +188,16 @@ var stdlibGlobals = map[string]bool{
 }
 
 // unavailableGlobals are libraries the sandbox omits; a targeted message beats
-// "unknown global".
+// "unknown global". The values are message keys, translated when reported.
 var unavailableGlobals = map[string]string{
-	"io":       "io is not available in the AgentFlow sandbox; use files.* for storage and log.* for output",
-	"debug":    "debug is not available in the AgentFlow sandbox",
-	"require":  "require is not available: every prelude name is already global",
-	"dofile":   "dofile is not available in the AgentFlow sandbox",
-	"loadfile": "loadfile is not available in the AgentFlow sandbox",
-	"load":     "load or loadstring is not available in the AgentFlow sandbox",
-	"package":  "package is not available in the AgentFlow sandbox",
-	"os":       "os is the AgentFlow os: env, time and date only",
+	"io":       "lua.unavailable.io",
+	"debug":    "lua.unavailable.debug",
+	"require":  "lua.unavailable.require",
+	"dofile":   "lua.unavailable.dofile",
+	"loadfile": "lua.unavailable.loadfile",
+	"load":     "lua.unavailable.load",
+	"package":  "lua.unavailable.package",
+	"os":       "lua.unavailable.os",
 }
 
 var (

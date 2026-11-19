@@ -1,6 +1,7 @@
 // Pure helpers for the Credentials screen, ported from the desktop Studio
 // (internal/ui/credentials.go).
 import type { Credential, CredentialDraft, CredentialList } from '@/api/types'
+import { t } from '@/i18n'
 
 /** The kinds the editor offers; the store accepts any label. */
 export const KINDS = ['api_key', 'token', 'password', 'oauth', 'generic']
@@ -10,12 +11,12 @@ export const DEFAULT_SCHEME = 'Bearer'
 
 /** The engine-wide bucket is the empty user. */
 export function bucketLabel(user: string): string {
-  return user === '' ? 'Engine-wide' : user
+  return user === '' ? t('credentials.engineWide') : user
 }
 
 /** The bucket as it reads inside a sentence. */
 export function bucketPhrase(user: string): string {
-  return user === '' ? 'engine-wide bucket' : 'user ' + user
+  return user === '' ? t('credentials.bucketEngineWide') : t('credentials.bucketUser', { user })
 }
 
 /**
@@ -73,8 +74,8 @@ export function buildCredentialDraft(f: CredentialForm, user: string, creating: 
     header: f.header.trim(),
     scheme: f.scheme.trim(),
   }
-  if (d.service === '') throw new Error('a service name is required')
-  if (creating && d.secret === '') throw new Error('a secret value is required')
+  if (d.service === '') throw new Error(t('credentials.error.serviceRequired'))
+  if (creating && d.secret === '') throw new Error(t('credentials.error.secretRequired'))
   return d
 }
 
@@ -83,5 +84,13 @@ export function disabledList(note: string): CredentialList {
   return { ok: true, enabled: false, bucket: '', users: [''], credentials: [], note }
 }
 
-export const DISABLED_NOTE =
-  'The credential store is disabled. Set runtime.credentials.enabled: true and CREDENTIALS_MASTER_KEY to manage secrets here.'
+/**
+ * The key of the note for a runtime that answers 503. The list holds the key,
+ * not its text, so the note follows a language change; credentialNote() reads it.
+ */
+export const DISABLED_NOTE_KEY = 'credentials.disabledNote'
+
+/** A list's note as shown: Studio's own note translated, the runtime's as it came. */
+export function credentialNote(list: Pick<CredentialList, 'note'>): string {
+  return list.note === DISABLED_NOTE_KEY ? t(DISABLED_NOTE_KEY) : (list.note ?? '')
+}

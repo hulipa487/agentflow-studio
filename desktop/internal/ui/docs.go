@@ -39,12 +39,12 @@ func (a *App) SetDocs(fsys fs.FS) error {
 // no network at all.
 func (a *App) openDocs() {
 	if a.docs == nil {
-		a.setStatus("documentation is not bundled in this build", toneDanger)
+		a.setStatus(T("docs.notBundled"), toneDanger)
 		return
 	}
 	pages := a.docs.Pages()
 	if len(pages) == 0 {
-		a.setStatus("no documentation pages found", toneDanger)
+		a.setStatus(T("docs.noPages"), toneDanger)
 		return
 	}
 	a.showDocs(pages[0].Slug)
@@ -62,6 +62,7 @@ func (a *App) showDocs(slug string) {
 		slug = pages[0].Slug
 	}
 	a.enter("docs")
+	a.reshow = func() { a.showDocs(slug) }
 	a.setMain(a.docsView(slug))
 }
 
@@ -77,9 +78,9 @@ func (a *App) docsView(slug string) fyne.CanvasObject {
 		clearBox(sidebarList)
 		if strings.TrimSpace(query) != "" {
 			results := a.docs.Search(query, 30)
-			sidebarList.Add(caption(fmt.Sprintf("%d result(s)", len(results))))
+			sidebarList.Add(caption(T("docs.results", "n", len(results))))
 			if len(results) == 0 {
-				sidebarList.Add(centerNote("No matching pages."))
+				sidebarList.Add(centerNote(T("docs.noMatches")))
 				return
 			}
 			for _, r := range results {
@@ -96,9 +97,9 @@ func (a *App) docsView(slug string) fyne.CanvasObject {
 		}
 		currentSection := ""
 		for _, p := range a.docs.Pages() {
-			if p.Section != currentSection {
-				currentSection = p.Section
-				sidebarList.Add(caption(p.Section))
+			if p.SectionKey != currentSection {
+				currentSection = p.SectionKey
+				sidebarList.Add(caption(T(p.SectionKey)))
 			}
 			slug := p.Slug
 			b := widget.NewButton(p.Title, func() { a.showDocs(slug) })
@@ -111,7 +112,7 @@ func (a *App) docsView(slug string) fyne.CanvasObject {
 			sidebarList.Add(b)
 		}
 	}
-	sbox := newSearchBox("Search documentation…", func(q string) {
+	sbox := newSearchBox(T("docs.search"), func(q string) {
 		renderSidebar(q)
 	})
 	searchField := sbox.Root
@@ -119,7 +120,7 @@ func (a *App) docsView(slug string) fyne.CanvasObject {
 
 	sidebarBody := container.NewBorder(
 		vstack(spaceXS,
-			insetLeading(titleText("Documentation", theme.SizeNameSubHeadingText)),
+			insetLeading(titleText(T("docs.title"), theme.SizeNameSubHeadingText)),
 			searchField,
 			widget.NewSeparator(),
 		),
@@ -131,10 +132,10 @@ func (a *App) docsView(slug string) fyne.CanvasObject {
 	body, ok := a.docs.Read(slug)
 	var pageCol fyne.CanvasObject
 	if !ok {
-		pageCol = vstack(spaceM, muted("This page could not be read."))
+		pageCol = vstack(spaceM, muted(T("docs.unreadable")))
 	} else {
 		head := vstack(spaceXS,
-			hstack(spaceS, vCenter(chip(page.Section, toneAccent))),
+			hstack(spaceS, vCenter(chip(T(page.SectionKey), toneAccent))),
 			insetLeading(titleText(page.Title, theme.SizeNameHeadingText)),
 		)
 		blocks := a.renderMarkdown(slug, body)
@@ -261,9 +262,9 @@ func (r *mdRenderer) codeBlock(n ast.Node, lang []byte) fyne.CanvasObject {
 		header.Add(caption(strings.ToUpper(string(lang))))
 	}
 	header.Add(layout.NewSpacer())
-	copyBtn := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
+	copyBtn := widget.NewButtonWithIcon(T("common.copy"), theme.ContentCopyIcon(), func() {
 		r.app.win.Clipboard().SetContent(code)
-		r.app.setStatus("code copied", toneSuccess)
+		r.app.setStatus(T("editor.codeCopied"), toneSuccess)
 	})
 	copyBtn.Importance = widget.LowImportance
 	header.Add(copyBtn)
@@ -482,7 +483,7 @@ func (r *mdRenderer) inline(n ast.Node, style textStyle) []widget.RichTextSegmen
 		case *ast.Image:
 			alt := segmentsText(r.inline(c, style))
 			if alt == "" {
-				alt = "image"
+				alt = T("docs.image")
 			}
 			out = append(out, r.text("["+alt+"]", style))
 		case *ast.RawHTML:
@@ -558,12 +559,12 @@ func (a *App) openDocsAsset(name string) {
 	}
 	b, err := a.docs.Asset(name)
 	if err != nil {
-		a.setStatus("could not read "+name, toneDanger)
+		a.setStatus(T("docs.couldNotRead", "path", name), toneDanger)
 		return
 	}
 	path := filepath.Join(os.TempDir(), "agentflow-studio-"+filepath.Base(name))
 	if err := os.WriteFile(path, b, 0o600); err != nil {
-		a.setStatus("could not write "+name+": "+err.Error(), toneDanger)
+		a.setStatus(T("docs.couldNotWrite", "path", name, "error", err.Error()), toneDanger)
 		return
 	}
 	u := &url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
@@ -571,10 +572,10 @@ func (a *App) openDocsAsset(name string) {
 		u.Path = "/" + u.Path // Windows drive paths need the URL root
 	}
 	if err := a.fyneApp.OpenURL(u); err != nil {
-		a.setStatus("could not open "+name+": "+err.Error(), toneDanger)
+		a.setStatus(T("docs.couldNotOpen", "path", name, "error", err.Error()), toneDanger)
 		return
 	}
-	a.setStatus("opened "+filepath.Base(path), toneSuccess)
+	a.setStatus(T("docs.opened", "name", filepath.Base(path)), toneSuccess)
 }
 
 func (r *mdRenderer) blockObject(n ast.Node) fyne.CanvasObject {

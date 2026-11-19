@@ -1,3 +1,4 @@
+import { t as i18n } from '@/i18n'
 import type { Local, Model } from './analysis'
 import {
   children,
@@ -111,13 +112,13 @@ export function complete(m: Model | null | undefined, line: number, col: number)
     add({
       label: name,
       kind: stdlibModules.has(name) ? 'module' : 'function',
-      detail: 'Luau standard library',
+      detail: i18n('lua.completion.stdlib'),
       documentation: '',
       insert: name,
     })
   }
   for (const name of m.globals) {
-    add({ label: name, kind: 'function', detail: 'declared in this chunk', documentation: '', insert: name })
+    add({ label: name, kind: 'function', detail: i18n('lua.completion.chunkFunction'), documentation: '', insert: name })
   }
   return items.sort(byLabel)
 }
@@ -129,8 +130,8 @@ export function completionFromEntry(e: ApiEntry): CompletionItem {
   else if (e.kind === 'table') kind = 'module'
   else if (e.kind === 'variable') kind = 'variable'
   let doc = e.summary
-  if (e.capability) doc += '\n\ncapability: ' + e.capability
-  if (e.maintenance) doc += '\n\nmaintenance provenance only'
+  if (e.capability) doc += '\n\n' + i18n('lua.doc.capability', { capability: e.capability })
+  if (e.maintenance) doc += '\n\n' + i18n('lua.doc.maintenanceShort')
   return {
     label,
     kind,
@@ -152,12 +153,12 @@ function inScope(l: Local, line: number, col: number): boolean {
   return true
 }
 
-const localKindLabel: Record<Local['kind'], string> = {
-  local: 'local variable',
-  param: 'parameter',
-  loop: 'loop variable',
-  self: 'implicit method receiver',
-  function: 'local function',
+const localKindKey: Record<Local['kind'], string> = {
+  local: 'lua.hover.localVariable',
+  param: 'lua.hover.parameter',
+  loop: 'lua.hover.loopVariable',
+  self: 'lua.hover.methodReceiver',
+  function: 'lua.hover.localFunction',
 }
 
 /** Describes the symbol at a line/column. */
@@ -218,15 +219,15 @@ export function hoverAtPosition(m: Model | null | undefined, line: number, col: 
   if (local) {
     return {
       ...range,
-      markdown: `**${local.name}**\n\n${localKindLabel[local.kind] ?? 'local variable'}, declared at line ${local.decl.line + 1}.`,
+      markdown: `**${local.name}**\n\n${i18n('lua.hover.declaredAt', { kind: i18n(localKindKey[local.kind] ?? 'lua.hover.localVariable'), line: local.decl.line + 1 })}`,
     }
   }
   const entry = lookup(path)
   if (entry) return { ...range, markdown: entryMarkdown(entry), entry }
   const rootEntry = lookup(root)
   if (rootEntry) return { ...range, markdown: `**${parts.join('.')}**\n\n${rootEntry.summary}` }
-  if (m.globals.has(root)) return { ...range, markdown: `**${root}**\n\nfunction declared in this chunk.` }
-  if (isKnownGlobal(root)) return { ...range, markdown: `**${root}**\n\nLuau standard library.` }
+  if (m.globals.has(root)) return { ...range, markdown: `**${root}**\n\n${i18n('lua.hover.chunkFunction')}` }
+  if (isKnownGlobal(root)) return { ...range, markdown: `**${root}**\n\n${i18n('lua.hover.stdlib')}` }
   return null
 }
 
@@ -235,8 +236,8 @@ export const streamNote = 'Call `next_delta()` directly; a generic `for` fails a
 
 export function entryMarkdown(e: ApiEntry): string {
   let b = `**${e.signature}**\n\n${e.summary}`
-  if (e.capability) b += `\n\n*capability:* \`${e.capability}\``
-  if (e.maintenance) b += '\n\n*maintenance provenance only (system or scheduler turns)*'
+  if (e.capability) b += '\n\n' + i18n('lua.doc.capabilityMarkdown', { capability: e.capability })
+  if (e.maintenance) b += `\n\n*${i18n('lua.doc.maintenance')}*`
   if (e.path === 'llm.stream') b += '\n\n' + streamNote
   return b
 }

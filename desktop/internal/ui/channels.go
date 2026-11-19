@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -48,14 +49,14 @@ func (a *App) newChannelsView() *channelsView {
 	v.count = oneLine("")
 	v.state = oneLine("")
 	v.stateDot = dot(toneSuccess)
-	v.newBtn = primaryButton("New channel", theme.ContentAddIcon(), func() { a.editChannel(v, nil) })
-	v.dirBtn = iconButton(theme.FolderOpenIcon(), "Open config folder", func() { v.openConfigFolder() })
+	v.newBtn = primaryButton(T("channels.newChannel"), theme.ContentAddIcon(), func() { a.editChannel(v, nil) })
+	v.dirBtn = iconButton(theme.FolderOpenIcon(), T("channels.openConfigFolder"), func() { v.openConfigFolder() })
 	v.dirBtn.Disable()
 	stateRow := hstack(spaceXS, vCenter(dotBox(v.stateDot)), vCenter(widthBox(190, v.state)))
 
-	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh", func() { v.load() })
-	head := pageHeader("Channels",
-		"Entry points that route messages into agents. Saves go to the deployment config and bind at the next runtime start.",
+	refresh := iconButton(theme.ViewRefreshIcon(), T("common.refresh"), func() { v.load() })
+	head := pageHeader(T("channels.title"),
+		T("channels.subtitle"),
 		hstack(spaceS, widthBox(88, v.count), stateRow, v.dirBtn, refresh, v.newBtn))
 	v.load()
 	v.root = container.NewBorder(
@@ -77,7 +78,7 @@ func (v *channelsView) setBanner(text string, tone tone) {
 
 func (v *channelsView) load() {
 	v.banner.Clear()
-	v.state.SetText("loading…")
+	v.state.SetText(T("channels.loadingState"))
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
@@ -96,12 +97,12 @@ func (v *channelsView) load() {
 			if err != nil {
 				msg := err.Error()
 				if ae, ok := err.(*api.Error); ok && ae.Status == 404 {
-					msg = "This runtime does not expose the Studio channels API yet; rebuild and restart AgentFlow, then reopen Channels."
+					msg = T("channels.apiMissing")
 				}
 				v.setBanner(msg, toneDanger)
 				v.state.SetText("")
 				clearBox(v.list)
-				v.list.Add(container.NewCenter(widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), v.load)))
+				v.list.Add(container.NewCenter(widget.NewButtonWithIcon(T("common.retry"), theme.ViewRefreshIcon(), v.load)))
 				v.list.Refresh()
 				return
 			}
@@ -126,14 +127,10 @@ func (v *channelsView) render() {
 			pending++
 		}
 	}
-	state := "all changes live"
+	state := T("channels.allLive")
 	toneOfState := toneSuccess
-	switch {
-	case pending == 1:
-		state = "1 change · restart required"
-		toneOfState = toneWarning
-	case pending > 1:
-		state = fmt.Sprintf("%d changes · restart required", pending)
+	if pending > 0 {
+		state = T("channels.pendingRestart", "n", pending)
 		toneOfState = toneWarning
 	}
 	v.state.SetText(state)
@@ -146,12 +143,7 @@ func (v *channelsView) render() {
 		v.dirBtn.Disable()
 		v.dirBtn.Hide()
 	}
-	n := len(v.data.Channels)
-	if n == 1 {
-		v.count.SetText("1 channel")
-	} else {
-		v.count.SetText(fmt.Sprintf("%d channels", n))
-	}
+	v.count.SetText(T("channels.count", "n", len(v.data.Channels)))
 	if len(v.data.Channels) == 0 {
 		// The empty state carries the primary action; keep the header to just
 		// refresh so the same button does not appear twice.
@@ -187,16 +179,16 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 		vCenter(chip(ch.Type, toneAccent)),
 	)
 	if ch.Live {
-		sub.Add(vCenter(chip("live", toneSuccess)))
+		sub.Add(vCenter(chip(T("channels.chip.live"), toneSuccess)))
 	} else {
-		sub.Add(vCenter(chip("restart required", toneWarning)))
+		sub.Add(vCenter(chip(T("channels.chip.restartRequired"), toneWarning)))
 	}
 	if len(ch.MediaAllow) > 0 {
-		sub.Add(vCenter(chip("media", toneNeutral)))
+		sub.Add(vCenter(chip(T("channels.chip.media"), toneNeutral)))
 	}
 	actions := hstack(spaceXS,
-		vCenter(actionButton("Edit", theme.DocumentCreateIcon(), func() { v.app.editChannel(v, &ch) })),
-		vCenter(iconButton(theme.DeleteIcon(), "Delete", func() { v.app.confirmChannelDelete(v, ch) })),
+		vCenter(actionButton(T("common.edit"), theme.DocumentCreateIcon(), func() { v.app.editChannel(v, &ch) })),
+		vCenter(iconButton(theme.DeleteIcon(), T("common.delete"), func() { v.app.confirmChannelDelete(v, ch) })),
 	)
 	top := container.NewBorder(nil, nil,
 		hstack(spaceS, vCenter(title), sub), actions, nil)
@@ -210,11 +202,11 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 	}
 	route := ch.Path
 	if route == "" {
-		route = "driver default"
+		route = T("channels.driverDefault")
 	}
 	cells := []fyne.CanvasObject{
-		detailRow("agent", detailText(agent)),
-		detailRow("path", detailText(route)),
+		detailRow(T("channels.fact.agent"), detailText(agent)),
+		detailRow(T("channels.fact.path"), detailText(route)),
 	}
 	switch ch.Type {
 	case "telegram":
@@ -222,14 +214,14 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 		if mode == "" {
 			mode = "polling"
 		}
-		cells = append(cells, detailRow("mode", detailText(mode)))
+		cells = append(cells, detailRow(T("channels.fact.mode"), detailText(mode)))
 		if len(ch.AllowUsers) > 0 {
-			cells = append(cells, detailRow("allow users", detailText(fmt.Sprint(ch.AllowUsers))))
+			cells = append(cells, detailRow(T("channels.fact.allowUsers"), detailText(fmt.Sprint(ch.AllowUsers))))
 		}
-		cells = append(cells, detailRow("token", channelSecretValue(ch.HasToken, ch.TokenRef)),
-			detailRow("webhook secret", channelSecretValue(ch.HasSecretTok, ch.SecretTokRef)))
+		cells = append(cells, detailRow(T("channels.fact.token"), channelSecretValue(ch.HasToken, ch.TokenRef)),
+			detailRow(T("channels.fact.webhookSecret"), channelSecretValue(ch.HasSecretTok, ch.SecretTokRef)))
 	case "ghhook":
-		cells = append(cells, detailRow("secret", channelSecretValue(ch.HasSecret, ch.SecretRef)))
+		cells = append(cells, detailRow(T("channels.fact.secret"), channelSecretValue(ch.HasSecret, ch.SecretRef)))
 	case "qq":
 		mode := ch.Mode
 		if mode == "" {
@@ -239,83 +231,84 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 		if scenes == "" {
 			scenes = strings.Join(qqDefaultScenes, ", ")
 		}
-		cells = append(cells, detailRow("mode", detailText(mode)),
-			detailRow("app id", detailText(ch.AppID)),
-			detailRow("scenes", detailText(scenes)),
-			detailRow("app secret", channelSecretValue(ch.HasSecret, ch.SecretRef)))
+		cells = append(cells, detailRow(T("channels.fact.mode"), detailText(mode)),
+			detailRow(T("channels.fact.appId"), detailText(ch.AppID)),
+			detailRow(T("channels.fact.scenes"), detailText(scenes)),
+			detailRow(T("channels.fact.appSecret"), channelSecretValue(ch.HasSecret, ch.SecretRef)))
 		if ch.Markdown {
-			cells = append(cells, detailRow("replies", detailText("markdown")))
+			cells = append(cells, detailRow(T("channels.fact.replies"), detailText(T("channels.fact.repliesMarkdown"))))
 		}
 		if ch.APIBase != "" {
-			cells = append(cells, detailRow("api base", detailText(ch.APIBase)))
+			cells = append(cells, detailRow(T("channels.fact.apiBase"), detailText(ch.APIBase)))
 		}
 	case "bridge":
 		if ch.DeliverURL != "" {
-			cells = append(cells, detailRow("deliver", detailText(ch.DeliverURL)))
+			cells = append(cells, detailRow(T("channels.fact.deliver"), detailText(ch.DeliverURL)))
 		}
-		cells = append(cells, detailRow("inbound secret", channelSecretValue(ch.HasSecret, ch.SecretRef)),
-			detailRow("outbound token", channelSecretValue(ch.HasToken, ch.TokenRef)))
+		cells = append(cells, detailRow(T("channels.fact.inboundSecret"), channelSecretValue(ch.HasSecret, ch.SecretRef)),
+			detailRow(T("channels.fact.outboundToken"), channelSecretValue(ch.HasToken, ch.TokenRef)))
 		if ch.Timeout != "" {
-			cells = append(cells, detailRow("timeout", detailText(ch.Timeout)))
+			cells = append(cells, detailRow(T("channels.fact.timeout"), detailText(ch.Timeout)))
 		}
 	case "webhook":
 		if ch.Timeout != "" {
-			cells = append(cells, detailRow("timeout", detailText(ch.Timeout)))
+			cells = append(cells, detailRow(T("channels.fact.timeout"), detailText(ch.Timeout)))
 		}
 		if ch.Async {
-			cells = append(cells, detailRow("mode", detailText("async · job id")))
+			cells = append(cells, detailRow(T("channels.fact.mode"), detailText(T("channels.fact.asyncJob"))))
 		}
 	case "openai":
-		cells = append(cells, detailRow("auth", detailText(ch.Auth)))
+		cells = append(cells, detailRow(T("channels.fact.auth"), detailText(ch.Auth)))
 		if ch.Auth == "key" {
-			cells = append(cells, detailRow("keys", channelSecretValue(ch.HasKeys, strings.Join(ch.KeyRefs, ", "))))
+			cells = append(cells, detailRow(T("channels.fact.keys"), channelSecretValue(ch.HasKeys, strings.Join(ch.KeyRefs, ", "))))
 		}
 		journal := ch.Journal
 		if journal == "" {
 			journal = "metadata"
 		}
-		cells = append(cells, detailRow("journal", detailText(journal)))
+		cells = append(cells, detailRow(T("channels.fact.journal"), detailText(journal)))
 		if ch.Timeout != "" {
-			cells = append(cells, detailRow("timeout", detailText(ch.Timeout)))
+			cells = append(cells, detailRow(T("channels.fact.timeout"), detailText(ch.Timeout)))
 		}
 	}
 	// The audit mode applies to every channel type. The openai card always
 	// shows it (above); any other type shows it when it is not the default.
 	if ch.Type != "openai" && ch.Journal != "" && ch.Journal != "full" {
-		cells = append(cells, detailRow("journal", detailText(ch.Journal)))
+		cells = append(cells, detailRow(T("channels.fact.journal"), detailText(ch.Journal)))
 	}
 	if len(ch.MediaAllow) > 0 {
-		cells = append(cells, detailRow("media", detailText(strings.Join(ch.MediaAllow, ", "))))
+		cells = append(cells, detailRow(T("channels.fact.media"), detailText(strings.Join(ch.MediaAllow, ", "))))
 	}
 	details := grid(2, cells...)
 	return panel(vstack(spaceS, top, widget.NewSeparator(), details))
 }
 
 func channelSecretValue(set bool, ref string) fyne.CanvasObject {
-	value := "not set"
-	tone := toneWarning
-	if set {
-		value = "configured"
-		tone = toneSuccess
+	// One message per case: the reference sits inside the sentence, so each
+	// language places it.
+	switch {
+	case set && ref != "":
+		return chip(T("channels.secret.configuredRef", "ref", ref), toneSuccess)
+	case set:
+		return chip(T("channels.secret.configured"), toneSuccess)
+	case ref != "":
+		return chip(T("channels.secret.notSetRef", "ref", ref), toneWarning)
 	}
-	if ref != "" {
-		value += " · " + ref
-	}
-	return chip(value, tone)
+	return chip(T("channels.secret.notSet"), toneWarning)
 }
 
 func emptyChannels(v *channelsView) fyne.CanvasObject {
 	return emptyStateCard(
-		"No channels yet",
-		"Create a channel to route messages into an agent.",
-		"Create a channel",
+		T("channels.emptyTitle"),
+		T("channels.emptyGuidance"),
+		T("channels.emptyAction"),
 		func() { v.app.editChannel(v, nil) },
 	)
 }
 
 func (v *channelsView) openConfigFolder() {
 	if v.data.Path == "" {
-		v.setBanner("This runtime did not report a channels config path.", toneWarning)
+		v.setBanner(T("channels.noConfigPath"), toneWarning)
 		return
 	}
 	if err := openConfigFolder(v.data.Path); err != nil {
@@ -325,9 +318,9 @@ func (v *channelsView) openConfigFolder() {
 
 func (a *App) confirmChannelDelete(v *channelsView, ch api.Channel) {
 	name := channelTitle(ch)
-	showConfirmPrompt(a.win, "Delete channel",
-		fmt.Sprintf("Delete %q from the deployment config?\n\nThe running instance keeps it until the next restart.", name),
-		"Delete", true,
+	showConfirmPrompt(a.win, T("channels.deleteTitle"),
+		T("channels.deleteMessage", "name", name),
+		T("common.delete"), true,
 		func(ok bool) {
 			if !ok {
 				return
@@ -343,7 +336,7 @@ func (a *App) confirmChannelDelete(v *channelsView, ch api.Channel) {
 					}
 					v.data = list
 					v.render()
-					a.setStatus("channel deleted · restart required", toneWarning)
+					a.setStatus(T("channels.deleted"), toneWarning)
 				})
 			}()
 		})
@@ -354,15 +347,15 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 	if !v.data.Editable {
 		note := v.data.Note
 		if note == "" {
-			note = "This deployment's channels cannot be edited from Studio."
+			note = T("channels.readOnlyMessage")
 		}
-		showInfoPrompt(a.win, "Channels are read-only", note)
+		showInfoPrompt(a.win, T("channels.readOnlyTitle"), note)
 		return
 	}
 	if len(v.agents) == 0 {
-		showConfirmPrompt(a.win, "Create an agent first",
-			"A channel must route messages to an existing agent. Create an agent, then add the channel.",
-			"Go to Agents", false,
+		showConfirmPrompt(a.win, T("channels.needAgentTitle"),
+			T("channels.needAgentMessage"),
+			T("channels.goToAgents"), false,
 			func(ok bool) {
 				if ok {
 					a.showAgents()
@@ -376,43 +369,43 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 	typ := widget.NewSelect([]string{"webhook", "telegram", "qq", "ghhook", "bridge", "openai"}, nil)
 	agent := widget.NewSelect(v.agents, nil)
 	path := widget.NewEntry()
-	path.SetPlaceHolder("optional · e.g. /webhook/")
+	path.SetPlaceHolder(T("channels.placeholder.pathDefault"))
 	mode := widget.NewSelect([]string{"polling", "webhook", "auto"}, nil)
 	token := widget.NewPasswordEntry()
 	secret := widget.NewPasswordEntry()
 	secretToken := widget.NewPasswordEntry()
-	clearToken := widget.NewCheck("Remove the stored token", nil)
-	clearSecret := widget.NewCheck("Remove the stored secret", nil)
-	clearSecretTok := widget.NewCheck("Remove the stored webhook secret", nil)
+	clearToken := widget.NewCheck(T("channels.clearToken"), nil)
+	clearSecret := widget.NewCheck(T("channels.clearSecret"), nil)
+	clearSecretTok := widget.NewCheck(T("channels.clearWebhookSecret"), nil)
 	openaiAgents := widget.NewEntry()
 	openaiAgents.SetPlaceHolder("coder, helper")
 	openaiAuth := widget.NewSelect([]string{"key", "user_token", "none"}, nil)
 	openaiKeys := widget.NewPasswordEntry()
 	openaiKeys.SetPlaceHolder("${COMPAT_API_KEY}")
-	clearKeys := widget.NewCheck("Remove the stored keys", nil)
+	clearKeys := widget.NewCheck(T("channels.clearKeys"), nil)
 	openaiJournal := widget.NewSelect([]string{"metadata", "full", "off"}, nil)
 	openaiMaxBytes := widget.NewEntry()
 	openaiMaxBytes.SetPlaceHolder("33554432")
-	exposeReasoning := widget.NewCheck("Send model reasoning as reasoning_content", nil)
+	exposeReasoning := widget.NewCheck(T("channels.exposeReasoning"), nil)
 	allowUsers := widget.NewEntry()
 	allowUsers.SetPlaceHolder("123456789, 987654321")
 	timeout := widget.NewEntry()
 	timeout.SetPlaceHolder("55s")
 	deliverURL := widget.NewEntry()
 	deliverURL.SetPlaceHolder("https://adapter.example.com/deliver")
-	async := widget.NewCheck("Async (202 + job id instead of a blocking reply)", nil)
+	async := widget.NewCheck(T("channels.asyncReply"), nil)
 	qqMode := widget.NewSelect([]string{"websocket", "webhook"}, nil)
 	qqAppID := widget.NewEntry()
 	qqAppID.SetPlaceHolder("102xxxxxx")
-	qqMarkdown := widget.NewCheck("Send replies as Markdown", nil)
+	qqMarkdown := widget.NewCheck(T("channels.markdownReplies"), nil)
 	qqAPIBase := widget.NewEntry()
-	qqAPIBase.SetPlaceHolder("optional · default https://api.bot.qq.com")
+	qqAPIBase.SetPlaceHolder(T("channels.placeholder.apiBaseDesktop"))
 	qqScenes := map[string]*widget.Check{}
 	qqSceneRow := container.NewHBox()
-	for _, s := range []struct{ id, label string }{
-		{"c2c", "Private chats"}, {"group", "Group @-mentions"}, {"guild", "Guild @-mentions"}, {"dm", "Guild DMs"},
+	for _, s := range []struct{ id, labelKey string }{
+		{"c2c", "channels.scene.c2c"}, {"group", "channels.scene.group"}, {"guild", "channels.scene.guild"}, {"dm", "channels.scene.dm"},
 	} {
-		c := widget.NewCheck(s.label, nil)
+		c := widget.NewCheck(T(s.labelKey), nil)
 		qqScenes[s.id] = c
 		qqSceneRow.Add(c)
 	}
@@ -473,9 +466,9 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 		}
 		exposeReasoning.SetChecked(existing.ExposeReasoning)
 		if len(existing.KeyRefs) > 0 {
-			openaiKeys.SetPlaceHolder("stored " + strings.Join(existing.KeyRefs, ", ") + " — leave blank to keep")
+			openaiKeys.SetPlaceHolder(T("channels.placeholder.keysStoredRefs", "refs", strings.Join(existing.KeyRefs, ", ")))
 		} else if existing.HasKeys {
-			openaiKeys.SetPlaceHolder("leave blank to keep the stored keys")
+			openaiKeys.SetPlaceHolder(T("channels.placeholder.keepStoredKeys"))
 		}
 	} else {
 		typ.SetSelected("webhook")
@@ -505,16 +498,16 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 	secretHint := func(set bool, ref, empty string) string {
 		switch {
 		case ref != "":
-			return "stored " + ref
+			return T("channels.placeholder.storedRef", "ref", ref)
 		case set:
-			return "leave blank to keep the stored value"
+			return T("channels.placeholder.keepStoredValue")
 		default:
 			return empty
 		}
 	}
-	token.SetPlaceHolder(secretHint(existing != nil && existing.HasToken, tokenRef(existing), "bot token"))
-	secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), "GitHub webhook secret"))
-	secretToken.SetPlaceHolder(secretHint(existing != nil && existing.HasSecretTok, secretTokRef(existing), "telegram webhook secret (optional)"))
+	token.SetPlaceHolder(secretHint(existing != nil && existing.HasToken, tokenRef(existing), T("channels.placeholder.botToken")))
+	secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), T("channels.placeholder.githubSecret")))
+	secretToken.SetPlaceHolder(secretHint(existing != nil && existing.HasSecretTok, secretTokRef(existing), T("channels.placeholder.telegramWebhookSecret")))
 
 	field := func(label string, control fyne.CanvasObject) fyne.CanvasObject {
 		return vstack(spaceXS, fieldLabel(label), controlFrame(control))
@@ -524,93 +517,93 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 		clearBox(typeBox)
 		switch typ.Selected {
 		case "telegram":
-			typeBox.Add(field("Telegram mode", mode))
-			typeBox.Add(field("Bot token", token))
+			typeBox.Add(field(T("channels.field.telegramMode"), mode))
+			typeBox.Add(field(T("channels.field.botToken"), token))
 			if existing != nil && existing.HasToken {
 				typeBox.Add(clearToken)
 			}
-			typeBox.Add(field("Webhook secret token", secretToken))
+			typeBox.Add(field(T("channels.field.webhookSecretToken"), secretToken))
 			if existing != nil && existing.HasSecretTok {
 				typeBox.Add(clearSecretTok)
 			}
-			typeBox.Add(caption("Webhook and auto modes need gateway.public_url. Polling ignores the path."))
-			typeBox.Add(field("Allowed Telegram user IDs", allowUsers))
-			typeBox.Add(caption("Comma-separated numeric IDs; empty accepts anyone the bot can see."))
+			typeBox.Add(caption(T("channels.hint.telegramMode")))
+			typeBox.Add(field(T("channels.field.allowedUsers"), allowUsers))
+			typeBox.Add(caption(T("channels.hint.allowedUsers")))
 		case "qq":
-			secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), "AppSecret, e.g. ${QQ_BOT_SECRET}"))
+			secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), T("channels.placeholder.appSecret")))
 			typeBox.Add(field("AppID", qqAppID))
 			typeBox.Add(field("AppSecret", secret))
 			if existing != nil && existing.HasSecret {
 				typeBox.Add(clearSecret)
 			}
-			typeBox.Add(caption("From the bot's page on the QQ Open Platform (q.qq.com). The secret signs webhook callbacks and fetches the access token."))
-			typeBox.Add(field("Event delivery", qqMode))
+			typeBox.Add(caption(T("channels.hint.qqCredentialsDesktop")))
+			typeBox.Add(field(T("channels.field.eventDelivery"), qqMode))
 			if qqMode.Selected == "webhook" {
-				typeBox.Add(caption("Set <public https url><path> as the callback URL in the console (ports 80, 443, 8080 or 8443). Path defaults to /webhook/qq/<name>/."))
+				typeBox.Add(caption(T("channels.hint.qqWebhookDesktop")))
 			} else {
-				typeBox.Add(caption("The runtime connects out to the QQ gateway; nothing needs to be reachable from the internet. Leave Path empty."))
+				typeBox.Add(caption(T("channels.hint.qqWebsocketDesktop")))
 			}
-			typeBox.Add(fieldLabel("Scenes"))
+			typeBox.Add(fieldLabel(T("channels.field.scenes")))
 			typeBox.Add(qqSceneRow)
-			typeBox.Add(caption("Guild DMs need an intent the platform grants on application."))
+			typeBox.Add(caption(T("channels.hint.scenes")))
 			typeBox.Add(qqMarkdown)
-			typeBox.Add(caption("Private chats and groups only; the platform grants markdown per bot. A refused markdown reply is resent as plain text."))
-			typeBox.Add(field("API base", qqAPIBase))
+			typeBox.Add(caption(T("channels.hint.replies")))
+			typeBox.Add(field(T("channels.field.apiBase"), qqAPIBase))
 		case "ghhook":
-			secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), "GitHub webhook secret"))
-			typeBox.Add(field("Webhook secret", secret))
+			secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), T("channels.placeholder.githubSecret")))
+			typeBox.Add(field(T("channels.field.webhookSecret"), secret))
 			if existing != nil && existing.HasSecret {
 				typeBox.Add(clearSecret)
 			}
-			typeBox.Add(caption("Required. The HMAC signature is the only thing authenticating a delivery."))
+			typeBox.Add(caption(T("channels.hint.githubSecret")))
 		case "webhook":
 			timeout.SetPlaceHolder("55s")
-			typeBox.Add(field("Reply timeout", timeout))
-			typeBox.Add(caption("Default 55s. Raise it for pipelines that outrun a single turn."))
+			typeBox.Add(field(T("channels.field.replyTimeout"), timeout))
+			typeBox.Add(caption(T("channels.hint.replyTimeout")))
 			typeBox.Add(async)
 		case "openai":
 			timeout.SetPlaceHolder("600s")
-			typeBox.Add(field("Agents exposed as model ids", openaiAgents))
-			typeBox.Add(caption("Comma-separated. A client selects one by name as its model. The Agent field above is ignored for this type."))
-			typeBox.Add(field("Auth", openaiAuth))
+			typeBox.Add(field(T("channels.field.agentsExposed"), openaiAgents))
+			typeBox.Add(caption(T("channels.hint.agentsExposedDesktop")))
+			typeBox.Add(field(T("channels.field.auth"), openaiAuth))
 			switch openaiAuth.Selected {
 			case "key":
-				typeBox.Add(field("API keys", openaiKeys))
+				typeBox.Add(field(T("channels.field.apiKeys"), openaiKeys))
 				if existing != nil && existing.HasKeys {
 					typeBox.Add(clearKeys)
 				}
-				typeBox.Add(caption("Bearer keys clients send, comma-separated. ${VAR} and cred:<service> references are resolved at start."))
+				typeBox.Add(caption(T("channels.hint.apiKeys")))
 			case "user_token":
-				typeBox.Add(caption("Per-user bearer tokens issued by the identity layer; runtime.identity.enabled must be on. Stored shared keys are removed on save."))
+				typeBox.Add(caption(T("channels.hint.authUserToken")))
 			default:
-				typeBox.Add(caption("No auth: only allowed when gateway.listen is a loopback address. Stored shared keys are removed on save."))
+				typeBox.Add(caption(T("channels.hint.authNone")))
 			}
-			typeBox.Add(field("Journal", openaiJournal))
-			typeBox.Add(caption("metadata keeps ids and sizes and never the conversation text; full keeps text; off writes nothing."))
-			typeBox.Add(field("Max request bytes", openaiMaxBytes))
-			typeBox.Add(caption("Empty or 0 uses the default, 32 MiB."))
+			typeBox.Add(field(T("channels.field.journal"), openaiJournal))
+			typeBox.Add(caption(T("channels.hint.journal")))
+			typeBox.Add(field(T("channels.field.maxRequestBytes"), openaiMaxBytes))
+			typeBox.Add(caption(T("channels.hint.maxRequestBytes")))
 			typeBox.Add(exposeReasoning)
-			typeBox.Add(caption("Exposing reasoning shows the model's thinking to the caller; off by default."))
-			typeBox.Add(field("Request timeout", timeout))
-			typeBox.Add(caption("Default 600s for the whole request, including tool rounds."))
+			typeBox.Add(caption(T("channels.hint.exposeReasoning")))
+			typeBox.Add(field(T("channels.field.requestTimeout"), timeout))
+			typeBox.Add(caption(T("channels.hint.requestTimeout")))
 		case "bridge":
 			timeout.SetPlaceHolder("55s")
-			typeBox.Add(field("Deliver URL", deliverURL))
-			typeBox.Add(caption("The adapter receives neutral replies here as JSON. Absolute http(s) URL."))
-			secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), "inbound HMAC secret"))
-			typeBox.Add(field("Inbound HMAC secret", secret))
+			typeBox.Add(field(T("channels.field.deliverUrl"), deliverURL))
+			typeBox.Add(caption(T("channels.hint.deliverUrl")))
+			secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), T("channels.placeholder.inboundSecret")))
+			typeBox.Add(field(T("channels.field.inboundSecret"), secret))
 			if existing != nil && existing.HasSecret {
 				typeBox.Add(clearSecret)
 			}
-			typeBox.Add(caption("Required. The adapter signs each inbound body with X-Agentflow-Signature."))
-			typeBox.Add(field("Outbound bearer token", token))
+			typeBox.Add(caption(T("channels.hint.inboundSecret")))
+			typeBox.Add(field(T("channels.field.outboundToken"), token))
 			if existing != nil && existing.HasToken {
 				typeBox.Add(clearToken)
 			}
-			typeBox.Add(caption("Optional. Sent as Authorization: Bearer when delivering to the adapter."))
-			typeBox.Add(field("Delivery timeout", timeout))
-			typeBox.Add(caption("Default 10s. The adapter must answer each delivery within it."))
-			typeBox.Add(caption("Path is required for a bridge and must end with /."))
+			typeBox.Add(caption(T("channels.hint.outboundToken")))
+			typeBox.Add(field(T("channels.field.deliveryTimeout"), timeout))
+			typeBox.Add(caption(T("channels.hint.deliveryTimeout")))
+			typeBox.Add(caption(T("channels.hint.pathBridge")))
 		}
 		typeBox.Refresh()
 	}
@@ -620,20 +613,20 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 	renderType()
 
 	content := container.NewVBox(
-		field("Name", name),
-		field("Type", typ),
-		field("Agent", agent),
-		field("Path", path),
-		caption("Optional route on the shared listener. An explicit path must end with /."),
+		field(T("common.name"), name),
+		field(T("channels.field.type"), typ),
+		field(T("channels.field.agent"), agent),
+		field(T("channels.field.path"), path),
+		caption(T("channels.hint.pathDefault")),
 		typeBox,
 	)
 	form := container.NewVBox(content,
 		widget.NewSeparator(),
-		subheading("Inbound media"),
-		field("Allowed MIME patterns", mediaAllow),
-		caption("Comma-separated, e.g. image/*, application/pdf. Empty disables attachments."),
-		field("Max bytes", mediaMax),
-		caption("Defaults to 8 MiB when media is enabled."),
+		subheading(T("channels.mediaHeading")),
+		field(T("channels.field.mediaAllow"), mediaAllow),
+		caption(T("channels.hint.mediaAllow")),
+		field(T("channels.field.mediaMax"), mediaMax),
+		caption(T("channels.hint.mediaMax")),
 	)
 	scroll := container.NewVScroll(panel(form))
 	scroll.SetMinSize(fyne.NewSize(700, 520))
@@ -648,13 +641,13 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			AllowUsers: []int64{}, MediaAllow: splitList(mediaAllow.Text),
 		}
 		if d.Name == "" {
-			return d, fmt.Errorf("a channel name is required")
+			return d, errors.New(T("channels.error.nameRequired"))
 		}
 		if d.Type == "" {
-			return d, fmt.Errorf("choose a channel type")
+			return d, errors.New(T("channels.chooseType"))
 		}
 		if d.Type != "openai" && d.Agent == "" {
-			return d, fmt.Errorf("choose an agent")
+			return d, errors.New(T("channels.chooseAgent"))
 		}
 		switch d.Type {
 		case "telegram":
@@ -662,7 +655,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			for _, part := range splitList(allowUsers.Text) {
 				id, err := strconv.ParseInt(part, 10, 64)
 				if err != nil {
-					return d, fmt.Errorf("allow users: %q is not a numeric id", part)
+					return d, errors.New(T("channels.error.allowUserNotNumeric", "value", part))
 				}
 				d.AllowUsers = append(d.AllowUsers, id)
 			}
@@ -680,10 +673,10 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 				}
 			}
 			if d.AppID == "" {
-				return d, fmt.Errorf("the AppID is required")
+				return d, errors.New(T("channels.error.appIdRequired"))
 			}
 			if len(d.Scenes) == 0 {
-				return d, fmt.Errorf("pick at least one scene")
+				return d, errors.New(T("channels.error.sceneRequired"))
 			}
 			if d.Mode == "websocket" {
 				d.Path = ""
@@ -703,7 +696,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			if t := strings.TrimSpace(openaiMaxBytes.Text); t != "" {
 				n, err := strconv.Atoi(t)
 				if err != nil || n < 0 {
-					return d, fmt.Errorf("max request bytes must be a whole number, 0 or more")
+					return d, errors.New(T("channels.error.maxRequestBytes"))
 				}
 				d.MaxRequestBytes = n
 			}
@@ -711,16 +704,16 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 		if t := strings.TrimSpace(mediaMax.Text); t != "" {
 			n, err := strconv.Atoi(t)
 			if err != nil || n < 0 {
-				return d, fmt.Errorf("max bytes must be a positive integer")
+				return d, errors.New(T("channels.error.mediaMax"))
 			}
 			d.MediaMaxBytes = n
 		}
 		return d, nil
 	}
 
-	title := "New channel"
+	title := T("channels.newChannel")
 	if !isNew {
-		title = "Edit " + channelTitle(*existing)
+		title = T("channels.editNamed", "name", channelTitle(*existing))
 	}
 	var popup *widget.PopUp
 	closePopup := func() {
@@ -728,9 +721,9 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			popup.Hide()
 		}
 	}
-	cancel := widthBox(100, controlFrame(actionButton("Cancel", nil, closePopup)))
-	validate := actionButton("Validate", checkMarkIcon, nil)
-	save := primaryButton("Save", theme.UploadIcon(), nil)
+	cancel := widthBox(100, controlFrame(actionButton(T("common.cancel"), nil, closePopup)))
+	validate := actionButton(T("channels.validate"), checkMarkIcon, nil)
+	save := primaryButton(T("common.save"), theme.UploadIcon(), nil)
 	footer := container.NewBorder(nil, nil, nil, hstack(spaceS, cancel, widthBox(108, controlFrame(validate)), widthBox(104, controlFrame(save))), nil)
 
 	busy := false
@@ -770,7 +763,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 				case len(errs) > 0:
 					errBanner.Set(strings.Join(errs, "\n"), toneDanger)
 				default:
-					errBanner.Set("Valid. Restart the runtime to bind it.", toneSuccess)
+					errBanner.Set(T("channels.valid"), toneSuccess)
 				}
 			})
 		}()
@@ -802,12 +795,12 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 				closePopup()
 				v.data = list
 				v.render()
-				a.setStatus("channel saved · restart required", toneWarning)
+				a.setStatus(T("channels.saved"), toneWarning)
 			})
 		}()
 	}
 
-	popup = showModalCard(a.win, title, "Route inbound messages into an agent. Changes take effect on the next runtime start.", dialogContent, footer)
+	popup = showModalCard(a.win, title, T("channels.editorSubtitle"), dialogContent, footer)
 }
 
 func tokenRef(ch *api.Channel) string {

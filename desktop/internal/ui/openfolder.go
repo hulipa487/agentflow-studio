@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,10 +18,10 @@ func openConfigFolder(path string) error {
 	}
 	info, err := os.Stat(dir)
 	if err != nil {
-		return fmt.Errorf("config folder is not available on this machine: %s", dir)
+		return errors.New(T("shell.folderMissing", "dir", dir))
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("config path is not a directory: %s", dir)
+		return errors.New(T("shell.folderNotDir", "dir", dir))
 	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
@@ -33,7 +33,7 @@ func openConfigFolder(path string) error {
 		cmd = exec.Command("xdg-open", dir)
 	}
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("open config folder: %w", err)
+		return errors.New(T("shell.folderOpenFailed", "message", err.Error()))
 	}
 	return nil
 }

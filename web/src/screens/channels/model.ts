@@ -3,16 +3,17 @@
 // channels.go so both clients send the same thing.
 import type { Channel, ChannelDraft } from '@/api/types'
 import { splitList } from '@/lib/format'
+import { t } from '@/i18n'
 
 export const CHANNEL_TYPES = ['webhook', 'telegram', 'qq', 'ghhook', 'bridge', 'openai']
 export const TELEGRAM_MODES = ['polling', 'webhook', 'auto']
 export const QQ_MODES = ['websocket', 'webhook']
-/** QQ scenes in display order; the runtime listens to the first three when none are listed. */
+/** QQ scenes in display order, each with the key of its label; the runtime listens to the first three when none are listed. */
 export const QQ_SCENES = [
-  { id: 'c2c', label: 'Private chats' },
-  { id: 'group', label: 'Group @-mentions' },
-  { id: 'guild', label: 'Guild @-mentions' },
-  { id: 'dm', label: 'Guild DMs' },
+  { id: 'c2c', labelKey: 'channels.scene.c2c' },
+  { id: 'group', labelKey: 'channels.scene.group' },
+  { id: 'guild', labelKey: 'channels.scene.guild' },
+  { id: 'dm', labelKey: 'channels.scene.dm' },
 ]
 export const QQ_DEFAULT_SCENES = ['c2c', 'group', 'guild']
 export const OPENAI_AUTH_MODES = ['key', 'user_token', 'none']
@@ -147,8 +148,8 @@ export function formFor(existing: Channel | null, agents: string[]): ChannelForm
 /** The placeholder of the write-only openai keys field. */
 export function keysPlaceholder(existing: Channel | null): string {
   const refs = existing?.key_refs ?? []
-  if (refs.length > 0) return 'stored ' + refs.join(', ') + ' — leave blank to keep'
-  if (existing?.has_keys) return 'leave blank to keep the stored keys'
+  if (refs.length > 0) return t('channels.placeholder.keysStoredRefs', { refs: refs.join(', ') })
+  if (existing?.has_keys) return t('channels.placeholder.keepStoredKeys')
   return '${COMPAT_API_KEY}'
 }
 
@@ -157,8 +158,8 @@ export function keysPlaceholder(existing: Channel | null): string {
  * stores one, the keep-on-blank rule when it stores a value, else what to type.
  */
 export function secretPlaceholder(set: boolean, ref: string | undefined, empty: string): string {
-  if (ref) return 'stored ' + ref
-  if (set) return 'leave blank to keep the stored value'
+  if (ref) return t('channels.placeholder.storedRef', { ref })
+  if (set) return t('channels.placeholder.keepStoredValue')
   return empty
 }
 
@@ -169,10 +170,10 @@ export type DraftResult = { draft: ChannelDraft; error?: undefined } | { draft?:
 /** Checks the form and builds the draft; the runtime validates the rest. */
 export function buildDraft(f: ChannelForm): DraftResult {
   const draft: ChannelDraft = { name: f.name.trim(), type: f.type, agent: f.agent }
-  if (draft.name === '') return { error: 'a channel name is required' }
-  if (draft.type === '') return { error: 'choose a channel type' }
+  if (draft.name === '') return { error: t('channels.error.nameRequired') }
+  if (draft.type === '') return { error: t('channels.chooseType') }
   // An openai channel names its agents in a list of its own.
-  if (draft.type !== 'openai' && draft.agent === '') return { error: 'choose an agent' }
+  if (draft.type !== 'openai' && draft.agent === '') return { error: t('channels.chooseAgent') }
 
   const path = f.path.trim()
   if (path) draft.path = path
@@ -192,7 +193,7 @@ export function buildDraft(f: ChannelForm): DraftResult {
       for (const part of splitList(f.allowUsers)) {
         const id = Number(part)
         // An id past 2^53 would be rounded on its way through JSON.
-        if (!INTEGER.test(part) || !Number.isSafeInteger(id)) return { error: `allow users: "${part}" is not a numeric id` }
+        if (!INTEGER.test(part) || !Number.isSafeInteger(id)) return { error: t('channels.error.allowUserNotNumeric', { value: part }) }
         ids.push(id)
       }
       if (ids.length) draft.allow_users = ids
@@ -207,9 +208,9 @@ export function buildDraft(f: ChannelForm): DraftResult {
     case 'qq': {
       draft.mode = f.qqMode
       draft.app_id = f.appID.trim()
-      if (draft.app_id === '') return { error: 'the AppID is required' }
+      if (draft.app_id === '') return { error: t('channels.error.appIdRequired') }
       const scenes = QQ_SCENES.map((s) => s.id).filter((id) => f.scenes.includes(id))
-      if (scenes.length === 0) return { error: 'pick at least one scene' }
+      if (scenes.length === 0) return { error: t('channels.error.sceneRequired') }
       draft.scenes = scenes
       const base = f.apiBase.trim()
       if (base) draft.api_base = base
@@ -240,7 +241,7 @@ export function buildDraft(f: ChannelForm): DraftResult {
       const limit = f.maxRequestBytes.trim()
       if (limit !== '') {
         const n = Number(limit)
-        if (!INTEGER.test(limit) || !Number.isSafeInteger(n) || n < 0) return { error: 'max request bytes must be a whole number, 0 or more' }
+        if (!INTEGER.test(limit) || !Number.isSafeInteger(n) || n < 0) return { error: t('channels.error.maxRequestBytes') }
         if (n > 0) draft.max_request_bytes = n
       }
       break
@@ -252,7 +253,7 @@ export function buildDraft(f: ChannelForm): DraftResult {
   const max = f.mediaMax.trim()
   if (max !== '') {
     const n = Number(max)
-    if (!INTEGER.test(max) || !Number.isSafeInteger(n) || n < 0) return { error: 'max bytes must be a positive integer' }
+    if (!INTEGER.test(max) || !Number.isSafeInteger(n) || n < 0) return { error: t('channels.error.mediaMax') }
     if (n > 0) draft.media_max_bytes = n
   }
   return { draft }

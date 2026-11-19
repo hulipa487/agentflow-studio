@@ -3,7 +3,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -22,8 +22,6 @@ import (
 
 var agentNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
-const defaultModelOption = "default (per call)"
-
 type builderView struct {
 	app    *App
 	name   string
@@ -32,18 +30,21 @@ type builderView struct {
 	mtime  int64
 	root   fyne.CanvasObject
 
-	nameEntry     *widget.Entry
-	model         *widget.Select
-	safety        *widget.Select
-	history       *widget.Entry
-	persistent    *widget.Check
-	capsChecks    []*widget.Check
-	skillChecks   []*widget.Check
-	canContact    *widget.Entry
-	credentials   *widget.Entry
-	shell         *widget.Entry
-	memory        *widget.Select
-	memoryValues  map[string]string
+	nameEntry    *widget.Entry
+	model        *widget.Select
+	safety       *widget.Select
+	history      *widget.Entry
+	persistent   *widget.Check
+	capsChecks   []*widget.Check
+	skillChecks  []*widget.Check
+	canContact   *widget.Entry
+	credentials  *widget.Entry
+	shell        *widget.Entry
+	memory       *widget.Select
+	memoryValues map[string]string
+	// defaultModel is the model picker's first entry, "default (per call)" in
+	// the language the view was built in: the definition names no model.
+	defaultModel  string
 	extras        *widget.Entry
 	loop          *codeEditor
 	instructions  *codeEditor
@@ -83,23 +84,35 @@ type builderView struct {
 
 func displayName(name string) string {
 	if name == "" {
-		return "New agent"
+		return T("builder.newAgent")
 	}
 	return name
 }
 
 func (a *App) showBuilder(name string, tpl *api.Template) {
 	a.enter("builder")
-	a.setBreadcrumb("Agents / " + displayName(name))
+	// A language change rebuilds the screen: it asks first while the builder
+	// holds edits, then reopens the same agent (or the same new-agent flow).
+	var shown *builderView
+	a.unsaved = func() bool { return shown != nil && shown.dirty }
+	a.reshow = func() {
+		if shown != nil && !shown.isNew {
+			a.showBuilder(shown.name, nil)
+			return
+		}
+		a.showBuilder(name, tpl)
+	}
+	a.setBreadcrumb(T("builder.breadcrumb", "name", displayName(name)))
 
 	if name == "" {
 		b := a.newBuilderView("", nil, tpl)
+		shown = b
 		a.setMain(b.root)
 		b.claimActions()
 		return
 	}
 
-	a.setMain(container.NewCenter(widget.NewLabel("Loading agent…")))
+	a.setMain(container.NewCenter(widget.NewLabel(T("builder.loadingAgent"))))
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
@@ -111,9 +124,10 @@ func (a *App) showBuilder(name string, tpl *api.Template) {
 				return
 			}
 			b := a.newBuilderView(name, &d, nil)
+			shown = b
 			a.setMain(b.root)
 			b.claimActions()
-			a.setBreadcrumb("Agents / " + name)
+			a.setBreadcrumb(T("builder.breadcrumb", "name", name))
 		})
 	}()
 }
@@ -151,10 +165,11 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		b.nameEntry.Disable()
 	}
 
-	modelOpts := append([]string{defaultModelOption}, a.catalog.Models...)
+	b.defaultModel = T("builder.defaultModel")
+	modelOpts := append([]string{b.defaultModel}, a.catalog.Models...)
 	b.model = widget.NewSelect(modelOpts, nil)
 	if ag.Model == "" {
-		b.model.SetSelected(defaultModelOption)
+		b.model.SetSelected(b.defaultModel)
 	} else {
 		b.model.SetSelected(ag.Model)
 	}
@@ -169,7 +184,7 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	b.history = widget.NewEntry()
 	b.history.SetText(strconv.Itoa(ag.HistoryBudget))
 
-	b.persistent = widget.NewCheck("Daemon (persistent)", nil)
+	b.persistent = widget.NewCheck(T("builder.persistent"), nil)
 	b.persistent.SetChecked(ag.Persistent)
 
 	b.capsChecks = newChecks(a.catalog.Capabilities, ag.Capabilities)
@@ -195,7 +210,7 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	b.credentials.SetText(strings.Join(ag.Credentials, ", "))
 
 	b.shell = widget.NewEntry()
-	b.shell.SetPlaceHolder("(none)")
+	b.shell.SetPlaceHolder(T("builder.noneParen"))
 	b.shell.SetText(ag.Shell)
 
 	inline := len(ag.MemoryInline) > 0
@@ -218,8 +233,8 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	} else if tpl != nil {
 		loopSource = tpl.Loop
 	}
-	b.luaEditor = newLuaEditor(a, "Loop (Luau)",
-		"Luau · Ctrl+Space completion · Ctrl+F find · Ctrl+D next match · right-click for more",
+	b.luaEditor = newLuaEditor(a, T("builder.loopTitle"),
+		T("builder.loopHintDesktop"),
 		loopSource, a.catalog.PreludeVersion, b.effectiveCapabilities)
 	b.luaEditor.onEdit = b.markDirty
 	b.loop = b.luaEditor.editor
@@ -253,18 +268,18 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 
 	b.persist = a.cfg.BuilderPersist
 
-	b.validateBtn = actionButton("Validate", checkMarkIcon, b.validate)
-	b.applyBtn = primaryButton("Apply", theme.UploadIcon(), b.apply)
+	b.validateBtn = actionButton(T("builder.validate"), checkMarkIcon, b.validate)
+	b.applyBtn = primaryButton(T("common.apply"), theme.UploadIcon(), b.apply)
 	b.applyMenu = primaryButton("", theme.MenuDropDownIcon(), nil)
 	b.applyMenu.OnTapped = b.showApplyMenu
-	b.runBtn = newToggleButton("Run", theme.MediaPlayIcon(), func() { b.toggleDock("run") })
+	b.runBtn = newToggleButton(T("builder.run"), theme.MediaPlayIcon(), func() { b.toggleDock("run") })
 	b.docsBtn = newToggleButton("", theme.HelpIcon(), func() { b.toggleDock("docs") })
-	b.deleteBtn = iconButton(theme.DeleteIcon(), "Delete", func() {
+	b.deleteBtn = iconButton(theme.DeleteIcon(), T("common.delete"), func() {
 		if b.name != "" {
 			a.confirmDelete(b.name, false, "")
 		}
 	})
-	b.backBtn = iconButton(theme.NavigateBackIcon(), "Back", b.back)
+	b.backBtn = iconButton(theme.NavigateBackIcon(), T("common.back"), b.back)
 
 	// Install change tracking after the initial values are in place.
 	b.nameEntry.OnChanged = func(string) { b.markDirty() }
@@ -286,17 +301,17 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	}
 
 	identityGrid := grid(2,
-		labeled("Name", b.nameEntry),
-		labeled("Model", b.model),
-		labeled("Safety profile", b.safety),
-		labeled("History budget", b.history),
-		labeled("Memory profile", b.memory),
+		labeled(T("common.name"), b.nameEntry),
+		labeled(T("builder.model"), b.model),
+		labeled(T("builder.safetyProfile"), b.safety),
+		labeled(T("builder.historyBudget"), b.history),
+		labeled(T("builder.memoryProfile"), b.memory),
 	)
-	identityCard := section("Identity",
-		"Model, safety, memory and context budget. Memory profiles are set up on the Memory screen; a new one can be picked after a restart.",
+	identityCard := section(T("builder.identity"),
+		T("builder.identitySubtitleMemory"),
 		identityGrid)
 
-	defaultsBtn := actionButton("Use defaults", nil, func() {
+	defaultsBtn := actionButton(T("builder.useDefaults"), nil, func() {
 		b.suppressDirty = true
 		clearChecks(b.capsChecks)
 		b.suppressDirty = false
@@ -306,14 +321,14 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		}
 	})
 	defaultsBtn.Importance = widget.LowImportance
-	capsCard := sectionAction("Capabilities",
-		"Empty uses the deployment defaults.",
+	capsCard := sectionAction(T("builder.capabilities"),
+		T("builder.capabilitiesSubtitle"),
 		defaultsBtn, checkGrid(b.capsChecks, 2))
 
 	var toolsBody fyne.CanvasObject
 	switch {
 	case len(b.skillChecks) == 0:
-		toolsBody = caption("No tools are registered in this deployment.")
+		toolsBody = caption(T("builder.noTools"))
 	case len(b.skillChecks) > 8:
 		grid := checkGrid(b.skillChecks, 2)
 		scroll := container.NewVScroll(grid)
@@ -322,19 +337,19 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	default:
 		toolsBody = checkGrid(b.skillChecks, 2)
 	}
-	toolsCard := section("Tools (skills)",
-		"Leave empty to expose every tool allowed by the deployment policy.",
+	toolsCard := section(T("builder.tools"),
+		T("builder.toolsSubtitle"),
 		toolsBody)
 
 	advancedTop := grid(2,
-		labeled("Can contact", b.canContact),
-		labeled("Credentials", b.credentials),
-		labeled("Shell profile", b.shell),
+		labeled(T("builder.canContact"), b.canContact),
+		labeled(T("builder.credentials"), b.credentials),
+		labeled(T("builder.shellProfile"), b.shell),
 		vCenter(compactCheck(b.persistent)),
 	)
-	advancedCard := section("Advanced",
-		"Runtime, fleet contact and credentials.",
-		vstack(spaceS, advancedTop, labeled("Extras (JSON)", b.extras)))
+	advancedCard := section(T("builder.advanced"),
+		T("builder.advancedSubtitle"),
+		vstack(spaceS, advancedTop, labeled(T("builder.extras"), b.extras)))
 
 	// The tab strip and the cards must start on the same vertical line. The
 	// whole tab surface gets one gutter below; Config only adds vertical air.
@@ -342,22 +357,24 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		layout.NewCustomPaddedLayout(spaceS, spaceL, 0, scrollGutter),
 		vstack(spaceM, identityCard, capsCard, toolsCard, advancedCard)))
 
-	copyLoop := iconButton(theme.ContentCopyIcon(), "Copy loop", func() {
+	whatLoop := T("builder.whatLoop")
+	copyLoop := iconButton(theme.ContentCopyIcon(), T("common.copyWhat", "what", whatLoop), func() {
 		a.win.Clipboard().SetContent(b.loop.Text())
-		a.setStatus("loop copied", toneSuccess)
+		a.setStatus(T("common.copiedWhat", "what", whatLoop), toneSuccess)
 	})
 	b.luaEditor.addAction(copyLoop)
 	loopTab := b.luaEditor.root
 
-	copyInstr := iconButton(theme.ContentCopyIcon(), "Copy instructions", func() {
+	whatInstr := T("builder.whatInstructions")
+	copyInstr := iconButton(theme.ContentCopyIcon(), T("common.copyWhat", "what", whatInstr), func() {
 		a.win.Clipboard().SetContent(b.instructions.Text())
-		a.setStatus("instructions copied", toneSuccess)
+		a.setStatus(T("common.copiedWhat", "what", whatInstr), toneSuccess)
 	})
-	instrTab := editorFrame("Instructions",
-		"Saved next to the loop as a prompt file; the definition points at it.",
+	instrTab := editorFrame(T("builder.tabInstructions"),
+		T("builder.instructionsHint"),
 		instrArea.root, copyInstr)
 
-	rebuild := actionButton("Rebuild from form", theme.ViewRefreshIcon(), func() {
+	rebuild := actionButton(T("builder.rebuild"), theme.ViewRefreshIcon(), func() {
 		y, err := b.buildYAML()
 		if err != nil {
 			b.setError(err.Error())
@@ -368,23 +385,24 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		b.suppressDirty = false
 		b.rawDirty = false
 	})
-	copyYAML := iconButton(theme.ContentCopyIcon(), "Copy YAML", func() {
+	copyYAML := iconButton(theme.ContentCopyIcon(), T("common.copyWhat", "what", "YAML"), func() {
 		a.win.Clipboard().SetContent(b.yaml.Text())
-		a.setStatus("YAML copied", toneSuccess)
+		a.setStatus(T("common.copiedWhat", "what", "YAML"), toneSuccess)
 	})
-	yamlTab := editorFrame("Raw YAML",
-		"Sent to the runtime. The loop and instructions sources above are sent separately; editing here overrides the form until you rebuild.",
+	yamlTab := editorFrame(T("builder.rawYaml"),
+		T("builder.rawYamlHint"),
 		yamlArea.root, rebuild, copyYAML)
 
+	loopItem := container.NewTabItemWithIcon(T("builder.tabLoop"), theme.DocumentIcon(), loopTab)
 	tabs := container.NewAppTabs(
-		container.NewTabItemWithIcon("Config", theme.SettingsIcon(), configTab),
-		container.NewTabItemWithIcon("Loop", theme.DocumentIcon(), loopTab),
-		container.NewTabItemWithIcon("Instructions", theme.FileTextIcon(), instrTab),
+		container.NewTabItemWithIcon(T("builder.tabConfig"), theme.SettingsIcon(), configTab),
+		loopItem,
+		container.NewTabItemWithIcon(T("builder.tabInstructions"), theme.FileTextIcon(), instrTab),
 		container.NewTabItemWithIcon("YAML", theme.FileTextIcon(), yamlTab),
 	)
 	tabs.SetTabLocation(container.TabLocationTop)
 	tabs.OnSelected = func(item *container.TabItem) {
-		if item != nil && item.Text == "Loop" {
+		if item != nil && item == loopItem {
 			b.app.win.Canvas().Focus(b.loop)
 		}
 	}
@@ -394,16 +412,16 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	// Luau guide. Both are built once, so the chat keeps its thread and the
 	// guide its scroll position when the dock flips or closes.
 	b.run = newChatSession(a, name, chatOptions{
-		hint:        "Ctrl+Enter applies edits and sends · empty repeats the last",
-		emptyTitle:  "No messages yet",
-		emptyNote:   "Each send applies your edits first.",
+		hint:        T("builder.runHint", "mod", "Ctrl"),
+		emptyTitle:  T("builder.runEmptyTitle"),
+		emptyNote:   T("builder.runEmptyNote"),
 		statusWidth: 64,
 		actions: []fyne.CanvasObject{
-			iconButton(theme.ContentAddIcon(), "New thread", func() {
+			iconButton(theme.ContentAddIcon(), T("builder.newThread"), func() {
 				id := newThreadID()
-				b.run.switchTo(b.run.agent, id, "new thread "+shortID(id), toneAccent)
+				b.run.switchTo(b.run.agent, id, T("playground.statusNewThread", "id", shortID(id)), toneAccent)
 			}),
-			iconButton(theme.ComputerIcon(), "Open in the Playground", func() {
+			iconButton(theme.ComputerIcon(), T("builder.openPlayground"), func() {
 				if name := b.name; name != "" {
 					b.leave(func() { b.app.showPlayground(name) })
 				}
@@ -412,8 +430,8 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	})
 	b.run.onSend = b.runTurn
 	if b.isNew {
-		b.run.headerName.SetText("Not applied yet")
-		b.run.setStatus("apply to start", toneNeutral)
+		b.run.headerName.SetText(T("builder.notAppliedYet"))
+		b.run.setStatus(T("builder.applyToStart"), toneNeutral)
 	}
 	b.runPane = newVSplitPane(b.run.chatPanel, b.run.tracePanel, 0.6)
 	b.docsPane = b.luaDocsPane()
@@ -513,9 +531,9 @@ func (b *builderView) showApplyMenu() {
 	if b.busy {
 		return
 	}
-	live := fyne.NewMenuItem("Apply: swap the live definition", func() { b.choosePersist(false) })
+	live := fyne.NewMenuItem(T("builder.applyMenuLive"), func() { b.choosePersist(false) })
 	live.Checked = !b.persist
-	save := fyne.NewMenuItem("Apply & save: also write it to the config", func() { b.choosePersist(true) })
+	save := fyne.NewMenuItem(T("builder.applyMenuSave"), func() { b.choosePersist(true) })
 	save.Checked = b.persist
 	menu := fyne.NewMenu("", live, save)
 	c := b.app.win.Canvas()
@@ -548,7 +566,7 @@ func (b *builderView) runTurn() {
 	}
 	send := func() {
 		if b.run.agent != b.name {
-			b.run.switchTo(b.name, newThreadID(), "ready", toneSuccess)
+			b.run.switchTo(b.name, newThreadID(), T("playground.statusReady"), toneSuccess)
 		}
 		typed := b.run.input.Text
 		text := typed
@@ -560,7 +578,7 @@ func (b *builderView) runTurn() {
 			return
 		}
 		if b.run.sending {
-			b.app.setStatus("a turn is still running; stop it or wait", toneWarning)
+			b.app.setStatus(T("builder.turnRunning"), toneWarning)
 			return
 		}
 		if b.run.sendText(text) && text == typed {
@@ -591,23 +609,23 @@ func (b *builderView) effectiveCapabilities() []string {
 
 func (b *builderView) applyLabel() string {
 	if b.persist {
-		return "Apply & save"
+		return T("builder.applySave")
 	}
-	return "Apply"
+	return T("common.apply")
 }
 
 // headerStatus keeps the title line to one short, unambiguous state.
 func (b *builderView) headerStatus() (string, tone) {
 	if b.dirty {
-		return "Unsaved changes", toneAccent
+		return T("builder.statusUnsaved"), toneAccent
 	}
 	if b.detail == nil {
-		return "Not applied", toneWarning
+		return T("builder.statusNotApplied"), toneWarning
 	}
 	if b.detail.Persisted {
-		return "Saved", toneSuccess
+		return T("builder.statusSaved"), toneSuccess
 	}
-	return "Live", toneAccent
+	return T("builder.statusLive"), toneAccent
 }
 
 func (b *builderView) updateHeader() {
@@ -666,9 +684,9 @@ func (b *builderView) leave(next func()) {
 		next()
 		return
 	}
-	showConfirmPrompt(b.app.win, "Discard changes?",
-		"The agent has unsaved edits in this window. Leave without applying them?",
-		"Discard", true,
+	showConfirmPrompt(b.app.win, T("common.discardTitle"),
+		T("builder.discardMessage"),
+		T("common.discard"), true,
 		func(ok bool) {
 			if ok {
 				next()
@@ -713,11 +731,11 @@ func (b *builderView) validate() {
 	}
 	name := b.agentName()
 	if name == "" {
-		b.setError("An agent name is required.")
+		b.setError(T("builder.nameRequired"))
 		return
 	}
 	if !agentNameRe.MatchString(name) {
-		b.setError("The name must be 1-64 characters of letters, digits, _ or -.")
+		b.setError(T("builder.nameInvalid"))
 		return
 	}
 	yaml, err := b.yamlText()
@@ -726,7 +744,7 @@ func (b *builderView) validate() {
 		return
 	}
 	b.clearMessages()
-	b.setBusy(true, "Checking…")
+	b.setBusy(true, T("builder.checking"))
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -747,14 +765,12 @@ func (b *builderView) validate() {
 				b.setError(strings.Join(res.Errors, "\n"))
 				return
 			}
-			msg := "Valid. The loop compiles and the definition passes boot validation."
 			if len(res.Warnings) > 0 {
-				msg += "\nWarnings: " + strings.Join(res.Warnings, "; ")
-				b.setNotice(msg, toneWarning)
+				b.setNotice(T("builder.validWithWarnings", "warnings", strings.Join(res.Warnings, "; ")), toneWarning)
 			} else {
-				b.setNotice(msg, toneSuccess)
+				b.setNotice(T("builder.valid"), toneSuccess)
 			}
-			b.app.setStatus("validation passed", toneSuccess)
+			b.app.setStatus(T("builder.validationPassed"), toneSuccess)
 		})
 	}()
 }
@@ -769,11 +785,11 @@ func (b *builderView) applyWith(persist bool, after func()) {
 	}
 	name := b.agentName()
 	if name == "" {
-		b.setError("An agent name is required.")
+		b.setError(T("builder.nameRequired"))
 		return
 	}
 	if !agentNameRe.MatchString(name) {
-		b.setError("The name must be 1-64 characters of letters, digits, _ or -.")
+		b.setError(T("builder.nameInvalid"))
 		return
 	}
 	yaml, err := b.yamlText()
@@ -782,7 +798,7 @@ func (b *builderView) applyWith(persist bool, after func()) {
 		return
 	}
 	b.clearMessages()
-	b.setBusy(true, "Applying…")
+	b.setBusy(true, T("builder.applying"))
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -817,7 +833,7 @@ func (b *builderView) applyWith(persist bool, after func()) {
 				b.nameEntry.Disable()
 				b.suppressDirty = false
 				b.deleteBtn.Enable()
-				b.app.setBreadcrumb("Agents / " + name)
+				b.app.setBreadcrumb(T("builder.breadcrumb", "name", name))
 			}
 			if detail != nil {
 				b.detail = detail
@@ -826,13 +842,13 @@ func (b *builderView) applyWith(persist bool, after func()) {
 			b.updateHeader()
 			switch {
 			case res.PersistError != "":
-				b.setNotice("Applied live, but persisting failed: "+res.PersistError, toneWarning)
+				b.setNotice(T("builder.persistFailed", "error", res.PersistError), toneWarning)
 			case res.Persisted:
-				b.setNotice("Applied live and persisted. The definition loads at the next boot.", toneSuccess)
+				b.setNotice(T("builder.appliedPersisted"), toneSuccess)
 			default:
-				b.setNotice("Applied live on this instance.", toneSuccess)
+				b.setNotice(T("builder.appliedLive"), toneSuccess)
 			}
-			b.app.setStatus("applied "+name, toneSuccess)
+			b.app.setStatus(T("builder.applied", "name", name), toneSuccess)
 			if after != nil {
 				after()
 			}
@@ -867,7 +883,7 @@ func (b *builderView) buildYAML() (string, error) {
 	if err := write("loop", loopRef); err != nil {
 		return "", err
 	}
-	if b.model.Selected != "" && b.model.Selected != defaultModelOption {
+	if b.model.Selected != "" && b.model.Selected != b.defaultModel {
 		if err := write("model", b.model.Selected); err != nil {
 			return "", err
 		}
@@ -928,7 +944,7 @@ func (b *builderView) buildYAML() (string, error) {
 	if extras := strings.TrimSpace(b.extras.Text); extras != "" {
 		var v any
 		if err := json.Unmarshal([]byte(extras), &v); err != nil {
-			return "", fmt.Errorf("extras is not valid JSON: %w", err)
+			return "", errors.New(T("builder.extrasInvalid", "error", err.Error()))
 		}
 		if err := write("extras", v); err != nil {
 			return "", err

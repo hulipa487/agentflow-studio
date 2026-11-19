@@ -10,12 +10,12 @@ export const LOG_BUFFER_LINES = 5000
 export const LOG_LEVELS: readonly string[] = ['DEV', 'DBG', 'INF', 'WRN', 'ERR']
 
 /** The level floors the toolbar offers, in the desktop app's order. */
-export const LEVEL_FLOORS: { value: string; label: string }[] = [
-  { value: '1', label: 'Debug and up' },
-  { value: '2', label: 'Info and up' },
-  { value: '3', label: 'Warnings and errors' },
-  { value: '4', label: 'Errors only' },
-  { value: '0', label: 'Everything' },
+export const LEVEL_FLOORS: { value: string; labelKey: string }[] = [
+  { value: '1', labelKey: 'logs.floorDebug' },
+  { value: '2', labelKey: 'logs.floorInfo' },
+  { value: '3', labelKey: 'logs.floorWarn' },
+  { value: '4', labelKey: 'logs.floorError' },
+  { value: '0', labelKey: 'logs.floorAll' },
 ]
 
 export const DEFAULT_FLOOR = '1'

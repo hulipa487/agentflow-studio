@@ -28,7 +28,17 @@ type playgroundView struct {
 
 func (a *App) showPlayground(agent string) {
 	a.enter("playground")
-	a.setMain(a.playgroundPage(nil, container.NewCenter(muted("Loading agents…"))))
+	// A language switch opens the Playground again on the agent showing then;
+	// the turn in flight, if any, is dropped with the old widgets.
+	var p *playgroundView
+	a.reshow = func() {
+		name := agent
+		if p != nil {
+			name = p.agent
+		}
+		a.showPlayground(name)
+	}
+	a.setMain(a.playgroundPage(nil, container.NewCenter(muted(T("playground.loadingAgents")))))
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
@@ -36,7 +46,7 @@ func (a *App) showPlayground(agent string) {
 		onUI(func() {
 			if err != nil {
 				a.showError(err)
-				retry := widthBox(120, primaryButton("Retry", nil, func() { a.showPlayground("") }))
+				retry := widthBox(120, primaryButton(T("common.retry"), nil, func() { a.showPlayground("") }))
 				body := container.NewVBox(
 					container.NewCenter(wrapLabel(err.Error())),
 					container.NewCenter(retry),
@@ -52,9 +62,9 @@ func (a *App) showPlayground(agent string) {
 			}
 			if len(names) == 0 {
 				body := emptyStateCard(
-					"No agents yet",
-					"Create an agent to start a chat and trace its turns.",
-					"Create an agent",
+					T("playground.noAgentsTitle"),
+					T("playground.noAgentsGuidance"),
+					T("playground.createAgent"),
 					a.showAgents,
 				)
 				a.setMain(a.playgroundPage(nil, body))
@@ -63,7 +73,7 @@ func (a *App) showPlayground(agent string) {
 			if agent == "" {
 				agent = names[0]
 			}
-			p := a.newPlaygroundView(names, agent)
+			p = a.newPlaygroundView(names, agent)
 			a.setMain(p.root)
 			a.sendAction = p.send
 		})
@@ -73,9 +83,7 @@ func (a *App) showPlayground(agent string) {
 // playgroundPage is the one shell for every Playground state: loading, error,
 // empty and the live three-pane workspace.
 func (a *App) playgroundPage(actions fyne.CanvasObject, body fyne.CanvasObject) fyne.CanvasObject {
-	head := pageHeader("Playground",
-		"Chat with an agent turn by turn. Each thread is its own session, with every operation traced.",
-		actions)
+	head := pageHeader(T("playground.title"), T("playground.subtitle"), actions)
 	return container.NewBorder(
 		vstack(0, pageInset(head), widget.NewSeparator()),
 		nil, nil, nil,
@@ -87,23 +95,21 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 	if agent == "" {
 		agent = "agent"
 	}
-	p := &playgroundView{chatSession: newChatSession(a, agent, chatOptions{
-		emptyNote: "The turn streams into the trace panel on the right.",
-	})}
+	p := &playgroundView{chatSession: newChatSession(a, agent, chatOptions{})}
 	p.onTurnEnd = p.loadThreads
 
 	p.agentSelect = widget.NewSelect(names, func(name string) {
 		if name == "" || name == p.agent {
 			return
 		}
-		p.switchTo(name, newThreadID(), "ready", toneSuccess)
+		p.switchTo(name, newThreadID(), T("playground.statusReady"), toneSuccess)
 		p.loadThreads()
 	})
 	p.agentSelect.SetSelected(agent)
 
-	newThread := primaryButton("New thread", theme.ContentAddIcon(), func() {
+	newThread := primaryButton(T("playground.newThread"), theme.ContentAddIcon(), func() {
 		id := newThreadID()
-		p.switchTo(p.agent, id, "new thread "+shortID(id), toneAccent)
+		p.switchTo(p.agent, id, T("playground.statusNewThread", "id", shortID(id)), toneAccent)
 		p.loadThreads()
 	})
 
@@ -111,19 +117,19 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 	threadScroll := container.NewVScroll(p.threadBox)
 
 	p.actAs = widget.NewSelectEntry(nil)
-	p.actAs.SetPlaceHolder("profile uuid")
+	p.actAs.SetPlaceHolder(T("playground.actAsPlaceholder"))
 	a.loadUserIDs(func(ids []string) { p.actAs.SetOptions(ids) })
 	p.chatSession.actAs = func() string { return p.actAs.Text }
 
 	leftTop := vstack(spaceXS,
-		labeled("Agent", p.agentSelect),
+		labeled(T("playground.agent"), p.agentSelect),
 		vSpacer(spaceXS),
-		fieldLabel("Recent threads"),
+		fieldLabel(T("playground.recentThreads")),
 	)
 	leftBottom := vstack(spaceXS,
 		widget.NewSeparator(),
-		labeled("Act as user", p.actAs),
-		caption("Optional. Tenant-less turns skip personal scopes and grants."),
+		labeled(T("playground.actAs"), p.actAs),
+		caption(T("playground.actAsHint")),
 	)
 	left := panel(container.NewBorder(leftTop, leftBottom, nil, nil, threadScroll))
 
@@ -152,7 +158,7 @@ func (p *playgroundView) loadThreads() {
 			clearBox(p.threadBox)
 			for _, t := range threads {
 				t := t
-				label := fmt.Sprintf("%s · %d events", shortID(t.Thread), t.Events)
+				label := shortID(t.Thread) + " · " + T("playground.threadEvents", "n", t.Events)
 				b := widget.NewButton(label, func() { p.openThread(t.Thread) })
 				b.Alignment = widget.ButtonAlignLeading
 				if t.Thread == p.thread {
@@ -163,7 +169,7 @@ func (p *playgroundView) loadThreads() {
 				p.threadBox.Add(b)
 			}
 			if len(threads) == 0 {
-				p.threadBox.Add(muted("No threads yet."))
+				p.threadBox.Add(muted(T("playground.noThreads")))
 			}
 			p.threadBox.Refresh()
 		})
@@ -171,7 +177,7 @@ func (p *playgroundView) loadThreads() {
 }
 
 func (p *playgroundView) openThread(thread string) {
-	p.switchTo(p.agent, thread, "thread "+shortID(thread), toneAccent)
+	p.switchTo(p.agent, thread, T("playground.statusThread", "id", shortID(thread)), toneAccent)
 	p.loadTrace()
 	p.loadThreads()
 }
@@ -225,10 +231,10 @@ func traceLine(ev api.TraceEvent) string {
 		parts = append(parts, strconv.FormatInt(ev.DurationMS, 10)+"ms")
 	}
 	if ev.TokensIn+ev.TokensOut > 0 {
-		parts = append(parts, fmt.Sprintf("%d→%d tok", ev.TokensIn, ev.TokensOut))
+		parts = append(parts, T("playground.costTokens", "in", ev.TokensIn, "out", ev.TokensOut))
 	}
 	if ev.ToolCalls > 0 {
-		parts = append(parts, fmt.Sprintf("%d call(s)", ev.ToolCalls))
+		parts = append(parts, T("playground.toolCalls", "n", ev.ToolCalls))
 	}
 	if ev.Err != "" {
 		parts = append(parts, "ERR: "+ev.Err)

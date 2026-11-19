@@ -1,6 +1,10 @@
 package lua
 
-import "strings"
+import (
+	"strings"
+
+	"agentflow-studio/internal/i18n"
+)
 
 // Lex tokenizes Luau source. It never fails: malformed input produces
 // diagnostics and the longest sensible token, so an editor can keep linting
@@ -106,7 +110,7 @@ func (l *lexer) skipComment() {
 		open := l.i
 		l.i += level + 2
 		if !l.skipLongBody(level) {
-			l.errorAt(open, len(l.src), "syntax.unclosed-comment", "unclosed long comment")
+			l.errorAt(open, len(l.src), "syntax.unclosed-comment", i18n.T("lua.diag.unclosedComment"))
 		}
 		return
 	}
@@ -140,7 +144,7 @@ func (l *lexer) readLongString() {
 	level := l.longBracketAt(l.i)
 	l.i += level + 2
 	if !l.skipLongBody(level) {
-		l.errorAt(start, len(l.src), "syntax.unclosed-string", "unclosed long string")
+		l.errorAt(start, len(l.src), "syntax.unclosed-string", i18n.T("lua.diag.unclosedLongString"))
 		l.add(TokenString, start, len(l.src))
 		return
 	}
@@ -173,13 +177,13 @@ func (l *lexer) readString(quote rune) {
 			return
 		}
 		if r == '\n' {
-			l.errorAt(start, l.i, "syntax.unclosed-string", "unfinished string")
+			l.errorAt(start, l.i, "syntax.unclosed-string", i18n.T("lua.diag.unfinishedString"))
 			l.add(TokenString, start, l.i)
 			return
 		}
 		l.i++
 	}
-	l.errorAt(start, len(l.src), "syntax.unclosed-string", "unfinished string")
+	l.errorAt(start, len(l.src), "syntax.unclosed-string", i18n.T("lua.diag.unfinishedString"))
 	l.add(TokenString, start, len(l.src))
 }
 
@@ -201,7 +205,7 @@ func (l *lexer) readInterpolated() {
 		}
 		l.i++
 	}
-	l.errorAt(start, len(l.src), "syntax.unclosed-string", "unfinished interpolated string")
+	l.errorAt(start, len(l.src), "syntax.unclosed-string", i18n.T("lua.diag.unfinishedInterpolated"))
 	l.add(TokenString, start, len(l.src))
 }
 

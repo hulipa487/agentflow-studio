@@ -8,6 +8,7 @@ import { startCompletion } from '@codemirror/autocomplete'
 import { ChevronDown, ChevronRight, List } from 'lucide-react'
 import { Chip, CopyButton, Dot, IconButton, cx, toneText, type Tone } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
+import { t } from '@/i18n'
 import type { LuauDiagnostic, Severity } from '@/lua'
 import { EditorFrame } from './EditorFrame'
 import { loopStatus } from './model'
@@ -63,18 +64,18 @@ export function LoopTab({
 
   return (
     <EditorFrame
-      title="Loop (Luau)"
-      hint="Luau · inline diagnostics · Ctrl+Space for API"
+      title={t('builder.loopTitle')}
+      hint={t('builder.loopHint')}
       actions={
         <>
           <span className="mr-1 flex min-w-0 items-center gap-1.5" role="status">
             <Dot tone={status.tone} />
             <span className={cx('truncate text-xs', status.tone === 'neutral' ? 'text-muted' : toneText(status.tone))}>{status.text}</span>
           </span>
-          <CopyButton text={source} what="loop" size="md" />
+          <CopyButton text={source} what={t('builder.whatLoop')} size="md" />
           <IconButton
             icon={List}
-            label="Prelude API (Ctrl+Space)"
+            label={t('builder.preludeApi')}
             onClick={() => {
               const v = view.current
               if (!v) return
@@ -94,7 +95,7 @@ export function LoopTab({
               className="flex h-7 w-full items-center gap-1.5 px-3 text-left text-xs font-semibold text-faint hover:text-text"
             >
               {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-              Issues
+              {t('builder.issues')}
               <span className="font-mono normal-case tracking-normal">{issues.length}</span>
             </button>
             {open && (
@@ -104,7 +105,7 @@ export function LoopTab({
                     <button
                       type="button"
                       onClick={() => jump(d)}
-                      title="Jump to this line"
+                      title={t('builder.jumpToLine')}
                       className="flex w-full items-baseline gap-2 px-3 py-1 text-left text-xs hover:bg-hover focus-visible:bg-hover"
                     >
                       <Dot tone={SEVERITY_TONE[d.severity]} className="translate-y-[-1px] self-center" />

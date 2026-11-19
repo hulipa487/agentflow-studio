@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import type { Group, Pool } from '@/api/types'
 import { Button, CopyButton, Modal, Banner } from '@/components/ui'
+import { t } from '@/i18n'
 import type { Notice } from '../users/helpers'
 
 /** The registry as loaded, plus the names the pickers and labels draw on. */
@@ -70,7 +71,7 @@ export function FormModal({
       footer={
         <>
           <Button onClick={onClose} disabled={busy}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" className="min-w-28" loading={busy} onClick={onSubmit}>
             {okLabel}

@@ -2,6 +2,7 @@
 // CodeMirror extension call. Everything here works in UTF-16 offsets (plain
 // JavaScript string indexes) and converts to the analyzer's line/column
 // code-point positions at the edge.
+import { currentLang, t as i18n } from '@/i18n'
 import { analyzeSource, type AnalysisContext, type AnalysisResult, type Model } from './analysis'
 import type { ApiEntry } from './api'
 import { complete, completionScope, hoverAtPosition, type CompletionItem } from './service'
@@ -54,12 +55,13 @@ export function contextKey(ctx: AnalysisContext): string {
 
 // The linter, the completion source, the hover source and the builder's own
 // diagnostics list all ask about the same text within one keystroke; a few
-// remembered results turn those into one analysis.
+// remembered results turn those into one analysis. Diagnostics are worded in
+// the language current at analysis time, so the language is part of the key.
 const recent: { source: string; key: string; result: AnalysisResult }[] = []
 
 /** Analyzes a chunk, reusing the result when the same text was just analyzed. */
 export function analysisFor(source: string, ctx: AnalysisContext): AnalysisResult {
-  const key = contextKey(ctx)
+  const key = `${currentLang()}|${contextKey(ctx)}`
   for (let i = 0; i < recent.length; i++) {
     const hit = recent[i]
     if (hit.key === key && hit.source === source) {
@@ -177,10 +179,6 @@ export interface DiagnosticSummary {
   tone: 'success' | 'warning' | 'danger'
 }
 
-function countLabel(n: number, one: string, many: string): string {
-  return n === 1 ? `1 ${one}` : `${n} ${many}`
-}
-
 /** The loop editor's status line for a set of diagnostics. */
 export function summarize(diagnostics: readonly { severity: Severity }[]): DiagnosticSummary {
   let errors = 0
@@ -190,10 +188,9 @@ export function summarize(diagnostics: readonly { severity: Severity }[]): Diagn
     else if (d.severity === 'warning') warnings++
   }
   if (errors > 0) {
-    let text = countLabel(errors, 'error', 'errors')
-    if (warnings > 0) text += ' · ' + countLabel(warnings, 'warning', 'warnings')
+    const text = warnings > 0 ? i18n('lua.status.errorsAndWarnings', { errors, warnings }) : i18n('lua.status.errors', { errors })
     return { errors, warnings, text, tone: 'danger' }
   }
-  if (warnings > 0) return { errors, warnings, text: countLabel(warnings, 'warning', 'warnings'), tone: 'warning' }
-  return { errors, warnings, text: 'no issues', tone: 'success' }
+  if (warnings > 0) return { errors, warnings, text: i18n('lua.status.warnings', { warnings }), tone: 'warning' }
+  return { errors, warnings, text: i18n('lua.status.noIssues'), tone: 'success' }
 }

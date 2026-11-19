@@ -20,6 +20,7 @@ import { Check, ChevronDown, Copy, Info, Loader2, RotateCw, Search, X, type Luci
 import { featureOff, errorMessage } from '@/api/client'
 import { copyText, humanCount } from '@/lib/format'
 import { toast, type Tone } from '@/state/ui'
+import { t } from '@/i18n'
 
 export type { Tone }
 
@@ -68,8 +69,8 @@ const TONE_BORDER: Record<Tone, string> = {
   danger: 'border-danger/50',
 }
 
-export const toneText = (t: Tone) => TONE_TEXT[t]
-export const toneBg = (t: Tone) => TONE_BG[t]
+export const toneText = (tone: Tone) => TONE_TEXT[tone]
+export const toneBg = (tone: Tone) => TONE_BG[tone]
 
 // ---- buttons ----------------------------------------------------------------
 
@@ -249,22 +250,23 @@ export function SplitButton({
   )
 }
 
-export function CopyButton({ text, what = 'value', size = 'sm', className }: { text: string; what?: string; size?: 'sm' | 'md'; className?: string }) {
+export function CopyButton({ text, what: whatProp, size = 'sm', className }: { text: string; what?: string; size?: 'sm' | 'md'; className?: string }) {
   const [done, setDone] = useState(false)
+  const what = whatProp ?? t('common.value')
   return (
     <IconButton
       icon={done ? Check : Copy}
-      label={`Copy ${what}`}
+      label={t('common.copyWhat', { what })}
       size={size}
       className={className}
       onClick={async (e) => {
         e.stopPropagation()
         if (await copyText(text)) {
           setDone(true)
-          toast(`${what} copied`, 'success')
+          toast(t('common.copiedWhat', { what }), 'success')
           setTimeout(() => setDone(false), 1200)
         } else {
-          toast('could not reach the clipboard', 'danger')
+          toast(t('common.copyFailed'), 'danger')
         }
       }}
     />
@@ -472,7 +474,7 @@ export function Field({
 export function SearchBox({
   value,
   onChange,
-  placeholder = 'Filter…',
+  placeholder,
   className,
   autoFocus,
 }: {
@@ -488,7 +490,7 @@ export function SearchBox({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('common.filter')}
         spellCheck={false}
         autoFocus={autoFocus}
         className={cx(CONTROL, 'pl-8 pr-7')}
@@ -496,7 +498,7 @@ export function SearchBox({
       {value !== '' && (
         <button
           type="button"
-          aria-label="Clear"
+          aria-label={t('common.clear')}
           onClick={() => onChange('')}
           className="absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded text-faint hover:bg-hover hover:text-text"
         >
@@ -631,7 +633,7 @@ export function Banner({ tone = 'danger', children, onClose, className }: { tone
       <span className={cx('mt-0.5 w-[3px] shrink-0 self-stretch rounded-full', TONE_DOT[tone])} />
       <div className="min-w-0 flex-1 whitespace-pre-wrap break-words">{children}</div>
       {onClose && (
-        <button type="button" aria-label="Dismiss" onClick={onClose} className="rounded p-0.5 opacity-70 hover:opacity-100">
+        <button type="button" aria-label={t('common.dismiss')} onClick={onClose} className="rounded p-0.5 opacity-70 hover:opacity-100">
           <X className="size-3.5" />
         </button>
       )}
@@ -643,11 +645,11 @@ export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={cx('size-4 animate-spin text-muted', className)} />
 }
 
-export function Loading({ text = 'Loading…', className }: { text?: string; className?: string }) {
+export function Loading({ text, className }: { text?: string; className?: string }) {
   return (
     <div className={cx('flex items-center justify-center gap-2 py-10 text-muted', className)}>
       <Spinner />
-      <span>{text}</span>
+      <span>{text ?? t('common.loading')}</span>
     </div>
   )
 }
@@ -810,7 +812,7 @@ export function AsyncView({
   if (loading && !hasData) return <Loading text={loadingText} />
   if (error && !hasData) {
     const off = featureOff(error)
-    if (off) return <EmptyState title={offTitle ?? 'Not enabled on this runtime'} guidance={off} />
+    if (off) return <EmptyState title={offTitle ?? t('common.notEnabled')} guidance={off} />
     return (
       <div className="flex flex-col items-center gap-3 py-6">
         <Banner tone="danger" className="w-full">
@@ -818,7 +820,7 @@ export function AsyncView({
         </Banner>
         {retry && (
           <Button icon={RotateCw} onClick={retry}>
-            Retry
+            {t('common.retry')}
           </Button>
         )}
       </div>
@@ -960,7 +962,7 @@ export function Meter({ used, limit, className }: { used: number; limit: number;
     return (
       <span className={cx('inline-flex items-center gap-1.5', className)}>
         <span className="font-mono text-xs">{humanCount(used)}</span>
-        <Chip>unlimited</Chip>
+        <Chip>{t('common.unlimited')}</Chip>
       </span>
     )
   }
@@ -1001,27 +1003,27 @@ export function Tabs<V extends string>({
 }) {
   return (
     <div className={cx('flex shrink-0 items-center gap-1 border-b border-line', className)} role="tablist">
-      {tabs.map((t, i) => {
-        const active = t.id === value
+      {tabs.map((tab, i) => {
+        const active = tab.id === value
         // The first tab starts on the content edge, so its label lines up
         // with the cards and fields below the strip.
         const first = i === 0
         return (
           <button
-            key={t.id}
+            key={tab.id}
             type="button"
             role="tab"
             aria-selected={active}
-            onClick={() => onChange(t.id)}
+            onClick={() => onChange(tab.id)}
             className={cx(
               'relative -mb-px flex h-8 items-center gap-1.5 text-base transition-colors',
               first ? 'pl-0 pr-2.5' : 'px-2.5',
               active ? 'font-medium text-text' : 'text-muted hover:text-text',
             )}
           >
-            {t.icon && <t.icon className="size-3.5" strokeWidth={2} />}
-            {t.label}
-            {t.badge}
+            {tab.icon && <tab.icon className="size-3.5" strokeWidth={2} />}
+            {tab.label}
+            {tab.badge}
             {active && <span className={cx('absolute bottom-0 h-0.5 rounded-full bg-accent', first ? 'left-0 right-1.5' : 'inset-x-1.5')} />}
           </button>
         )
@@ -1113,7 +1115,7 @@ export function Modal({
             <h2 className="text-lg font-semibold leading-tight">{title}</h2>
             {subtitle && <p className="mt-1 text-sm leading-snug text-muted">{subtitle}</p>}
           </div>
-          <IconButton icon={X} label="Close" onClick={onClose} disabled={!dismissable} />
+          <IconButton icon={X} label={t('common.close')} onClick={onClose} disabled={!dismissable} />
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-line px-5 py-4">{children}</div>
         {footer && <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">{footer}</footer>}

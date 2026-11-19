@@ -17,7 +17,8 @@ export interface DocPage {
   slug: string
   file: string
   title: string
-  section: string
+  /** The catalogue key of the sidebar group the page sits under. */
+  sectionKey: string
   order: number
 }
 
@@ -29,28 +30,30 @@ export interface DocResult {
 export interface DocAsset {
   /** Path relative to the docs root, e.g. "openapi/users.yaml". */
   path: string
-  title: string
+  /** The catalogue key of the file's label. */
+  titleKey: string
   language: 'yaml' | 'lua' | 'json' | 'text'
 }
 
 const MANIFEST: DocPage[] = [
-  { slug: 'getting-started', file: 'getting-started.md', title: 'Overview', section: 'Start here', order: 1 },
-  { slug: 'architecture', file: 'architecture.md', title: 'Architecture & deployment', section: 'Start here', order: 2 },
-  { slug: 'multi-region', file: 'multi-region.md', title: 'Multi-region', section: 'Start here', order: 3 },
-  { slug: 'loops', file: 'loops.md', title: 'Luau loops', section: 'Build', order: 4 },
-  { slug: 'memory', file: 'memory.md', title: 'Memory', section: 'Build', order: 5 },
-  { slug: 'extending', file: 'extending.md', title: 'Extending', section: 'Build', order: 6 },
-  { slug: 'configuration', file: 'configuration.md', title: 'Configuration', section: 'Reference', order: 7 },
-  { slug: 'loops-reference', file: 'loops-reference.md', title: 'Loop API reference', section: 'Reference', order: 8 },
-  { slug: 'openai-api', file: 'openai-api.md', title: 'OpenAI-compatible API', section: 'Reference', order: 9 },
+  { slug: 'getting-started', file: 'getting-started.md', title: 'Overview', sectionKey: 'docs.sectionStartHere', order: 1 },
+  { slug: 'architecture', file: 'architecture.md', title: 'Architecture & deployment', sectionKey: 'docs.sectionStartHere', order: 2 },
+  { slug: 'multi-region', file: 'multi-region.md', title: 'Multi-region', sectionKey: 'docs.sectionStartHere', order: 3 },
+  { slug: 'loops', file: 'loops.md', title: 'Luau loops', sectionKey: 'docs.sectionBuild', order: 4 },
+  { slug: 'memory', file: 'memory.md', title: 'Memory', sectionKey: 'docs.sectionBuild', order: 5 },
+  { slug: 'extending', file: 'extending.md', title: 'Extending', sectionKey: 'docs.sectionBuild', order: 6 },
+  { slug: 'configuration', file: 'configuration.md', title: 'Configuration', sectionKey: 'docs.sectionReference', order: 7 },
+  { slug: 'loops-reference', file: 'loops-reference.md', title: 'Loop API reference', sectionKey: 'docs.sectionReference', order: 8 },
+  { slug: 'openai-api', file: 'openai-api.md', title: 'OpenAI-compatible API', sectionKey: 'docs.sectionReference', order: 9 },
 ]
 
-export const DOC_SECTIONS = ['Start here', 'Build', 'Reference']
+/** The sidebar groups in order, as catalogue keys. */
+export const DOC_SECTIONS = ['docs.sectionStartHere', 'docs.sectionBuild', 'docs.sectionReference']
 
 /** The contract files that ship beside the guides. */
 export const DOC_ASSETS: DocAsset[] = [
-  { path: 'openapi/users.yaml', title: 'User API (OpenAPI)', language: 'yaml' },
-  { path: 'luau/af.d.luau', title: 'Luau type definitions', language: 'lua' },
+  { path: 'openapi/users.yaml', titleKey: 'docs.assetUserApi', language: 'yaml' },
+  { path: 'luau/af.d.luau', titleKey: 'docs.assetLuauTypes', language: 'lua' },
 ]
 
 const available = MANIFEST.filter((p) => typeof pages[ROOT + p.file] === 'string' && pages[ROOT + p.file] !== '')
