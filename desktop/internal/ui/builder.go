@@ -42,6 +42,8 @@ type builderView struct {
 	canContact    *widget.Entry
 	credentials   *widget.Entry
 	shell         *widget.Entry
+	memory        *widget.Select
+	memoryValues  map[string]string
 	extras        *widget.Entry
 	loop          *codeEditor
 	instructions  *codeEditor
@@ -196,6 +198,12 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	b.shell.SetPlaceHolder("(none)")
 	b.shell.SetText(ag.Shell)
 
+	inline := len(ag.MemoryInline) > 0
+	memLabels, memValues := memoryChoices(a.catalog.MemoryProfiles, ag.Memory, inline)
+	b.memoryValues = memValues
+	b.memory = widget.NewSelect(memLabels, nil)
+	b.memory.SetSelected(memoryLabel(ag.Memory, inline, memValues))
+
 	b.extras = monoEntry(true)
 	if len(ag.Extras) > 0 {
 		if raw, err := json.MarshalIndent(ag.Extras, "", "  "); err == nil {
@@ -267,6 +275,7 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	b.canContact.OnChanged = func(string) { b.markDirty() }
 	b.credentials.OnChanged = func(string) { b.markDirty() }
 	b.shell.OnChanged = func(string) { b.markDirty() }
+	b.memory.OnChanged = func(string) { b.markDirty() }
 	b.extras.OnChanged = func(string) { b.markDirty() }
 	b.instructions.onChanged = b.markDirty
 	b.yaml.onChanged = func() {
@@ -281,8 +290,11 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		labeled("Model", b.model),
 		labeled("Safety profile", b.safety),
 		labeled("History budget", b.history),
+		labeled("Memory profile", b.memory),
 	)
-	identityCard := section("Identity", "Model and context budget.", identityGrid)
+	identityCard := section("Identity",
+		"Model, safety, memory and context budget. Memory profiles are set up on the Memory screen; a new one can be picked after a restart.",
+		identityGrid)
 
 	defaultsBtn := actionButton("Use defaults", nil, func() {
 		b.suppressDirty = true
@@ -321,7 +333,7 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		vCenter(compactCheck(b.persistent)),
 	)
 	advancedCard := section("Advanced",
-		"Runtime, fleet contact and credentials. Memory profiles and stores remain in Raw YAML.",
+		"Runtime, fleet contact and credentials.",
 		vstack(spaceS, advancedTop, labeled("Extras (JSON)", b.extras)))
 
 	// The tab strip and the cards must start on the same vertical line. The
@@ -900,6 +912,19 @@ func (b *builderView) buildYAML() (string, error) {
 	}
 	if shell := strings.TrimSpace(b.shell.Text); shell != "" {
 		if err := write("shell", shell); err != nil {
+			return "", err
+		}
+	}
+	switch mem := b.memoryValues[b.memory.Selected]; mem {
+	case "":
+	case memoryInline:
+		if b.detail != nil && len(b.detail.Agent.MemoryInline) > 0 {
+			if err := write("memory", b.detail.Agent.MemoryInline); err != nil {
+				return "", err
+			}
+		}
+	default:
+		if err := write("memory", mem); err != nil {
 			return "", err
 		}
 	}

@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentDetail, Catalog, Template } from '@/api/types'
 import {
+  MEMORY_INLINE,
+  memoryOptions,
   NAME_INVALID,
   NAME_REQUIRED,
   atoi,
@@ -170,6 +172,19 @@ describe('buildYAML', () => {
     }
   })
 
+  it('writes the memory profile after the shell, and keeps an inline one as it is', () => {
+    const f = { ...initialForm('a', null, null, catalog), shell: 'sandbox', memory: 'group_chat' }
+    expect(buildYAML(f, null)).toBe('loop: "./a.lua"\nsafety: "default"\nhistory_budget: 6000\nshell: "sandbox"\nmemory: "group_chat"\n')
+    const inline = { stores: { facts: { backend: 'main_db', table: 'notes' } }, recall: 'plugin:recency' }
+    const d = detailOf({ memory_inline: inline })
+    const g = initialForm('a', d, null, catalog)
+    expect(g.memory).toBe(MEMORY_INLINE)
+    expect(buildYAML(g, d)).toBe(
+      'loop: "./a.lua"\nsafety: "default"\nhistory_budget: 6000\nmemory: {"recall":"plugin:recency","stores":{"facts":{"backend":"main_db","table":"notes"}}}\n',
+    )
+    expect(buildYAML({ ...g, memory: '' }, d)).toBe('loop: "./a.lua"\nsafety: "default"\nhistory_budget: 6000\n')
+  })
+
   it('rejects extras that are not JSON', () => {
     expect(() => buildYAML({ ...initialForm('a', null, null, catalog), extras: '{nope' }, null)).toThrow(/^extras is not valid JSON: /)
   })
@@ -217,5 +232,17 @@ describe('helpers', () => {
   it('normalises line endings for the editors', () => {
     expect(lf('a\r\nb\rc\n')).toBe('a\nb\nc\n')
     expect(lf(undefined)).toBe('')
+  })
+})
+
+describe('memoryOptions', () => {
+  it('offers none, the built-in profile and the named ones', () => {
+    const c = { ...catalog, memory_profiles: ['notes', 'conversational'] }
+    expect(memoryOptions(c, '').map((o) => o.value)).toEqual(['', 'conversational', 'notes'])
+  })
+
+  it('keeps a profile the catalog does not list, and an inline one', () => {
+    expect(memoryOptions(catalog, 'gone').at(-1)).toEqual({ value: 'gone', label: 'gone · not in catalog' })
+    expect(memoryOptions(catalog, MEMORY_INLINE).at(-1)?.value).toBe(MEMORY_INLINE)
   })
 })

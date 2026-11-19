@@ -29,7 +29,32 @@ export interface BuilderForm {
   canContact: string
   credentials: string
   shell: string
+  /** '' is no memory; MEMORY_INLINE keeps the definition's inline profile. */
+  memory: string
   extras: string
+}
+
+/** The memory picker's value for an inline profile the form keeps as it is. */
+export const MEMORY_INLINE = '(inline)'
+export const MEMORY_BUILTIN = 'conversational'
+
+/**
+ * The memory picker's choices: none, the built-in profile, the deployment's
+ * named profiles, and whatever the definition uses that the catalog does not
+ * list, so opening an agent never silently rewrites its memory.
+ */
+export function memoryOptions(catalog: Catalog, current: string): { value: string; label: string }[] {
+  const opts = [
+    { value: '', label: 'none' },
+    { value: MEMORY_BUILTIN, label: 'conversational (built-in)' },
+  ]
+  const named = (catalog.memory_profiles ?? []).filter((p) => p !== MEMORY_BUILTIN)
+  for (const p of named) opts.push({ value: p, label: p })
+  if (current === MEMORY_INLINE) opts.push({ value: MEMORY_INLINE, label: 'inline profile (edit in Raw YAML)' })
+  else if (current !== '' && current !== MEMORY_BUILTIN && !named.includes(current)) {
+    opts.push({ value: current, label: `${current} · not in catalog` })
+  }
+  return opts
 }
 
 export interface Notice {
@@ -144,6 +169,7 @@ export function initialForm(name: string, detail: AgentDetail | null, tpl: Templ
     canContact: (ag.can_contact ?? []).join(', '),
     credentials: (ag.credentials ?? []).join(', '),
     shell: ag.shell ?? '',
+    memory: ag.memory_inline && Object.keys(ag.memory_inline).length > 0 ? MEMORY_INLINE : (ag.memory ?? ''),
     extras: extras && Object.keys(extras).length > 0 ? JSON.stringify(sortKeys(extras), null, 2) : '',
   }
 }
@@ -176,6 +202,11 @@ export function buildYAML(form: BuilderForm, detail: AgentDetail | null): string
   if (creds.length > 0) write('credentials', creds)
   const shell = form.shell.trim()
   if (shell !== '') write('shell', shell)
+  if (form.memory === MEMORY_INLINE) {
+    if (detail?.agent?.memory_inline) write('memory', detail.agent.memory_inline)
+  } else if (form.memory !== '') {
+    write('memory', form.memory)
+  }
   const extras = form.extras.trim()
   if (extras !== '') {
     let v: unknown

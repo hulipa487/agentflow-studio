@@ -35,18 +35,22 @@ type AgentRow struct {
 }
 
 type AgentJSON struct {
-	Loop          string         `json:"loop"`
-	Model         string         `json:"model"`
-	HistoryBudget int            `json:"history_budget"`
-	Safety        string         `json:"safety"`
-	Shell         string         `json:"shell"`
-	Skills        []string       `json:"skills"`
-	Capabilities  []string       `json:"capabilities"`
-	CanContact    []string       `json:"can_contact"`
-	Persistent    bool           `json:"persistent"`
-	Credentials   []string       `json:"credentials"`
-	InheritUser   *bool          `json:"inherit_user"`
-	Extras        map[string]any `json:"extras"`
+	Loop          string `json:"loop"`
+	Model         string `json:"model"`
+	HistoryBudget int    `json:"history_budget"`
+	Safety        string `json:"safety"`
+	Shell         string `json:"shell"`
+	// Memory is the memory profile the agent names ("conversational" is the
+	// built-in one); MemoryInline is an inline profile as the config spells it.
+	Memory       string         `json:"memory,omitempty"`
+	MemoryInline map[string]any `json:"memory_inline,omitempty"`
+	Skills       []string       `json:"skills"`
+	Capabilities []string       `json:"capabilities"`
+	CanContact   []string       `json:"can_contact"`
+	Persistent   bool           `json:"persistent"`
+	Credentials  []string       `json:"credentials"`
+	InheritUser  *bool          `json:"inherit_user"`
+	Extras       map[string]any `json:"extras"`
 }
 
 type AgentFiles struct {
@@ -349,6 +353,109 @@ type SafetyList struct {
 	Models          []string           `json:"models"`
 	Prompts         []string           `json:"prompts"`
 	Note            string             `json:"note"`
+}
+
+// MemoryStoreDraft is one logical store of a memory profile.
+type MemoryStoreDraft struct {
+	Name       string   `json:"name"`
+	Backend    string   `json:"backend"`
+	Table      string   `json:"table,omitempty"`
+	Retention  string   `json:"retention,omitempty"`
+	Window     int      `json:"window,omitempty"`
+	Requires   []string `json:"requires,omitempty"`
+	Scope      string   `json:"scope,omitempty"`
+	Pool       string   `json:"pool,omitempty"`
+	LocalityOK bool     `json:"locality_ok,omitempty"`
+}
+
+// MemoryProfileDraft is the editable shape of a profiles.memory entry.
+type MemoryProfileDraft struct {
+	Name        string             `json:"name"`
+	Stores      []MemoryStoreDraft `json:"stores"`
+	Write       []string           `json:"write,omitempty"`
+	Recall      string             `json:"recall,omitempty"`
+	EmbedModel  string             `json:"embed_model,omitempty"`
+	RerankModel string             `json:"rerank_model,omitempty"`
+	Oversample  int                `json:"oversample,omitempty"`
+}
+
+// MemoryProfile is a profile plus what uses it.
+type MemoryProfile struct {
+	MemoryProfileDraft
+	Agents        []string `json:"agents"`
+	SpawnProfiles []string `json:"spawn_profiles"`
+	Live          bool     `json:"live"`
+}
+
+// MemoryBackendDraft is the editable shape of a memory.backends entry. URL and
+// APIKey are write only: empty keeps the stored value.
+type MemoryBackendDraft struct {
+	Name            string `json:"name"`
+	Provider        string `json:"provider"`
+	Path            string `json:"path,omitempty"`
+	URL             string `json:"url,omitempty"`
+	ClearURL        bool   `json:"clear_url,omitempty"`
+	APIKey          string `json:"api_key,omitempty"`
+	ClearAPIKey     bool   `json:"clear_api_key,omitempty"`
+	Collection      string `json:"collection,omitempty"`
+	Distance        string `json:"distance,omitempty"`
+	Timeout         string `json:"timeout,omitempty"`
+	Dim             int    `json:"dim,omitempty"`
+	VectorScanLimit int    `json:"vector_scan_limit,omitempty"`
+	MaxEntries      int    `json:"max_entries,omitempty"`
+}
+
+// MemoryBackend is a backend as the runtime shows it; secrets only as Has*,
+// a reference, or a masked URL.
+type MemoryBackend struct {
+	Name            string   `json:"name"`
+	Provider        string   `json:"provider"`
+	Path            string   `json:"path,omitempty"`
+	Collection      string   `json:"collection,omitempty"`
+	Distance        string   `json:"distance,omitempty"`
+	Timeout         string   `json:"timeout,omitempty"`
+	Dim             int      `json:"dim,omitempty"`
+	VectorScanLimit int      `json:"vector_scan_limit,omitempty"`
+	MaxEntries      int      `json:"max_entries,omitempty"`
+	HasURL          bool     `json:"has_url"`
+	URLRef          string   `json:"url_ref,omitempty"`
+	URLDisplay      string   `json:"url_display,omitempty"`
+	HasAPIKey       bool     `json:"has_api_key"`
+	APIKeyRef       string   `json:"api_key_ref,omitempty"`
+	OtherKeys       []string `json:"other_keys"`
+	Profiles        []string `json:"profiles"`
+	Agents          []string `json:"agents"`
+	Implicit        bool     `json:"implicit"`
+	Live            bool     `json:"live"`
+}
+
+// MemoryList is the editable memory surface and its persistence state.
+type MemoryList struct {
+	OK              bool            `json:"ok"`
+	RestartRequired bool            `json:"restart_required"`
+	SavedNote       string          `json:"saved_note"`
+	Mode            string          `json:"mode"`
+	Path            string          `json:"path"`
+	Editable        bool            `json:"editable"`
+	MTime           int64           `json:"mtime"`
+	Providers       []string        `json:"providers"`
+	Backends        []MemoryBackend `json:"backends"`
+	Profiles        []MemoryProfile `json:"profiles"`
+	BuiltinAgents   []string        `json:"builtin_agents"`
+	Models          []string        `json:"models"`
+	RerankModels    []string        `json:"rerank_models"`
+	WritePlugins    []string        `json:"write_plugins"`
+	RecallPlugins   []string        `json:"recall_plugins"`
+	Requires        []string        `json:"requires"`
+	Note            string          `json:"note"`
+}
+
+// MemoryValidateRequest names one draft; Kind is "profile" or "backend".
+type MemoryValidateRequest struct {
+	Kind     string              `json:"kind"`
+	Creating bool                `json:"creating"`
+	Profile  *MemoryProfileDraft `json:"profile,omitempty"`
+	Backend  *MemoryBackendDraft `json:"backend,omitempty"`
 }
 
 // SafetyProfileDraft is the editable shape of a profile. The filter order is

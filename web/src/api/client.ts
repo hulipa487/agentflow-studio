@@ -366,6 +366,37 @@ export class Client {
     return this.json('DELETE', `/admin/api/studio/safety/classifiers/${enc(name)}${query({ mtime })}`)
   }
 
+  // ---- memory ---------------------------------------------------------------
+
+  memory(signal?: AbortSignal): Promise<T.MemoryList> {
+    return this.json('GET', '/admin/api/studio/memory', undefined, signal)
+  }
+
+  async validateMemory(req: T.MemoryValidateRequest): Promise<string[]> {
+    const r = await this.json<{ ok: boolean; errors: string[] | null }>('POST', '/admin/api/studio/memory/validate', req)
+    return r.errors ?? []
+  }
+
+  saveMemoryProfile(name: string, create: boolean, profile: T.MemoryProfileDraft, mtime: T.Mtime | undefined): Promise<T.MemoryList> {
+    const body = { profile, mtime }
+    if (create) return this.json('POST', '/admin/api/studio/memory/profiles', body)
+    return this.json('PUT', '/admin/api/studio/memory/profiles/' + enc(name), body)
+  }
+
+  deleteMemoryProfile(name: string, mtime: T.Mtime | undefined): Promise<T.MemoryList> {
+    return this.json('DELETE', `/admin/api/studio/memory/profiles/${enc(name)}${query({ mtime })}`)
+  }
+
+  saveMemoryBackend(name: string, create: boolean, backend: T.MemoryBackendDraft, mtime: T.Mtime | undefined): Promise<T.MemoryList> {
+    const body = { backend, mtime }
+    if (create) return this.json('POST', '/admin/api/studio/memory/backends', body)
+    return this.json('PUT', '/admin/api/studio/memory/backends/' + enc(name), body)
+  }
+
+  deleteMemoryBackend(name: string, mtime: T.Mtime | undefined): Promise<T.MemoryList> {
+    return this.json('DELETE', `/admin/api/studio/memory/backends/${enc(name)}${query({ mtime })}`)
+  }
+
   // ---- credentials ----------------------------------------------------------
 
   /** Lists one bucket; an empty user is the engine-wide bucket. */

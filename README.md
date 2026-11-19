@@ -39,7 +39,7 @@ The runtime stays the source of truth. Studio holds no agent state of its own: c
 
 **🛠️ Build**
 - **Agents** - every configured agent with its model, capabilities and live sessions. Create from a template (echo, LLM chat, tool loop, group chat with memory, knowledge base, single-turn API, …) or from blank, edit, delete.
-- **Builder** - a workbench: a form for the agent's model, safety profile, capabilities, skills and credentials, a Luau loop editor, an instructions editor and the raw YAML, with a dock beside them for a **Run** panel (chat and trace with this agent) or the Luau reference (`F1`). **Validate** runs the same checks boot does. **Apply** is a split button: *Apply* installs the agent live, *Apply & save* also writes it into the deployment's config, and the button remembers your pick. `Ctrl+Enter` applies pending edits and sends the Run panel's message (or repeats the last one), so you can edit, run and read the trace without leaving.
+- **Builder** - a workbench: a form for the agent's model, safety and memory profiles, capabilities, skills and credentials, a Luau loop editor, an instructions editor and the raw YAML, with a dock beside them for a **Run** panel (chat and trace with this agent) or the Luau reference (`F1`). **Validate** runs the same checks boot does. **Apply** is a split button: *Apply* installs the agent live, *Apply & save* also writes it into the deployment's config, and the button remembers your pick. `Ctrl+Enter` applies pending edits and sends the Run panel's message (or repeats the last one), so you can edit, run and read the trace without leaving.
 - **Playground** - threaded chat against one agent, one session per thread, with streamed replies and a live trace: turns, ops, model and tool calls, tokens, durations, safety decisions and errors. An optional *act as user* runs the turn as a real profile, so memory scopes and quotas apply.
 
 **✍️ The code editor**
@@ -72,6 +72,7 @@ The desktop editor also has a right-click menu with fold all, unfold all and the
 **🔌 Connect**
 - **Channels** - webhook, Telegram, QQ Bot, GitHub webhook, bridge and OpenAI-compatible channels: add, edit, validate against the deployment and save. The screen marks which definitions are live and which need a restart.
 - **Models** - add, edit and delete LLM endpoints in place, test one with a real one-token call, and save the live set back to the config.
+- **Memory** - the databases memory lives in and the profiles agents pick: stores, retention, recall, embedding and reranking, validated the way boot does. Something in use cannot be deleted.
 - **Credentials** - the encrypted credential store by bucket, engine-wide or per user. Create, edit and revoke.
 
 Secrets are write-only everywhere: a field left blank keeps the stored value, and the screens show a reference or a last-four fingerprint, never the secret.

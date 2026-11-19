@@ -2,7 +2,18 @@
 // `patch`, which is what marks the builder dirty.
 import { Button, Checkbox, Field, Input, Section, Select, Textarea, type Option } from '@/components/ui'
 import type { Catalog } from '@/api/types'
-import { AGENT_NAME_RE, DEFAULT_MODEL_OPTION, NAME_INVALID, extrasError, historyValid, safetyOptions, toggleCheck, type BuilderForm } from './model'
+import {
+  AGENT_NAME_RE,
+  DEFAULT_MODEL_OPTION,
+  NAME_INVALID,
+  effectiveCapabilities,
+  extrasError,
+  historyValid,
+  memoryOptions,
+  safetyOptions,
+  toggleCheck,
+  type BuilderForm,
+} from './model'
 
 function CheckGrid({
   labels,
@@ -61,10 +72,12 @@ export function ConfigTab({
   const nameBad = isNew && form.name.trim() !== '' && !AGENT_NAME_RE.test(form.name.trim())
   const historyBad = !historyValid(form.history)
   const extrasBad = extrasError(form.extras)
+  const caps = effectiveCapabilities(form.capabilities, catalog)
+  const memoryNeedsCap = form.memory !== '' && caps.length > 0 && !caps.includes('memory')
 
   return (
     <div className="flex flex-col gap-3 pb-6 pt-3">
-      <Section title="Identity" subtitle="Model and context budget.">
+      <Section title="Identity" subtitle="Model, safety, memory and context budget.">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Name" error={nameBad ? NAME_INVALID : undefined}>
             <Input
@@ -90,6 +103,13 @@ export function ConfigTab({
           </Field>
           <Field label="History budget" error={historyBad ? 'Not a positive whole number: the key is left out of the definition.' : undefined}>
             <Input mono inputMode="numeric" value={form.history} invalid={historyBad} onChange={(e) => patch({ history: e.target.value })} />
+          </Field>
+          <Field
+            label="Memory profile"
+            error={memoryNeedsCap ? 'Memory needs the memory capability, which this agent does not have.' : undefined}
+            hint="The stores memory.write and memory.recall use. Profiles are set up on the Memory screen; a new one can be picked after a restart."
+          >
+            <Select value={form.memory} onChange={(memory) => patch({ memory })} options={memoryOptions(catalog, form.memory)} />
           </Field>
         </div>
       </Section>
@@ -126,7 +146,7 @@ export function ConfigTab({
         )}
       </Section>
 
-      <Section title="Advanced" subtitle="Runtime, fleet contact and credentials. Memory profiles and stores remain in Raw YAML.">
+      <Section title="Advanced" subtitle="Runtime, fleet contact and credentials.">
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Can contact">

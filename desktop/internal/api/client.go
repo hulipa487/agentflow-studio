@@ -425,6 +425,65 @@ func (c *Client) DeleteSafetyClassifier(ctx context.Context, name string, mtime 
 	return out, err
 }
 
+// Memory lists the persisted memory backends and profiles.
+func (c *Client) Memory(ctx context.Context) (MemoryList, error) {
+	var out MemoryList
+	err := c.do(ctx, http.MethodGet, "/admin/api/studio/memory", nil, &out)
+	return out, err
+}
+
+// ValidateMemory dry-runs one profile or backend draft.
+func (c *Client) ValidateMemory(ctx context.Context, req MemoryValidateRequest) ([]string, error) {
+	var out struct {
+		OK     bool     `json:"ok"`
+		Errors []string `json:"errors"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/admin/api/studio/memory/validate", req, &out); err != nil {
+		return nil, err
+	}
+	return out.Errors, nil
+}
+
+// SaveMemoryProfile creates (create) or replaces a memory profile.
+func (c *Client) SaveMemoryProfile(ctx context.Context, name string, create bool, d MemoryProfileDraft, mtime int64) (MemoryList, error) {
+	return c.saveMemory(ctx, "profiles", name, create, map[string]any{"profile": d, "mtime": mtime})
+}
+
+// SaveMemoryBackend creates (create) or replaces a memory backend.
+func (c *Client) SaveMemoryBackend(ctx context.Context, name string, create bool, d MemoryBackendDraft, mtime int64) (MemoryList, error) {
+	return c.saveMemory(ctx, "backends", name, create, map[string]any{"backend": d, "mtime": mtime})
+}
+
+func (c *Client) saveMemory(ctx context.Context, kind, name string, create bool, body map[string]any) (MemoryList, error) {
+	var out MemoryList
+	method, path := http.MethodPost, "/admin/api/studio/memory/"+kind
+	if !create {
+		method = http.MethodPut
+		path += "/" + url.PathEscape(name)
+	}
+	err := c.do(ctx, method, path, body, &out)
+	return out, err
+}
+
+// DeleteMemoryProfile removes a profile; the runtime refuses while an agent
+// or spawn template names it.
+func (c *Client) DeleteMemoryProfile(ctx context.Context, name string, mtime int64) (MemoryList, error) {
+	return c.deleteMemory(ctx, "profiles", name, mtime)
+}
+
+// DeleteMemoryBackend removes a backend; the runtime refuses while a store is
+// on it.
+func (c *Client) DeleteMemoryBackend(ctx context.Context, name string, mtime int64) (MemoryList, error) {
+	return c.deleteMemory(ctx, "backends", name, mtime)
+}
+
+func (c *Client) deleteMemory(ctx context.Context, kind, name string, mtime int64) (MemoryList, error) {
+	var out MemoryList
+	path := fmt.Sprintf("/admin/api/studio/memory/%s/%s?mtime=%d", kind, url.PathEscape(name), mtime)
+	err := c.do(ctx, http.MethodDelete, path, nil, &out)
+	return out, err
+}
+
 // Credentials lists one credential bucket. An empty user means the
 // engine-wide bucket.
 func (c *Client) Credentials(ctx context.Context, user string) (CredentialList, error) {

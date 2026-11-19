@@ -55,6 +55,8 @@ func (a *App) buildNav() []*navItem {
 			"Webhook, Telegram, GitHub and bridge channels", a.showChannels),
 		item("models", "Models", "Connect", theme.ListIcon(), 5,
 			"LLM endpoints: add, test, persist or revert", a.showModels),
+		item("memory", "Memory", "Connect", theme.HistoryIcon(), 0,
+			"Memory backends and the profiles agents pick", a.showMemory),
 		item("credentials", "Credentials", "Connect", theme.LoginIcon(), 6,
 			"Encrypted secrets, engine-wide or per user", a.showCredentials),
 		item("safety", "Safety", "Govern", theme.WarningIcon(), 7,

@@ -56,15 +56,17 @@ type Busy = '' | 'validate' | 'save' | 'reload'
  * The validate / save flow both editors run. `build` throws with the message
  * to show when the form cannot become a draft; nothing is sent in that case.
  */
-export function useEditorActions<D>(opts: {
+export function useEditorActions<D, L = SafetyList>(opts: {
   build: () => D
   validate: (draft: D) => Promise<string[]>
-  save: (draft: D) => Promise<SafetyList>
+  save: (draft: D) => Promise<L>
   /** Shown when the runtime finds nothing wrong. */
   validText: (draft: D) => string
-  onSaved: (list: SafetyList) => void
+  onSaved: (list: L) => void
   /** Reloads the list (and with it the mtime the next save sends). */
   reload: () => Promise<void>
+  /** What the editor edits, for the reload notice. */
+  what?: string
 }) {
   const mounted = useMounted()
   const [busy, setBusy] = useState<Busy>('')
@@ -116,7 +118,7 @@ export function useEditorActions<D>(opts: {
     void run('reload', async () => {
       await opts.reload()
       if (mounted.current) {
-        setNotice({ tone: 'warning', text: 'Reloaded the safety configuration; your draft is unchanged. Validate or save it again.' })
+        setNotice({ tone: 'warning', text: `Reloaded the ${opts.what ?? 'safety'} configuration; your draft is unchanged. Validate or save it again.` })
       }
     })
 

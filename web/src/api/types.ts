@@ -47,6 +47,10 @@ export interface AgentJSON {
   history_budget: number
   safety: string
   shell?: string
+  /** The memory profile the agent names; "conversational" is the built-in one. */
+  memory?: string
+  /** An inline memory profile, as the config spells it. The builder keeps it as it is. */
+  memory_inline?: Record<string, unknown> | null
   skills: string[] | null
   capabilities: string[] | null
   can_contact: string[] | null
@@ -375,6 +379,103 @@ export interface SafetyValidateRequest {
   creating: boolean
   profile?: SafetyProfileDraft
   classifier?: SafetyClassifierDraft
+}
+
+export interface MemoryStoreDraft {
+  name: string
+  backend: string
+  table?: string
+  retention?: string
+  window?: number
+  requires?: string[]
+  scope?: string
+  pool?: string
+  locality_ok?: boolean
+}
+
+export interface MemoryProfileDraft {
+  name: string
+  stores: MemoryStoreDraft[]
+  write?: string[]
+  recall?: string
+  embed_model?: string
+  rerank_model?: string
+  oversample?: number
+}
+
+export interface MemoryProfile extends MemoryProfileDraft {
+  agents: string[] | null
+  spawn_profiles: string[] | null
+  live: boolean
+}
+
+/** A backend draft. url and api_key are write only: empty keeps the stored value. */
+export interface MemoryBackendDraft {
+  name: string
+  provider: string
+  path?: string
+  url?: string
+  clear_url?: boolean
+  api_key?: string
+  clear_api_key?: boolean
+  collection?: string
+  distance?: string
+  timeout?: string
+  dim?: number
+  vector_scan_limit?: number
+  max_entries?: number
+}
+
+/** A backend as the runtime shows it: secrets only as has_*, a reference, or a masked URL. */
+export interface MemoryBackend {
+  name: string
+  provider: string
+  path?: string
+  collection?: string
+  distance?: string
+  timeout?: string
+  dim?: number
+  vector_scan_limit?: number
+  max_entries?: number
+  has_url: boolean
+  url_ref?: string
+  url_display?: string
+  has_api_key: boolean
+  api_key_ref?: string
+  other_keys: string[] | null
+  profiles: string[] | null
+  agents: string[] | null
+  /** The built-in main_db on the runtime store; not in the file. */
+  implicit: boolean
+  live: boolean
+}
+
+export interface MemoryList {
+  ok: boolean
+  restart_required: boolean
+  saved_note: string
+  mode: string
+  path: string
+  editable: boolean
+  mtime?: Mtime
+  providers: string[] | null
+  backends: MemoryBackend[] | null
+  profiles: MemoryProfile[] | null
+  /** Agents on the built-in conversational profile. */
+  builtin_agents: string[] | null
+  models: string[] | null
+  rerank_models: string[] | null
+  write_plugins: string[] | null
+  recall_plugins: string[] | null
+  requires: string[] | null
+  note: string
+}
+
+export interface MemoryValidateRequest {
+  kind: 'profile' | 'backend'
+  creating: boolean
+  profile?: MemoryProfileDraft
+  backend?: MemoryBackendDraft
 }
 
 /** One stored secret's metadata. The value is never sent. */

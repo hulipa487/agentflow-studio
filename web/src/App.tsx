@@ -18,6 +18,7 @@ const Builder = lazy(() => import('@/screens/Builder'))
 const Playground = lazy(() => import('@/screens/Playground'))
 const Channels = lazy(() => import('@/screens/Channels'))
 const Models = lazy(() => import('@/screens/Models'))
+const Memory = lazy(() => import('@/screens/Memory'))
 const Credentials = lazy(() => import('@/screens/Credentials'))
 const Safety = lazy(() => import('@/screens/Safety'))
 const Users = lazy(() => import('@/screens/Users'))
@@ -90,6 +91,7 @@ export default function App() {
             <Route path="/playground" element={<Playground />} />
             <Route path="/channels" element={<Channels />} />
             <Route path="/models" element={<Models />} />
+            <Route path="/memory" element={<Memory />} />
             <Route path="/credentials" element={<Credentials />} />
             <Route path="/safety" element={<Safety />} />
             <Route path="/users" element={<Users />} />

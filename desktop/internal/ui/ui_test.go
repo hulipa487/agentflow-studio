@@ -72,6 +72,9 @@ func TestViewsBuild(t *testing.T) {
 	if safety == nil {
 		t.Fatal("safety view is nil")
 	}
+	if memory := a.newMemoryView(); memory == nil {
+		t.Fatal("memory view is nil")
+	}
 	creds := a.newCredentialsView()
 	if creds == nil {
 		t.Fatal("credentials view is nil")
@@ -143,7 +146,7 @@ func TestNavModel(t *testing.T) {
 			keys[it.key] = it.id
 		}
 	}
-	for _, want := range []string{"overview", "agents", "playground", "channels", "models", "credentials", "safety", "users", "tenancy", "usage", "logs", "config", "docs", "settings"} {
+	for _, want := range []string{"overview", "agents", "playground", "channels", "models", "memory", "credentials", "safety", "users", "tenancy", "usage", "logs", "config", "docs", "settings"} {
 		if !ids[want] {
 			t.Fatalf("nav has no %q destination", want)
 		}
