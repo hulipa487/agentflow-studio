@@ -24,7 +24,7 @@ func (a *App) showAgents() {
 func (a *App) agentsView() fyne.CanvasObject {
 	var rows []api.AgentRow
 	list := vstack(spaceS)
-	scroll := container.NewVScroll(list)
+	scroll := pageScroll(list)
 	banner := newBanner()
 
 	var render func()
@@ -130,7 +130,7 @@ func (a *App) agentsView() fyne.CanvasObject {
 	return container.NewBorder(
 		vstack(0, pageInset(head), widget.NewSeparator(), hInset(banner)),
 		nil, nil, nil,
-		pageInset(scroll),
+		scrollInset(scroll),
 	)
 }
 

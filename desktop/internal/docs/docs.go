@@ -41,10 +41,11 @@ var manifest = []Page{
 	{Slug: "architecture", File: "architecture.md", Title: "Architecture & deployment", Section: "Start here", Order: 2},
 	{Slug: "multi-region", File: "multi-region.md", Title: "Multi-region", Section: "Start here", Order: 3},
 	{Slug: "loops", File: "loops.md", Title: "Luau loops", Section: "Build", Order: 4},
-	{Slug: "extending", File: "extending.md", Title: "Extending", Section: "Build", Order: 5},
-	{Slug: "configuration", File: "configuration.md", Title: "Configuration", Section: "Reference", Order: 6},
-	{Slug: "loops-reference", File: "loops-reference.md", Title: "Loop API reference", Section: "Reference", Order: 7},
-	{Slug: "openai-api", File: "openai-api.md", Title: "OpenAI-compatible API", Section: "Reference", Order: 8},
+	{Slug: "memory", File: "memory.md", Title: "Memory", Section: "Build", Order: 5},
+	{Slug: "extending", File: "extending.md", Title: "Extending", Section: "Build", Order: 6},
+	{Slug: "configuration", File: "configuration.md", Title: "Configuration", Section: "Reference", Order: 7},
+	{Slug: "loops-reference", File: "loops-reference.md", Title: "Loop API reference", Section: "Reference", Order: 8},
+	{Slug: "openai-api", File: "openai-api.md", Title: "OpenAI-compatible API", Section: "Reference", Order: 9},
 }
 
 // New validates the manifest against fsys. root is the directory that holds

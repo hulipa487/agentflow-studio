@@ -41,8 +41,8 @@ func (a *App) showCredentials() {
 
 func (a *App) newCredentialsView() *credentialsView {
 	v := &credentialsView{app: a, buckets: []string{""}}
-	v.list = vstack(spaceS)
-	v.scroll = container.NewVScroll(v.list)
+	v.list = vstack(spaceM)
+	v.scroll = pageScroll(v.list)
 	v.banner = newBanner()
 	v.count = oneLine("")
 	v.meta = oneLine("")
@@ -64,7 +64,7 @@ func (a *App) newCredentialsView() *credentialsView {
 	v.root = container.NewBorder(
 		vstack(0, pageInset(vstack(spaceS, head, v.meta)), hInset(v.banner), widget.NewSeparator()),
 		nil, nil, nil,
-		pageInset(v.scroll),
+		scrollInset(v.scroll),
 	)
 	v.load()
 	return v
@@ -244,9 +244,6 @@ func (v *credentialsView) credentialCard(c api.Credential) fyne.CanvasObject {
 		),
 		nil,
 	)
-	row := func(label string, value fyne.CanvasObject) fyne.CanvasObject {
-		return container.NewBorder(nil, nil, widthBox(108, fieldLabel(label)), nil, value)
-	}
 	auth := "Authorization: Bearer <secret>"
 	switch {
 	case c.Header != "" && c.Scheme != "":
@@ -259,12 +256,12 @@ func (v *credentialsView) credentialCard(c api.Credential) fyne.CanvasObject {
 		updated = time.Unix(c.UpdatedAt, 0).Local().Format("2006-01-02 15:04")
 	}
 	cells := []fyne.CanvasObject{
-		row("kind", widget.NewLabel(c.Kind)),
-		row("header", monoInline(auth)),
-		row("fingerprint", monoInline(fp)),
-		row("updated", widget.NewLabel(updated)),
+		detailRow("kind", detailText(c.Kind)),
+		detailRow("header", detailText(auth)),
+		detailRow("fingerprint", detailText(fp)),
+		detailRow("updated", detailText(updated)),
 	}
-	return panel(vstack(spaceS, top, widget.NewSeparator(), container.NewGridWithColumns(2, cells...)))
+	return panel(vstack(spaceS, top, widget.NewSeparator(), grid(2, cells...)))
 }
 
 func (v *credentialsView) editCredential(existing *api.Credential) {
@@ -304,13 +301,13 @@ func (v *credentialsView) editCredential(existing *api.Credential) {
 		return vstack(spaceXS, fieldLabel(label), controlFrame(control))
 	}
 	form := vstack(spaceM,
-		container.NewGridWithColumns(2,
+		grid(2,
 			field("Service", service),
 			field("Kind", kind),
 		),
 		field("Secret value", secret),
 		caption("Write-only: the stored value is encrypted at rest and never returned by the API. Leave blank on an edit to keep it."),
-		container.NewGridWithColumns(2,
+		grid(2,
 			field("Header", header),
 			field("Scheme", scheme),
 		),

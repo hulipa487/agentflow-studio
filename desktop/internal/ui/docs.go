@@ -143,9 +143,7 @@ func (a *App) docsView(slug string) fyne.CanvasObject {
 	pageScroll := container.NewVScroll(container.New(
 		layout.NewCustomPaddedLayout(pageTop, pageBottom, spaceS, pageGutter), panel(pageCol)))
 
-	split := container.NewHSplit(sidebar, pageScroll)
-	split.SetOffset(0.28)
-	return split
+	return newHSplitPane(sidebar, pageScroll, 0.28)
 }
 
 // renderMarkdown converts the supported Markdown into native Fyne widgets.

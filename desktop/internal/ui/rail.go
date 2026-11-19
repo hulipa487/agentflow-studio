@@ -20,6 +20,8 @@ type railRow struct {
 
 	bg      *canvas.Rectangle
 	label   *widget.Label
+	text    *fyne.Container
+	detail  *canvas.Text
 	stack   *fyne.Container
 	action  func()
 	active  bool
@@ -38,9 +40,9 @@ func newRailRow(label string, icon fyne.Resource, shortcut string, action func()
 
 	left := container.New(layout.NewCustomPaddedLayout(0, 0, spaceS+2, 0), container.NewCenter(iconObj))
 	right := hSpacer(spaceS)
-	text := container.New(compactLabelLayout{}, r.label)
+	r.text = container.NewVBox(container.New(compactLabelLayout{}, r.label))
 	row := container.NewBorder(nil, nil, left, right,
-		container.New(layout.NewCustomPaddedLayout(0, 0, 2, 0), vLeft(text)))
+		container.New(layout.NewCustomPaddedLayout(0, 0, 2, 0), vLeft(r.text)))
 	r.stack = container.NewStack(r.bg, row)
 	r.ExtendBaseWidget(r)
 	r.apply()
@@ -52,8 +54,25 @@ const railRowHeight = float32(28)
 
 func (r *railRow) MinSize() fyne.Size {
 	min := r.stack.MinSize()
-	min.Height = railRowHeight
+	if r.detail == nil {
+		min.Height = railRowHeight
+	} else if min.Height < railRowHeight {
+		min.Height = railRowHeight
+	}
 	return min
+}
+
+// listRow is a rail row with a second line of detail under its label, for
+// selectable lists (profiles, groups, pools). The highlight covers both
+// lines, and the detail starts where the label does rather than under the
+// icon.
+func listRow(label, detail string, icon fyne.Resource, action func()) *railRow {
+	r := newRailRow(label, icon, "", action)
+	r.detail = canvas.NewText(detail, colorFaint)
+	r.detail.TextSize = 11
+	r.text.Add(container.New(layout.NewCustomPaddedLayout(0, spaceXS, 0, 0), r.detail))
+	r.text.Refresh()
+	return r
 }
 
 func (r *railRow) CreateRenderer() fyne.WidgetRenderer {

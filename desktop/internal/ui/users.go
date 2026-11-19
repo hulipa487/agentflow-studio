@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -48,9 +49,8 @@ func (a *App) newUsersView() *usersView {
 		v.filter = strings.ToLower(strings.TrimSpace(q))
 		v.renderList()
 	})
-	left := container.NewBorder(vstack(spaceS, search.Root, v.count), nil, nil, nil, container.NewVScroll(v.list))
-	split := container.NewHSplit(left, container.NewVScroll(v.detail))
-	split.Offset = 0.34
+	left := container.NewBorder(vstack(spaceS, search.Root, v.count), nil, nil, nil, paneScroll(v.list))
+	split := newHSplitPane(left, container.New(layout.NewCustomPaddedLayout(0, 0, spaceS, 0), paneScroll(v.detail)), 0.34)
 	actions := hstack(spaceS,
 		iconButton(theme.ViewRefreshIcon(), "Refresh", func() { v.load() }),
 		primaryButton("Invite", theme.MailSendIcon(), a.issueInvite),
@@ -138,9 +138,9 @@ func (v *usersView) renderList() {
 		if u.Identities == 1 {
 			handles = "1 handle"
 		}
-		row := newRailRow(title, iconUser, "", func() { v.open(u.UserID) })
+		row := listRow(title, sub+" · "+quota+" · "+handles, iconUser, func() { v.open(u.UserID) })
 		row.SetActive(u.UserID == v.selected)
-		v.list.Add(vstack(0, row, insetLeading(caption(sub+" · "+quota+" · "+handles))))
+		v.list.Add(row)
 	}
 	switch {
 	case len(v.users) == 0:
@@ -230,7 +230,7 @@ func (v *usersView) renderDetail(d api.UserDetail) {
 	if d.Quota != nil {
 		used, limit, inflight = d.Quota.Used, d.Quota.Limit, d.Quota.InFlight
 	}
-	tiles := container.NewGridWithColumns(4)
+	tiles := grid(4)
 	var today api.UsageTotals
 	if d.UsageToday != nil {
 		today = *d.UsageToday

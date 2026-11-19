@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -106,7 +105,7 @@ func (v *usageView) render() {
 		failed += r.Failed
 	}
 	v.s.meta.SetText(fmt.Sprintf("%s (UTC) · %d slices · %d tenants", d.Day, len(d.Rows), d.Tenants))
-	tiles := container.NewGridWithColumns(4,
+	tiles := grid(4,
 		statTile("Billable", humanCount(d.Totals.Billable), fmt.Sprintf("in %s · out %s", humanCount(d.Totals.Input), humanCount(d.Totals.Output)), toneAccent, nil),
 		statTile("Calls", humanCount(d.Totals.Calls), fmt.Sprintf("%d failed", failed), toneNeutral, nil),
 		statTile("Cached input", humanCount(cached), "already counted in input", toneNeutral, nil),

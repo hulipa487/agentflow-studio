@@ -586,7 +586,8 @@ function BuilderView({
     <div className={cx('flex min-h-0 flex-1 flex-col pl-5 pt-1', dock === '' ? 'pr-5' : 'pr-2')}>
       <Tabs tabs={tabs} value={tab} onChange={selectTab} />
 
-      <div className={cx('min-h-0 flex-1 overflow-y-auto', tab !== 'config' && 'hidden')}>
+      {/* The scrollbar sits in the gutter to the right of the cards (-mr/pr), not over their edge. */}
+      <div className={cx('-mr-2 min-h-0 flex-1 overflow-y-auto pr-2', tab !== 'config' && 'hidden')}>
         <ConfigTab form={form} patch={patch} catalog={catalog} isNew={isNew} capLabels={capLabels} skillLabels={skillLabels} />
       </div>
 

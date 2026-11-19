@@ -127,10 +127,8 @@ func (a *App) newPlaygroundView(names []string, agent string) *playgroundView {
 	)
 	left := panel(container.NewBorder(leftTop, leftBottom, nil, nil, threadScroll))
 
-	inner := container.NewHSplit(left, p.chatPanel)
-	inner.SetOffset(0.28)
-	outer := container.NewHSplit(inner, p.tracePanel)
-	outer.SetOffset(0.67)
+	inner := newHSplitPane(left, p.chatPanel, 0.28)
+	outer := newHSplitPane(inner, p.tracePanel, 0.67)
 
 	p.root = a.playgroundPage(hstack(spaceS, newThread), outer)
 	p.updateHeader()

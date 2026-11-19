@@ -933,9 +933,11 @@ func sectionAction(title, subtitle string, action fyne.CanvasObject, content fyn
 	head := titleWithHint(titleLabel, subtitle)
 	var top fyne.CanvasObject = head
 	if action != nil {
-		top = container.NewBorder(nil, nil, nil, vCenter(action), head)
+		top = container.NewBorder(nil, nil, nil, vCenter(action), vLeft(head))
 	}
-	return panel(vstack(spaceS, top, content))
+	// Every header reserves a button's height, so panels side by side keep
+	// their titles level whether or not one of them has an action.
+	return panel(vstack(spaceS, headerLine(top), content))
 }
 
 func insetLeading(obj fyne.CanvasObject) fyne.CanvasObject {

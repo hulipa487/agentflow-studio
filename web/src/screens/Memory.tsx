@@ -3,7 +3,9 @@
 // agentflow starts, so every entry says whether it is live or waiting for a
 // restart.
 import { useRef, useState, type ReactNode } from 'react'
-import { Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
+import { BookOpen, Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { docPath } from './docs/helpers'
 import { ApiError, errorMessage } from '@/api/client'
 import type { MemoryBackend, MemoryList, MemoryProfile } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, CopyButton, IconButton, Page, Section } from '@/components/ui'
@@ -29,6 +31,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 export default function Memory() {
   const client = useClient()
+  const navigate = useNavigate()
   const mounted = useMounted()
   const { data: list, error, loading, refreshing, reload, setData } = useAsync<MemoryList>(
     async (signal) => {
@@ -116,7 +119,14 @@ export default function Memory() {
     <Page
       title="Memory"
       subtitle="Where agents keep what they remember: backends are the databases, profiles are the stores an agent reads and writes. Saves go to the deployment config and open on the next runtime start."
-      actions={<IconButton icon={RotateCw} label="Refresh" loading={refreshing} onClick={refresh} />}
+      actions={
+        <>
+          <Button icon={BookOpen} onClick={() => navigate(docPath('memory'))}>
+            Memory guide
+          </Button>
+          <IconButton icon={RotateCw} label="Refresh" loading={refreshing} onClick={refresh} />
+        </>
+      }
       meta={
         list && (
           <>

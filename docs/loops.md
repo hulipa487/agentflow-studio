@@ -308,11 +308,14 @@ a `{ records }` wrapper. The query shape depends on the handler:
 
 | Handler | Query |
 |---|---|
-| `plugin:recency` (default) | `{ store, kind = "all" \| "prefix" \| "text" \| "time_range", prefix? , text?, k?, from?, to? }` |
+| `plugin:recency` (default) | `{ store?, kind = "all" \| "prefix" \| "text" \| "time", prefix?, text?, k?, from?, to? }` |
 | `plugin:semantic` | `{ text, store?, k? }` (needs an `embed_model` on the profile) |
 
-Time-range bounds are RFC3339 strings. Recall returns whatever the handler
-returns; recency and semantic both return the record list.
+Without a `store`, recency reads `dialogue`, so name the store for a text
+search on `facts` (`{ kind = "text", store = "facts", text = "...", k = 5 }`).
+A time window is `kind = "time"` with RFC3339 `from` and `to`. Recall returns
+whatever the handler returns; recency and semantic both return the record
+list. The [Memory](memory.md) guide covers profiles, stores and isolation.
 
 ### Raw stores
 

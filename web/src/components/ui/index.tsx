@@ -1001,8 +1001,11 @@ export function Tabs<V extends string>({
 }) {
   return (
     <div className={cx('flex shrink-0 items-center gap-1 border-b border-line', className)} role="tablist">
-      {tabs.map((t) => {
+      {tabs.map((t, i) => {
         const active = t.id === value
+        // The first tab starts on the content edge, so its label lines up
+        // with the cards and fields below the strip.
+        const first = i === 0
         return (
           <button
             key={t.id}
@@ -1011,14 +1014,15 @@ export function Tabs<V extends string>({
             aria-selected={active}
             onClick={() => onChange(t.id)}
             className={cx(
-              'relative -mb-px flex h-8 items-center gap-1.5 px-2.5 text-base transition-colors',
+              'relative -mb-px flex h-8 items-center gap-1.5 text-base transition-colors',
+              first ? 'pl-0 pr-2.5' : 'px-2.5',
               active ? 'font-medium text-text' : 'text-muted hover:text-text',
             )}
           >
             {t.icon && <t.icon className="size-3.5" strokeWidth={2} />}
             {t.label}
             {t.badge}
-            {active && <span className="absolute inset-x-1.5 bottom-0 h-0.5 rounded-full bg-accent" />}
+            {active && <span className={cx('absolute bottom-0 h-0.5 rounded-full bg-accent', first ? 'left-0 right-1.5' : 'inset-x-1.5')} />}
           </button>
         )
       })}

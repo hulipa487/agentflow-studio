@@ -48,8 +48,8 @@ func (a *App) showModels() {
 
 func (a *App) newModelsView() *modelsView {
 	v := &modelsView{app: a}
-	v.list = vstack(spaceS)
-	v.scroll = container.NewVScroll(v.list)
+	v.list = vstack(spaceM)
+	v.scroll = pageScroll(v.list)
 	v.banner = newBanner()
 	v.count = oneLine("")
 	v.meta = oneLine("")
@@ -67,7 +67,7 @@ func (a *App) newModelsView() *modelsView {
 	v.root = container.NewBorder(
 		vstack(0, pageInset(vstack(spaceS, head, v.meta, v.drift)), hInset(v.banner), widget.NewSeparator()),
 		nil, nil, nil,
-		pageInset(v.scroll),
+		scrollInset(v.scroll),
 	)
 	v.load()
 	return v
@@ -195,20 +195,17 @@ func (v *modelsView) card(m api.Model) fyne.CanvasObject {
 	if base == "" {
 		base = "provider default"
 	}
-	row := func(label string, value fyne.CanvasObject) fyne.CanvasObject {
-		return container.NewBorder(nil, nil, widthBox(104, fieldLabel(label)), nil, value)
-	}
 	cells := []fyne.CanvasObject{
-		row("model", monoInline(m.Model)),
-		row("api key", key),
+		detailRow("model", detailText(m.Model)),
+		detailRow("api key", key),
 	}
-	cells = append(cells, row("base url", monoInline(base)))
+	cells = append(cells, detailRow("base url", detailText(base)))
 	if m.Timeout != "" {
-		cells = append(cells, row("timeout", widget.NewLabel(m.Timeout)))
+		cells = append(cells, detailRow("timeout", detailText(m.Timeout)))
 	} else if m.MaxTokens > 0 {
-		cells = append(cells, row("max tokens", widget.NewLabel(strconv.Itoa(m.MaxTokens))))
+		cells = append(cells, detailRow("max tokens", detailText(strconv.Itoa(m.MaxTokens))))
 	}
-	details := container.NewGridWithColumns(2, cells...)
+	details := grid(2, cells...)
 	return panel(vstack(spaceS, top, widget.NewSeparator(), details))
 }
 
@@ -360,19 +357,19 @@ func (v *modelsView) showEditor(existing *api.Model) {
 
 	errBanner := newBanner()
 	form := vstack(spaceS,
-		container.NewGridWithColumns(2,
+		grid(2,
 			labeled("Name", name),
 			labeled("Provider", provider),
 			labeled("Model", modelID),
 			labeled("API key", key),
 		),
-		container.NewGridWithColumns(2,
+		grid(2,
 			labeled("Base URL", baseURL),
 			labeled("Timeout", timeout),
 			labeled("Retry", retry),
 			labeled("Max tokens", maxTokens),
 		),
-		container.NewGridWithColumns(2,
+		grid(2,
 			labeled("Thinking", thinking),
 			labeled("Server tools", tools),
 		),

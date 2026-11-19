@@ -73,7 +73,7 @@ func checkGrid(checks []*widget.Check, columns int) fyne.CanvasObject {
 		for j := 0; j < columns && i+j < len(checks); j++ {
 			row = append(row, container.New(layout.NewCustomPaddedLayout(0, 0, 0, spaceS), compactCheck(checks[i+j])))
 		}
-		rows.Add(container.NewGridWithColumns(columns, row...))
+		rows.Add(checkColumns(columns, row...))
 	}
 	return rows
 }

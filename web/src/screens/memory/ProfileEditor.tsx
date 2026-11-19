@@ -126,7 +126,7 @@ export function ProfileEditor({
           <Field label="Recall" hint="plugin:recency reads dialogue and facts; plugin:semantic searches the semantic store by meaning.">
             <ComboInput mono value={form.recall} onChange={(e) => set('recall', e.target.value)} options={list.recall_plugins ?? []} placeholder="plugin:recency" />
           </Field>
-          <Field label="Write" hint="Comma-separated write plugins, in order.">
+          <Field label="Write" hint="Passed to loops as agent.info().memory.write. memory.write always runs the routing table, so leave it as plugin:routing_table.">
             <ComboInput
               mono
               value={form.write.join(', ')}

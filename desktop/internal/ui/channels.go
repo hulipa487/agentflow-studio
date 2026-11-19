@@ -42,8 +42,8 @@ func (a *App) showChannels() {
 
 func (a *App) newChannelsView() *channelsView {
 	v := &channelsView{app: a}
-	v.list = vstack(spaceS)
-	v.scroll = container.NewVScroll(v.list)
+	v.list = vstack(spaceM)
+	v.scroll = pageScroll(v.list)
 	v.banner = newBanner()
 	v.count = oneLine("")
 	v.state = oneLine("")
@@ -61,7 +61,7 @@ func (a *App) newChannelsView() *channelsView {
 	v.root = container.NewBorder(
 		vstack(0, pageInset(head), hInset(v.banner), widget.NewSeparator()),
 		nil, nil, nil,
-		pageInset(v.scroll),
+		scrollInset(v.scroll),
 	)
 	return v
 }
@@ -212,12 +212,9 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 	if route == "" {
 		route = "driver default"
 	}
-	row := func(label string, value fyne.CanvasObject) fyne.CanvasObject {
-		return container.NewBorder(nil, nil, widthBox(104, fieldLabel(label)), nil, value)
-	}
 	cells := []fyne.CanvasObject{
-		row("agent", widget.NewLabelWithStyle(agent, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})),
-		row("path", monoInline(route)),
+		detailRow("agent", detailText(agent)),
+		detailRow("path", detailText(route)),
 	}
 	switch ch.Type {
 	case "telegram":
@@ -225,14 +222,14 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 		if mode == "" {
 			mode = "polling"
 		}
-		cells = append(cells, row("mode", widget.NewLabel(mode)))
+		cells = append(cells, detailRow("mode", detailText(mode)))
 		if len(ch.AllowUsers) > 0 {
-			cells = append(cells, row("allow users", widget.NewLabel(fmt.Sprint(ch.AllowUsers))))
+			cells = append(cells, detailRow("allow users", detailText(fmt.Sprint(ch.AllowUsers))))
 		}
-		cells = append(cells, row("token", channelSecretValue(ch.HasToken, ch.TokenRef)),
-			row("webhook secret", channelSecretValue(ch.HasSecretTok, ch.SecretTokRef)))
+		cells = append(cells, detailRow("token", channelSecretValue(ch.HasToken, ch.TokenRef)),
+			detailRow("webhook secret", channelSecretValue(ch.HasSecretTok, ch.SecretTokRef)))
 	case "ghhook":
-		cells = append(cells, row("secret", channelSecretValue(ch.HasSecret, ch.SecretRef)))
+		cells = append(cells, detailRow("secret", channelSecretValue(ch.HasSecret, ch.SecretRef)))
 	case "qq":
 		mode := ch.Mode
 		if mode == "" {
@@ -242,55 +239,55 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 		if scenes == "" {
 			scenes = strings.Join(qqDefaultScenes, ", ")
 		}
-		cells = append(cells, row("mode", widget.NewLabel(mode)),
-			row("app id", monoInline(ch.AppID)),
-			row("scenes", widget.NewLabel(scenes)),
-			row("app secret", channelSecretValue(ch.HasSecret, ch.SecretRef)))
+		cells = append(cells, detailRow("mode", detailText(mode)),
+			detailRow("app id", detailText(ch.AppID)),
+			detailRow("scenes", detailText(scenes)),
+			detailRow("app secret", channelSecretValue(ch.HasSecret, ch.SecretRef)))
 		if ch.Markdown {
-			cells = append(cells, row("replies", widget.NewLabel("markdown")))
+			cells = append(cells, detailRow("replies", detailText("markdown")))
 		}
 		if ch.APIBase != "" {
-			cells = append(cells, row("api base", monoInline(ch.APIBase)))
+			cells = append(cells, detailRow("api base", detailText(ch.APIBase)))
 		}
 	case "bridge":
 		if ch.DeliverURL != "" {
-			cells = append(cells, row("deliver", monoInline(ch.DeliverURL)))
+			cells = append(cells, detailRow("deliver", detailText(ch.DeliverURL)))
 		}
-		cells = append(cells, row("inbound secret", channelSecretValue(ch.HasSecret, ch.SecretRef)),
-			row("outbound token", channelSecretValue(ch.HasToken, ch.TokenRef)))
+		cells = append(cells, detailRow("inbound secret", channelSecretValue(ch.HasSecret, ch.SecretRef)),
+			detailRow("outbound token", channelSecretValue(ch.HasToken, ch.TokenRef)))
 		if ch.Timeout != "" {
-			cells = append(cells, row("timeout", widget.NewLabel(ch.Timeout)))
+			cells = append(cells, detailRow("timeout", detailText(ch.Timeout)))
 		}
 	case "webhook":
 		if ch.Timeout != "" {
-			cells = append(cells, row("timeout", widget.NewLabel(ch.Timeout)))
+			cells = append(cells, detailRow("timeout", detailText(ch.Timeout)))
 		}
 		if ch.Async {
-			cells = append(cells, row("mode", widget.NewLabel("async · job id")))
+			cells = append(cells, detailRow("mode", detailText("async · job id")))
 		}
 	case "openai":
-		cells = append(cells, row("auth", widget.NewLabel(ch.Auth)))
+		cells = append(cells, detailRow("auth", detailText(ch.Auth)))
 		if ch.Auth == "key" {
-			cells = append(cells, row("keys", channelSecretValue(ch.HasKeys, strings.Join(ch.KeyRefs, ", "))))
+			cells = append(cells, detailRow("keys", channelSecretValue(ch.HasKeys, strings.Join(ch.KeyRefs, ", "))))
 		}
 		journal := ch.Journal
 		if journal == "" {
 			journal = "metadata"
 		}
-		cells = append(cells, row("journal", widget.NewLabel(journal)))
+		cells = append(cells, detailRow("journal", detailText(journal)))
 		if ch.Timeout != "" {
-			cells = append(cells, row("timeout", widget.NewLabel(ch.Timeout)))
+			cells = append(cells, detailRow("timeout", detailText(ch.Timeout)))
 		}
 	}
 	// The audit mode applies to every channel type. The openai card always
 	// shows it (above); any other type shows it when it is not the default.
 	if ch.Type != "openai" && ch.Journal != "" && ch.Journal != "full" {
-		cells = append(cells, row("journal", widget.NewLabel(ch.Journal)))
+		cells = append(cells, detailRow("journal", detailText(ch.Journal)))
 	}
 	if len(ch.MediaAllow) > 0 {
-		cells = append(cells, row("media", monoInline(strings.Join(ch.MediaAllow, ", "))))
+		cells = append(cells, detailRow("media", detailText(strings.Join(ch.MediaAllow, ", "))))
 	}
-	details := container.NewGridWithColumns(2, cells...)
+	details := grid(2, cells...)
 	return panel(vstack(spaceS, top, widget.NewSeparator(), details))
 }
 

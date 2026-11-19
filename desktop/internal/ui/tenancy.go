@@ -10,6 +10,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -49,16 +50,18 @@ func (a *App) newTenancyView() *tenancyView {
 	v.groupList, v.groupDetail = vstack(spaceXS), vstack(spaceS)
 	v.poolList, v.poolDetail = vstack(spaceXS), vstack(spaceS)
 
-	groupSplit := container.NewHSplit(
-		container.NewBorder(container.NewPadded(actionButton("New group", theme.ContentAddIcon(), v.newGroup)), nil, nil, nil,
-			container.NewVScroll(v.groupList)),
-		container.NewVScroll(v.groupDetail))
-	groupSplit.Offset = 0.32
-	poolSplit := container.NewHSplit(
-		container.NewBorder(container.NewPadded(actionButton("New pool", theme.ContentAddIcon(), v.newPool)), nil, nil, nil,
-			container.NewVScroll(v.poolList)),
-		container.NewVScroll(v.poolDetail))
-	poolSplit.Offset = 0.32
+	listPane := func(add fyne.CanvasObject, list fyne.CanvasObject) fyne.CanvasObject {
+		return container.NewBorder(vstack(spaceS, add, vSpacer(0)), nil, nil, nil, paneScroll(list))
+	}
+	detailPane := func(detail fyne.CanvasObject) fyne.CanvasObject {
+		return container.New(layout.NewCustomPaddedLayout(0, 0, spaceS, 0), paneScroll(detail))
+	}
+	groupSplit := newHSplitPane(
+		listPane(actionButton("New group", theme.ContentAddIcon(), v.newGroup), v.groupList),
+		detailPane(v.groupDetail), 0.32)
+	poolSplit := newHSplitPane(
+		listPane(actionButton("New pool", theme.ContentAddIcon(), v.newPool), v.poolList),
+		detailPane(v.poolDetail), 0.32)
 
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("Groups", iconUser, groupSplit),
@@ -186,13 +189,13 @@ func (v *tenancyView) renderGroups() {
 	}
 	for _, g := range v.groups {
 		g := g
-		row := newRailRow(g.Name, iconUser, "", func() { v.openGroup(g.UUID) })
-		row.SetActive(g.UUID == v.selGroup)
 		sub := shortID(g.UUID)
 		if g.DisbandedAt > 0 {
 			sub += " · disbanded " + relTime(g.DisbandedAt)
 		}
-		v.groupList.Add(vstack(0, row, insetLeading(caption(sub))))
+		row := listRow(g.Name, sub, iconUser, func() { v.openGroup(g.UUID) })
+		row.SetActive(g.UUID == v.selGroup)
+		v.groupList.Add(row)
 	}
 	v.groupList.Refresh()
 }
@@ -229,7 +232,7 @@ func (v *tenancyView) renderGroup(d api.GroupDetail) {
 	head := container.NewBorder(nil, nil,
 		hstack(spaceS, vCenter(widget.NewLabelWithStyle(g.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})), vCenter(state)),
 		nil, nil)
-	info := container.NewGridWithColumns(3,
+	info := grid(3,
 		kvLine("group uuid", g.UUID),
 		kvLine("master", v.who(g.Master)),
 		kvLine("created", relTime(g.CreatedAt)),
@@ -385,13 +388,13 @@ func (v *tenancyView) renderPools() {
 	}
 	for _, p := range v.pools {
 		p := p
-		row := newRailRow(p.Name, theme.StorageIcon(), "", func() { v.openPool(p.UUID) })
-		row.SetActive(p.UUID == v.selPool)
 		owner := "tenant " + shortID(p.Owner.Tenant)
 		if p.Owner.Group != "" {
 			owner = "group " + shortID(p.Owner.Group)
 		}
-		v.poolList.Add(vstack(0, row, insetLeading(caption(fmt.Sprintf("%s · %dd retention", owner, p.RetentionDays)))))
+		row := listRow(p.Name, fmt.Sprintf("%s · %dd retention", owner, p.RetentionDays), theme.StorageIcon(), func() { v.openPool(p.UUID) })
+		row.SetActive(p.UUID == v.selPool)
+		v.poolList.Add(row)
 	}
 	v.poolList.Refresh()
 }
@@ -447,7 +450,7 @@ func (v *tenancyView) renderPool(p api.Pool, grants []api.Grant) {
 	head := container.NewBorder(nil, nil,
 		hstack(spaceS, vCenter(widget.NewLabelWithStyle(p.Name, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})), vCenter(chip(ownerKind+" pool", toneAccent))),
 		v.app.copyButton("pool: "+p.Name, "store binding"), nil)
-	info := container.NewGridWithColumns(3,
+	info := grid(3,
 		kvLine("owner", owner),
 		kvLine("retention", fmt.Sprintf("%d days (immutable)", p.RetentionDays)),
 		kvLine("created", relTime(p.CreatedAt)+" by "+shortID(p.CreatedBy)),
@@ -504,7 +507,7 @@ func (v *tenancyView) renderPool(p api.Pool, grants []api.Grant) {
 		})
 	})
 	form := container.NewBorder(nil, nil, nil, grantBtn,
-		container.NewGridWithColumns(3, controlFrame(agent), controlFrame(tenant), controlFrame(mode)))
+		grid(3, controlFrame(agent), controlFrame(tenant), controlFrame(mode)))
 	v.poolDetail.Add(section("Grants", "Per (agent, tenant). The member wildcard covers everyone active in the owning group; a tenant pool's wildcard covers nobody but its owner.",
 		vstack(spaceS, table, form)))
 	v.poolDetail.Refresh()
@@ -565,7 +568,7 @@ func (v *tenancyView) newPool() {
 	retention.SetText("90")
 	errBanner := newBanner()
 	form := vstack(spaceM,
-		container.NewGridWithColumns(2,
+		grid(2,
 			vstack(spaceXS, fieldLabel("Name"), controlFrame(name)),
 			vstack(spaceXS, fieldLabel("Retention (days)"), controlFrame(retention))),
 		vstack(spaceXS, fieldLabel("Creator"), controlFrame(creator)),

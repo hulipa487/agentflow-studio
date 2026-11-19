@@ -38,10 +38,11 @@ const MANIFEST: DocPage[] = [
   { slug: 'architecture', file: 'architecture.md', title: 'Architecture & deployment', section: 'Start here', order: 2 },
   { slug: 'multi-region', file: 'multi-region.md', title: 'Multi-region', section: 'Start here', order: 3 },
   { slug: 'loops', file: 'loops.md', title: 'Luau loops', section: 'Build', order: 4 },
-  { slug: 'extending', file: 'extending.md', title: 'Extending', section: 'Build', order: 5 },
-  { slug: 'configuration', file: 'configuration.md', title: 'Configuration', section: 'Reference', order: 6 },
-  { slug: 'loops-reference', file: 'loops-reference.md', title: 'Loop API reference', section: 'Reference', order: 7 },
-  { slug: 'openai-api', file: 'openai-api.md', title: 'OpenAI-compatible API', section: 'Reference', order: 8 },
+  { slug: 'memory', file: 'memory.md', title: 'Memory', section: 'Build', order: 5 },
+  { slug: 'extending', file: 'extending.md', title: 'Extending', section: 'Build', order: 6 },
+  { slug: 'configuration', file: 'configuration.md', title: 'Configuration', section: 'Reference', order: 7 },
+  { slug: 'loops-reference', file: 'loops-reference.md', title: 'Loop API reference', section: 'Reference', order: 8 },
+  { slug: 'openai-api', file: 'openai-api.md', title: 'OpenAI-compatible API', section: 'Reference', order: 9 },
 ]
 
 export const DOC_SECTIONS = ['Start here', 'Build', 'Reference']

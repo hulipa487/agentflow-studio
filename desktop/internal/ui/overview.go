@@ -125,14 +125,14 @@ func (v *overviewView) render(d overviewData) {
 	v.s.meta.SetText(strings.Join(parts, " · "))
 
 	if !v.built {
-		v.tiles = container.NewGridWithColumns(4)
-		v.counters = container.NewGridWithColumns(4)
+		v.tiles = grid(4)
+		v.counters = grid(4)
 		v.sessions = vstack(spaceS)
 		v.agents = vstack(spaceS)
 		v.channels = vstack(spaceS)
 		v.instances = vstack(spaceS)
 		left := section("Live sessions", "One actor per (agent, session key). Busy means a turn is running.", v.sessions)
-		right := vstack(spaceS,
+		right := vstack(spaceM,
 			sectionAction("Agents", "Configured at boot; Studio-applied agents appear under Agents.",
 				actionButton("Open", theme.NavigateNextIcon(), v.app.showAgents), v.agents),
 			sectionAction("Channels", "Bound when the runtime started.",
@@ -143,7 +143,7 @@ func (v *overviewView) render(d overviewData) {
 		v.s.setBody(
 			v.tiles,
 			v.counters,
-			container.NewGridWithColumns(2, left, right),
+			grid(2, left, right),
 			section("Instances", "Every process currently heartbeating on this runtime store. An epoch that differs means two instances run different configs.", v.instances),
 		)
 		v.built = true

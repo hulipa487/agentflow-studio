@@ -42,7 +42,7 @@ func (a *App) showSafety() {
 func (a *App) newSafetyView() *safetyView {
 	v := &safetyView{app: a}
 	v.list = vstack(spaceM)
-	v.scroll = container.NewVScroll(v.list)
+	v.scroll = pageScroll(v.list)
 	v.banner = newBanner()
 	v.count = oneLine("")
 	v.meta = oneLine("")
@@ -54,7 +54,7 @@ func (a *App) newSafetyView() *safetyView {
 	v.root = container.NewBorder(
 		vstack(0, pageInset(vstack(spaceS, head, v.meta)), hInset(v.banner), widget.NewSeparator()),
 		nil, nil, nil,
-		pageInset(v.scroll),
+		scrollInset(v.scroll),
 	)
 	v.load()
 	return v
@@ -140,7 +140,7 @@ func (v *safetyView) render() {
 		classifierCTA.Disable()
 	}
 
-	v.profileSection = vstack(spaceS)
+	v.profileSection = vstack(spaceM)
 	for _, p := range v.data.Profiles {
 		v.profileSection.Add(v.profileCard(p))
 	}
@@ -151,7 +151,7 @@ func (v *safetyView) render() {
 		)))
 	}
 
-	v.classifierSection = vstack(spaceS)
+	v.classifierSection = vstack(spaceM)
 	for _, c := range v.data.Classifiers {
 		v.classifierSection.Add(v.classifierCard(c))
 	}
@@ -206,9 +206,6 @@ func (v *safetyView) profileCard(p api.SafetyProfile) fyne.CanvasObject {
 	chain.TextStyle = fyne.TextStyle{Monospace: true}
 	chain.SizeName = theme.SizeNameCaptionText
 
-	row := func(label string, value fyne.CanvasObject) fyne.CanvasObject {
-		return container.NewBorder(nil, nil, widthBox(108, fieldLabel(label)), nil, value)
-	}
 	used := "not referenced by an agent yet"
 	if len(p.Agents) > 0 || len(p.SpawnProfiles) > 0 {
 		parts := []string{}
@@ -221,11 +218,11 @@ func (v *safetyView) profileCard(p api.SafetyProfile) fyne.CanvasObject {
 		used = strings.Join(parts, " · ")
 	}
 	cells := []fyne.CanvasObject{
-		row("chain", chain),
-		row("used by", widget.NewLabel(used)),
+		detailRow("chain", chain),
+		detailRow("used by", detailText(used)),
 	}
 	if len(p.Classifiers) > 0 {
-		cells = append(cells, row("classifiers", monoInline(strings.Join(p.Classifiers, ", "))))
+		cells = append(cells, detailRow("classifiers", detailText(strings.Join(p.Classifiers, ", "))))
 	}
 	return panel(vstack(spaceS, top, widget.NewSeparator(), container.NewVBox(cells...)))
 }
@@ -253,9 +250,6 @@ func (v *safetyView) classifierCard(c api.SafetyClassifier) fyne.CanvasObject {
 		nil,
 	)
 
-	row := func(label string, value fyne.CanvasObject) fyne.CanvasObject {
-		return container.NewBorder(nil, nil, widthBox(108, fieldLabel(label)), nil, value)
-	}
 	threshold := "0.7 (default)"
 	if c.Threshold != nil {
 		threshold = strconv.FormatFloat(*c.Threshold, 'f', -1, 64)
@@ -273,14 +267,14 @@ func (v *safetyView) classifierCard(c api.SafetyClassifier) fyne.CanvasObject {
 		used = strings.Join(c.UsedBy, ", ")
 	}
 	cells := []fyne.CanvasObject{
-		row("model", widget.NewLabel(c.Model)),
-		row("threshold", widget.NewLabel(threshold)),
-		row("directions", widget.NewLabel(directions)),
-		row("sources", widget.NewLabel(sources)),
-		row("categories", monoInline(categorySummary(c.Categories))),
-		row("used by", widget.NewLabel(used)),
+		detailRow("model", detailText(c.Model)),
+		detailRow("threshold", detailText(threshold)),
+		detailRow("directions", detailText(directions)),
+		detailRow("sources", detailText(sources)),
+		detailRow("categories", detailText(categorySummary(c.Categories))),
+		detailRow("used by", detailText(used)),
 	}
-	return panel(vstack(spaceS, top, widget.NewSeparator(), container.NewGridWithColumns(2, cells...)))
+	return panel(vstack(spaceS, top, widget.NewSeparator(), grid(2, cells...)))
 }
 
 func chainText(filters []string) string {
@@ -637,17 +631,17 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 		return vstack(spaceXS, fieldLabel(label), controlFrame(control))
 	}
 	form := vstack(spaceM,
-		container.NewGridWithColumns(2,
+		grid(2,
 			field("Name", name),
 			field("Model", model),
 		),
-		container.NewGridWithColumns(2,
+		grid(2,
 			field("Mode", mode),
 			field("Prompt", prompt),
 		),
 		vstack(spaceXS, fieldLabel("Directions"), hstack(spaceM, ingress, egress)),
 		vstack(spaceXS, fieldLabel("Sources"), hstack(spaceM, srcChannel, srcAgent, srcScheduler, srcSystem)),
-		container.NewGridWithColumns(2,
+		grid(2,
 			field("Threshold", threshold),
 			field("Timeout", timeout),
 			field("On error", onError),
@@ -662,7 +656,7 @@ func (v *safetyView) editClassifier(existing *api.SafetyClassifier) {
 		),
 		vstack(spaceXS, fieldLabel("Categories"), categories,
 			caption("One per line, label: allow|review|block. At least one allow label is required.")),
-		container.NewGridWithColumns(2,
+		grid(2,
 			field("Refusal (ingress block)", refusal),
 			field("Fallback (egress block)", fallback),
 		),

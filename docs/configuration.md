@@ -328,7 +328,7 @@ The browser console covers the four tabs above. Everything else in this table (u
 - **Trace** — a live timeline of the turn: `turn.start`, each `op.start`/`op.end` (model, tool, duration, tokens, tool calls), safety drops, replies, reloads and loop errors. Text payloads are off by default (`studio.trace_payloads`); metadata is always captured.
 - **Channels** — the gateway's persisted channel set: add, edit, validate and delete webhook, Telegram, GitHub-webhook and bridge entries; secrets stay write-only. Saves bind at the next start.
 - **Models** — the live model registry: add, edit, test with a real call, delete, then persist the live set to the config or revert to the file.
-- **Memory** — edit `memory.backends` and `profiles.memory`: backends by provider, with only the keys that provider reads, and profiles as a list of stores (backend, table, retention, window, required features, scope or shared pool) plus recall, write, embed and rerank settings. Backend URLs and API keys are write-only: the screen shows a `${VAR}` or `cred:` reference, or the URL with its password masked. Validation is boot-equivalent, and a profile or backend still in use cannot be deleted. A deployment that declares no backends shows the built-in `main_db` on the runtime store; saving the first backend writes it into the file, so agents on the built-in `conversational` profile keep their store. Agents open their stores at boot, so saves apply at the next start, and a new profile can be picked in the builder after that restart.
+- **Memory** — see the [Memory](memory.md) guide. Edit `memory.backends` and `profiles.memory`: backends by provider, with only the keys that provider reads, and profiles as a list of stores (backend, table, retention, window, required features, scope or shared pool) plus recall, write, embed and rerank settings. Backend URLs and API keys are write-only: the screen shows a `${VAR}` or `cred:` reference, or the URL with its password masked. Validation is boot-equivalent, and a profile or backend still in use cannot be deleted. A deployment that declares no backends shows the built-in `main_db` on the runtime store; saving the first backend writes it into the file, so agents on the built-in `conversational` profile keep their store. Agents open their stores at boot, so saves apply at the next start, and a new profile can be picked in the builder after that restart.
 - **Safety** — edit `profiles.safety` chains (ordered builtins and `classifier:<name>` references) and `safety.classifiers` policies. Validation is boot-equivalent; profiles and classifiers still referenced cannot be deleted. Dispatchers are built per agent, so saves bind at the next start.
 - **Credentials** — browse the encrypted store by bucket (engine-wide or per-user), create, edit, revoke, and set the injection header/scheme. Values are write-only and shown only as a last-four fingerprint; edits are live because the store is read at request time.
 - **Overview** — the landing screen: instance, region, version, uptime and config epoch, live sessions, agents, channels, and sparklines of the sampled counters (`/admin/api/state`, `/admin/api/metrics`).
@@ -484,28 +484,33 @@ A backend whose `config.url`/`config.password`/`config.api_key` secret reference
 
 ### `profiles` — reusable configs
 
-Profile kinds are namespaced: `memory/<name>`, `safety/<name>`, `shell/<name>`, `agent/<name>`. Agents reference them by short name.
+Profiles are grouped by kind under `profiles:` — `memory`, `safety`, `shell` and `agent` — and agents reference them by name (`memory: chat`, `safety: strict`, `shell: python`).
 
 #### Memory profile
 
-```
-profiles:
-  memory/conversational:
-    stores:
-      dialogue: { backend: main_db, table: dialogue, window: 1000, retention: 30d }
-      facts: { backend: main_db, table: facts, requires: [kv, text_search] }
-    write: [plugin:routing_table]
-    recall: plugin:recency
+[Memory](memory.md) is the full guide: how backends, profiles and stores fit together, how a loop writes and recalls, isolation, recipes, and the validation messages. This section is the reference.
 
-  memory/semantic:                        # embedding + rerank recall
-    stores:
-      semantic: { backend: vec, table: semantic, requires: [vector] }
-    write: [plugin:routing_table]
-    recall: plugin:semantic
-    embed_model: embed                    # models: entry; auto-embeds writes to vector stores
-    rerank_model: rerank                  # optional provider:"rerank" entry
-    oversample: 4                         # fetch k*4 vector hits, rerank down to k
+```yaml
+profiles:
+  memory:
+    chat:                                 # "conversational" is reserved for the built-in profile
+      stores:
+        dialogue: { backend: main_db, table: dialogue, window: 1000, retention: 30d }
+        facts: { backend: main_db, table: facts, requires: [kv, text_search] }
+      write: [plugin:routing_table]
+      recall: plugin:recency
+
+    semantic:                             # embedding + rerank recall
+      stores:
+        semantic: { backend: vec, table: semantic, requires: [vector] }
+      write: [plugin:routing_table]
+      recall: plugin:semantic
+      embed_model: embed                  # models: entry; auto-embeds writes to vector stores
+      rerank_model: rerank                # optional provider:"rerank" entry
+      oversample: 4                       # fetch k*4 vector hits, rerank down to k
 ```
+
+`write` is passed to loops as `agent.info().memory.write`; `memory.write` always runs the routing table (`plugin:routing_table`, or a `plugins/routing_table.lua` that shadows it).
 
 With `recall: plugin:semantic`, `memory.recall({ text = "...", k = 5 })` embeds the query, runs cosine k-NN over the vector store, and reranks when `rerank_model` is set. Queries without text fall back to recency recall.
 

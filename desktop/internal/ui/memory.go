@@ -42,18 +42,19 @@ func (a *App) showMemory() {
 func (a *App) newMemoryView() *memoryView {
 	v := &memoryView{app: a}
 	v.list = vstack(spaceM)
-	v.scroll = container.NewVScroll(v.list)
+	v.scroll = pageScroll(v.list)
 	v.banner = newBanner()
 	v.count = oneLine("")
 	v.meta = oneLine("")
 	refresh := iconButton(theme.ViewRefreshIcon(), "Refresh", v.load)
+	guide := actionButton("Memory guide", theme.HelpIcon(), func() { a.showDocs("memory") })
 	head := pageHeader("Memory",
 		"Where agents keep what they remember: backends are the databases, profiles are the stores an agent reads and writes. Saves go to the deployment config and open on the next runtime start.",
-		hstack(spaceS, widthBox(150, v.count), refresh))
+		hstack(spaceS, widthBox(150, v.count), guide, refresh))
 	v.root = container.NewBorder(
 		vstack(0, pageInset(vstack(spaceS, head, v.meta)), hInset(v.banner), widget.NewSeparator()),
 		nil, nil, nil,
-		pageInset(v.scroll),
+		scrollInset(v.scroll),
 	)
 	v.load()
 	return v
@@ -131,7 +132,7 @@ func (v *memoryView) render() {
 		profileSub = fmt.Sprintf(`Named store sets agents pick in the builder. The built-in "conversational" profile is used by %s.`, strings.Join(v.data.BuiltinAgents, ", "))
 	}
 	v.list.Add(safetySectionHeader("Profiles", profileSub, profileAction))
-	profiles := vstack(spaceS)
+	profiles := vstack(spaceM)
 	for _, p := range v.data.Profiles {
 		profiles.Add(v.profileCard(p))
 	}
@@ -143,7 +144,7 @@ func (v *memoryView) render() {
 	v.list.Add(safetySectionHeader("Backends",
 		"The databases stores live in. Secrets are never shown; use ${VAR} or cred:<service> to keep them out of the file.",
 		backendAction))
-	backends := vstack(spaceS)
+	backends := vstack(spaceM)
 	for _, b := range v.data.Backends {
 		backends.Add(v.backendCard(b))
 	}
@@ -160,10 +161,6 @@ func liveChip(live bool) fyne.CanvasObject {
 		return chip("live", toneSuccess)
 	}
 	return chip("restart required", toneWarning)
-}
-
-func memoryRow(label string, value fyne.CanvasObject) fyne.CanvasObject {
-	return container.NewBorder(nil, nil, widthBox(108, fieldLabel(label)), nil, value)
 }
 
 func (v *memoryView) profileCard(p api.MemoryProfile) fyne.CanvasObject {
@@ -184,16 +181,16 @@ func (v *memoryView) profileCard(p api.MemoryProfile) fyne.CanvasObject {
 		), nil)
 	rows := []fyne.CanvasObject{}
 	for _, s := range p.Stores {
-		rows = append(rows, memoryRow(s.Name, monoInline(storeSummary(s))))
+		rows = append(rows, detailRow(s.Name, detailText(storeSummary(s))))
 	}
 	if p.EmbedModel != "" {
 		e := p.EmbedModel
 		if p.RerankModel != "" {
 			e += " · rerank " + p.RerankModel
 		}
-		rows = append(rows, memoryRow("embedding", monoInline(e)))
+		rows = append(rows, detailRow("embedding", detailText(e)))
 	}
-	rows = append(rows, memoryRow("used by", widget.NewLabel(memoryProfileUsedBy(p))))
+	rows = append(rows, detailRow("used by", detailText(memoryProfileUsedBy(p))))
 	return panel(vstack(spaceS, top, widget.NewSeparator(), container.NewVBox(rows...)))
 }
 
@@ -218,11 +215,11 @@ func (v *memoryView) backendCard(b api.MemoryBackend) fyne.CanvasObject {
 	if b.Implicit && len(v.data.BuiltinAgents) > 0 {
 		used = "built-in profile: " + strings.Join(v.data.BuiltinAgents, ", ")
 	}
-	rows := []fyne.CanvasObject{memoryRow("target", monoInline(backendTarget(b)))}
+	rows := []fyne.CanvasObject{detailRow("target", detailText(backendTarget(b)))}
 	if b.Dim > 0 {
-		rows = append(rows, memoryRow("dimensions", monoInline(strconv.Itoa(b.Dim))))
+		rows = append(rows, detailRow("dimensions", detailText(strconv.Itoa(b.Dim))))
 	}
-	rows = append(rows, memoryRow("used by", widget.NewLabel(used)))
+	rows = append(rows, detailRow("used by", detailText(used)))
 	return panel(vstack(spaceS, top, widget.NewSeparator(), container.NewVBox(rows...)))
 }
 
@@ -451,27 +448,27 @@ func (v *memoryView) editBackend(existing *api.MemoryBackend) {
 			}
 			fields.Add(box)
 		}
-		grid := []fyne.CanvasObject{}
+		cells := []fyne.CanvasObject{}
 		if has("collection") {
-			grid = append(grid, field("Collection", "Empty uses the driver default.", collection))
+			cells = append(cells, field("Collection", "Empty uses the driver default.", collection))
 		}
 		if has("distance") {
-			grid = append(grid, field("Distance", "", distance))
+			cells = append(cells, field("Distance", "", distance))
 		}
 		if has("timeout") {
-			grid = append(grid, field("Timeout", "A duration, e.g. 5s.", timeout))
+			cells = append(cells, field("Timeout", "A duration, e.g. 5s.", timeout))
 		}
 		if has("dim") {
-			grid = append(grid, field("Dimensions", "The embedding model's vector size.", dim))
+			cells = append(cells, field("Dimensions", "The embedding model's vector size.", dim))
 		}
 		if has("vector_scan_limit") {
-			grid = append(grid, field("Vector scan limit", "Rows a vector search may scan. Default 50000.", scan))
+			cells = append(cells, field("Vector scan limit", "Rows a vector search may scan. Default 50000.", scan))
 		}
 		if has("max_entries") {
-			grid = append(grid, field("Max entries", "Bounds memory. Without it every store on this backend needs a retention.", maxEntries))
+			cells = append(cells, field("Max entries", "Bounds memory. Without it every store on this backend needs a retention.", maxEntries))
 		}
-		if len(grid) > 0 {
-			fields.Add(container.NewGridWithColumns(2, grid...))
+		if len(cells) > 0 {
+			fields.Add(grid(2, cells...))
 		}
 		if !sameProvider && existing != nil && !existing.Implicit {
 			fields.Add(caption("Changing provider drops the settings the old one used."))
@@ -486,7 +483,7 @@ func (v *memoryView) editBackend(existing *api.MemoryBackend) {
 	providerHint.Wrapping = fyne.TextWrapWord
 
 	body := vstack(spaceM,
-		container.NewGridWithColumns(2,
+		grid(2,
 			field("Name", "Stores refer to the backend by name, so it cannot change later.", name),
 			field("Provider", "", provider),
 		),
@@ -610,7 +607,7 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 		}
 		remove := iconButton(theme.ContentClearIcon(), "Remove store", nil)
 		w.row = panel(vstack(spaceXS,
-			container.NewBorder(nil, nil, nil, remove, container.NewGridWithColumns(5,
+			container.NewBorder(nil, nil, nil, remove, grid(5,
 				controlFrame(w.name), controlFrame(w.backend), controlFrame(w.table), controlFrame(w.retention), controlFrame(w.window))),
 			hstack(spaceM, append(checks, widthBox(170, controlFrame(w.scope)), widthBox(150, controlFrame(w.pool)), compactCheck(w.locality))...),
 		))
@@ -646,15 +643,15 @@ func (v *memoryView) editProfile(existing *api.MemoryProfile) {
 		}
 		return box
 	}
-	header := container.NewBorder(nil, nil, nil, widthBox(36, layout.NewSpacer()), container.NewGridWithColumns(5,
+	header := container.NewBorder(nil, nil, nil, widthBox(36, layout.NewSpacer()), grid(5,
 		caption("store"), caption("backend"), caption("table"), caption("retention"), caption("window")))
 	body := vstack(spaceM,
 		field("Name", `Agents refer to the profile by name, so it cannot change later. "conversational" is the built-in one.`, name),
 		vstack(spaceXS, fieldLabel("Stores"), header, storesBox, hstack(spaceS, widthBox(130, controlFrame(addBtn))),
 			caption("Each logical store is a table on a backend. Retention is a duration such as 30d, or forever.")),
-		container.NewGridWithColumns(2,
+		grid(2,
 			field("Recall", "plugin:recency reads dialogue and facts; plugin:semantic searches the semantic store by meaning.", recall),
-			field("Write", "Comma-separated write plugins, in order.", write),
+			field("Write", "Passed to loops as agent.info().memory.write. memory.write always runs the routing table, so leave it as plugin:routing_table.", write),
 			field("Embed model", "Embeds each record on write; required for semantic recall.", embed),
 			field("Rerank model", "Optional: oversample vector hits and let a provider: rerank model order them.", rerank),
 			field("Oversample", "With a rerank model: how many times k hits to rerank. Default 4.", oversample),

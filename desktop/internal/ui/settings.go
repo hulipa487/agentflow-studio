@@ -110,7 +110,7 @@ func (a *App) settingsView() fyne.CanvasObject {
 		obsidianBtn,
 	)
 
-	paletteGrid := container.NewGridWithColumns(2, transCard, obsidianCard)
+	paletteGrid := grid(2, transCard, obsidianCard)
 	modePicker := hstack(spaceS,
 		widthBox(132, controlFrame(lightBtn)),
 		widthBox(132, controlFrame(darkBtn)),
@@ -149,15 +149,17 @@ func (a *App) settingsView() fyne.CanvasObject {
 	)
 
 	shortcutRow := func(keys, desc string) fyne.CanvasObject {
+		// The keys get one column wide enough for the longest chord, so every
+		// description starts on the same line.
 		return subpanel(container.NewBorder(nil, nil,
-			vCenter(chip(keys, toneNeutral)),
+			widthBox(104, vLeft(onLine(chip(keys, toneNeutral)))),
 			nil,
-			vCenter(widget.NewLabel(desc)),
+			vLeft(widget.NewLabel(desc)),
 		))
 	}
 	shortcuts := section("Keyboard shortcuts",
 		"Navigate workspaces and trigger common editor actions from the keyboard.",
-		container.NewGridWithColumns(2,
+		grid(2,
 			shortcutRow("Ctrl+N", "Create a new agent"),
 			shortcutRow("Ctrl+1 … 6", "Switch workspace views"),
 			shortcutRow("Ctrl+S", "Apply changes in Builder"),
@@ -176,7 +178,7 @@ func (a *App) settingsView() fyne.CanvasObject {
 		),
 	)
 
-	body := container.NewVScroll(pageInset(vstack(spaceM, appearance, connection, shortcuts, about)))
+	body := scrollInset(pageScroll(vstack(spaceM, appearance, connection, shortcuts, about)))
 	head := pageHeader("Settings", "Customize Studio appearance, theme palette, and runtime connection.", nil)
 	return container.NewBorder(
 		vstack(0, pageInset(head), widget.NewSeparator()),

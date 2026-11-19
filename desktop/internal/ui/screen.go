@@ -34,8 +34,8 @@ type screen struct {
 
 // newScreen builds a page whose body scrolls vertically.
 func (a *App) newScreen(title, subtitle string, actions fyne.CanvasObject) *screen {
-	s := &screen{app: a, banner: newBanner(), meta: oneLine(""), body: vstack(spaceS)}
-	s.root = s.frame(title, subtitle, actions, container.NewVScroll(s.body))
+	s := &screen{app: a, banner: newBanner(), meta: oneLine(""), body: vstack(spaceM)}
+	s.root = s.frameInset(title, subtitle, actions, scrollInset(pageScroll(s.body)))
 	return s
 }
 
@@ -47,11 +47,16 @@ func (a *App) newPane(title, subtitle string, actions, content fyne.CanvasObject
 }
 
 func (s *screen) frame(title, subtitle string, actions, content fyne.CanvasObject) fyne.CanvasObject {
+	return s.frameInset(title, subtitle, actions, pageInset(content))
+}
+
+// frameInset is frame for a body that brings its own margins.
+func (s *screen) frameInset(title, subtitle string, actions, body fyne.CanvasObject) fyne.CanvasObject {
 	head := pageHeader(title, subtitle, actions)
 	return container.NewBorder(
 		vstack(0, pageInset(vstack(spaceS, head, s.meta)), hInset(s.banner), widget.NewSeparator()),
 		nil, nil, nil,
-		pageInset(content),
+		body,
 	)
 }
 
@@ -194,7 +199,9 @@ func simpleTable(cols []tableColumn, rows [][]fyne.CanvasObject) fyne.CanvasObje
 		for i, c := range cols {
 			var cell fyne.CanvasObject = layout.NewSpacer()
 			if i < len(cells) && cells[i] != nil {
-				cell = cells[i]
+				// Every cell sits on one label line, so a dot or a chip
+				// lines up with the text in the cells beside it.
+				cell = onLine(cells[i])
 			}
 			if c.width == 0 && !seenFill {
 				fill = cell

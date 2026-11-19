@@ -78,7 +78,7 @@ type builderView struct {
 	docsPane  fyne.CanvasObject
 	body      *fyne.Container
 	editor    fyne.CanvasObject
-	dockSplit *container.Split
+	dockSplit *fyne.Container
 }
 
 func displayName(name string) string {
@@ -285,7 +285,7 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		}
 	}
 
-	identityGrid := container.NewGridWithColumns(2,
+	identityGrid := grid(2,
 		labeled("Name", b.nameEntry),
 		labeled("Model", b.model),
 		labeled("Safety profile", b.safety),
@@ -326,7 +326,7 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		"Leave empty to expose every tool allowed by the deployment policy.",
 		toolsBody)
 
-	advancedTop := container.NewGridWithColumns(2,
+	advancedTop := grid(2,
 		labeled("Can contact", b.canContact),
 		labeled("Credentials", b.credentials),
 		labeled("Shell profile", b.shell),
@@ -339,8 +339,8 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	// The tab strip and the cards must start on the same vertical line. The
 	// whole tab surface gets one gutter below; Config only adds vertical air.
 	configTab := container.NewVScroll(container.New(
-		layout.NewCustomPaddedLayout(spaceXS, pageBottom, 0, spaceS),
-		vstack(spaceS, identityCard, capsCard, toolsCard, advancedCard)))
+		layout.NewCustomPaddedLayout(spaceS, spaceL, 0, scrollGutter),
+		vstack(spaceM, identityCard, capsCard, toolsCard, advancedCard)))
 
 	copyLoop := iconButton(theme.ContentCopyIcon(), "Copy loop", func() {
 		a.win.Clipboard().SetContent(b.loop.Text())
@@ -415,9 +415,7 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		b.run.headerName.SetText("Not applied yet")
 		b.run.setStatus("apply to start", toneNeutral)
 	}
-	runSplit := container.NewVSplit(b.run.chatPanel, b.run.tracePanel)
-	runSplit.SetOffset(0.6)
-	b.runPane = runSplit
+	b.runPane = newVSplitPane(b.run.chatPanel, b.run.tracePanel, 0.6)
 	b.docsPane = b.luaDocsPane()
 	dockPane := container.New(layout.NewCustomPaddedLayout(pageTop, pageBottom, spaceM, pageGutter),
 		container.NewStack(b.runPane, b.docsPane))
@@ -444,8 +442,7 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	)
 
 	b.editor = container.New(layout.NewCustomPaddedLayout(spaceXS, 0, spaceM, spaceM), tabs)
-	b.dockSplit = container.NewHSplit(b.editor, dockPane)
-	b.dockSplit.SetOffset(0.58)
+	b.dockSplit = newHSplitPane(b.editor, dockPane, 0.58)
 	b.body = container.NewStack()
 	b.root = container.NewBorder(head, nil, nil, nil, b.body)
 	b.setDock(a.cfg.BuilderDock)
