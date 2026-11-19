@@ -740,7 +740,7 @@ Everything crossing the bridge is JSON-encoded. Consequences:
 
 ## 7. Patterns
 
-Each pattern below has a runnable file in `examples/loops/`.
+Each pattern below has a runnable file in `examples/loops/`. For whole deployments that combine them — a QQ group chatbot with memory, a Telegram RAG bot, GitHub pull request code agents, a chat/completions endpoint — see the scenarios in [`examples/`](https://github.com/hulipa487/agentflow/tree/main/examples).
 
 ### 7.1 Request/response
 

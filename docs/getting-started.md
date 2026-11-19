@@ -185,6 +185,24 @@ curl -X POST localhost:8080/webhook/ -d '{"from":"alice","text":"hello"}'   # no
 
 For an LLM-backed bot, point a real model at it (next block) and set an agent's `model` to that entry.
 
+### Or start from a scenario
+
+The runtime repository ships complete deployments under [`examples/`](https://github.com/hulipa487/agentflow/tree/main/examples): a config, its loops and prompts, loop tests and a README each. Copy the one closest to what you want, or run it as it is:
+
+| Scenario | What it shows |
+| --- | --- |
+| [`qq-group-chat`](https://github.com/hulipa487/agentflow/tree/main/examples/qq-group-chat) | A QQ group chatbot with memory and context: one session per group, speaker-aware prompts, recent context in `session.state`, long-term recall and `/remember` facts |
+| [`telegram-rag`](https://github.com/hulipa487/agentflow/tree/main/examples/telegram-rag) | A Telegram bot that answers from a knowledge base: embeddings in SQLite, semantic recall, cited answers, and a webhook for bulk loading |
+| [`github-pr-agents`](https://github.com/hulipa487/agentflow/tree/main/examples/github-pr-agents) | A GitHub pull request webhook that spawns a code agent per PR: the change copied into a gVisor sandbox project, inspected with shell commands, and reviewed in a comment |
+| [`chat-completions`](https://github.com/hulipa487/agentflow/tree/main/examples/chat-completions) | A single-turn OpenAI-compatible `/v1/chat/completions` endpoint backed by an agent |
+
+```
+./agentflow -config examples/telegram-rag/agentflow.yaml
+./agentflow loop test examples/telegram-rag/tests/answer.yaml
+```
+
+Studio's **New agent** dialog offers the same shapes as starter templates (group chat with memory, knowledge base, single-turn API) for an agent built from scratch.
+
 ### Connect a real model
 
 `provider` picks the wire format. Leave `base_url` empty to use that provider's official host, or set it to any compatible endpoint (Ollama, vLLM, LiteLLM, OpenRouter, a corporate gateway):
