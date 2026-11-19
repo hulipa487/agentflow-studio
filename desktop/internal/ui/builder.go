@@ -44,8 +44,8 @@ type builderView struct {
 	shell         *widget.Entry
 	extras        *widget.Entry
 	loop          *codeEditor
-	instructions  *widget.Entry
-	yaml          *widget.Entry
+	instructions  *codeEditor
+	yaml          *codeEditor
 	rawDirty      bool
 	suppressDirty bool
 	dirty         bool
@@ -211,20 +211,23 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		loopSource = tpl.Loop
 	}
 	b.luaEditor = newLuaEditor(a, "Loop (Luau)",
-		"Luau · inline diagnostics · Ctrl+Space for API",
+		"Luau · Ctrl+Space completion · Ctrl+F find · Ctrl+D next match · right-click for more",
 		loopSource, a.catalog.PreludeVersion, b.effectiveCapabilities)
 	b.luaEditor.onEdit = b.markDirty
 	b.loop = b.luaEditor.editor
 	a.luaEditor = b.luaEditor
 
-	b.instructions = widget.NewMultiLineEntry()
-	b.instructions.Wrapping = fyne.TextWrapWord
-	b.instructions.SetMinRowsVisible(16)
+	instrSource := ""
 	if d != nil {
-		b.instructions.SetText(d.Instructions)
+		instrSource = d.Instructions
 	}
+	instrArea := newCodeAreaText(instrSource, "markdown")
+	b.instructions = instrArea.editor
+	b.instructions.SetWrap(true)
+	b.instructions.SetMinRowsVisible(16)
 
-	b.yaml = monoEntry(true)
+	yamlArea := newCodeAreaText("", "yaml")
+	b.yaml = yamlArea.editor
 	b.yaml.SetMinRowsVisible(20)
 	if d != nil && d.AgentYAML != "" {
 		b.yaml.SetText(d.AgentYAML)
@@ -265,8 +268,8 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	b.credentials.OnChanged = func(string) { b.markDirty() }
 	b.shell.OnChanged = func(string) { b.markDirty() }
 	b.extras.OnChanged = func(string) { b.markDirty() }
-	b.instructions.OnChanged = func(string) { b.markDirty() }
-	b.yaml.OnChanged = func(string) {
+	b.instructions.onChanged = b.markDirty
+	b.yaml.onChanged = func() {
 		if !b.suppressDirty {
 			b.rawDirty = true
 			b.markDirty()
@@ -335,12 +338,12 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 	loopTab := b.luaEditor.root
 
 	copyInstr := iconButton(theme.ContentCopyIcon(), "Copy instructions", func() {
-		a.win.Clipboard().SetContent(b.instructions.Text)
+		a.win.Clipboard().SetContent(b.instructions.Text())
 		a.setStatus("instructions copied", toneSuccess)
 	})
 	instrTab := editorFrame("Instructions",
 		"Saved next to the loop as a prompt file; the definition points at it.",
-		b.instructions, copyInstr)
+		instrArea.root, copyInstr)
 
 	rebuild := actionButton("Rebuild from form", theme.ViewRefreshIcon(), func() {
 		y, err := b.buildYAML()
@@ -354,12 +357,12 @@ func (a *App) newBuilderView(name string, d *api.AgentDetail, tpl *api.Template)
 		b.rawDirty = false
 	})
 	copyYAML := iconButton(theme.ContentCopyIcon(), "Copy YAML", func() {
-		a.win.Clipboard().SetContent(b.yaml.Text)
+		a.win.Clipboard().SetContent(b.yaml.Text())
 		a.setStatus("YAML copied", toneSuccess)
 	})
 	yamlTab := editorFrame("Raw YAML",
 		"Sent to the runtime. The loop and instructions sources above are sent separately; editing here overrides the form until you rebuild.",
-		b.yaml, rebuild, copyYAML)
+		yamlArea.root, rebuild, copyYAML)
 
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("Config", theme.SettingsIcon(), configTab),
@@ -723,7 +726,7 @@ func (b *builderView) validate() {
 			Name:         name,
 			AgentYAML:    yaml,
 			Loop:         b.loop.Text(),
-			Instructions: b.instructions.Text,
+			Instructions: b.instructions.Text(),
 		})
 		onUI(func() {
 			b.setBusy(false, "")
@@ -778,7 +781,7 @@ func (b *builderView) applyWith(persist bool, after func()) {
 		res, err := b.app.api.PutAgent(ctx, name, api.AgentRequest{
 			AgentYAML:    yaml,
 			Loop:         b.loop.Text(),
-			Instructions: b.instructions.Text,
+			Instructions: b.instructions.Text(),
 			Apply:        true,
 			Persist:      persist,
 			ExpectMtime:  b.mtime,
@@ -914,7 +917,7 @@ func (b *builderView) buildYAML() (string, error) {
 
 func (b *builderView) yamlText() (string, error) {
 	if b.rawDirty {
-		return b.yaml.Text, nil
+		return b.yaml.Text(), nil
 	}
 	return b.buildYAML()
 }

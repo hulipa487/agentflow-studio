@@ -3,11 +3,17 @@
 // highlighting, bracket pairing, auto-indent, search, multi-cursor, undo/redo
 // and the usual IDE keys. Language intelligence for Luau loops (diagnostics,
 // completion, hover) is supplied by the caller through `extensions`.
-import { useEffect, useRef } from 'react'
-import { Compartment, EditorState, type Extension } from '@codemirror/state'
+import { useEffect, useRef, useState } from 'react'
+import { Compartment, EditorSelection, EditorState, RangeSetBuilder, type ChangeSpec, type Extension } from '@codemirror/state'
 import {
+  Decoration,
   EditorView,
+  ViewPlugin,
+  crosshairCursor,
   drawSelection,
+  type Command,
+  type DecorationSet,
+  type ViewUpdate,
   dropCursor,
   highlightActiveLine,
   highlightActiveLineGutter,
@@ -23,13 +29,14 @@ import {
   StreamLanguage,
   bracketMatching,
   foldGutter,
+  foldService,
   foldKeymap,
   indentOnInput,
   indentUnit,
   syntaxHighlighting,
 } from '@codemirror/language'
 import { acceptCompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
-import { highlightSelectionMatches, searchKeymap } from '@codemirror/search'
+import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search'
 import { lintKeymap } from '@codemirror/lint'
 import { lua } from '@codemirror/legacy-modes/mode/lua'
 import { yaml } from '@codemirror/lang-yaml'
@@ -85,6 +92,11 @@ const chrome = EditorView.theme({
   '&.cm-focused .cm-nonmatchingBracket': { backgroundColor: 'color-mix(in srgb, var(--af-danger) 25%, transparent)' },
   '.cm-foldPlaceholder': { backgroundColor: 'var(--af-surface2)', border: '1px solid var(--af-line)', color: 'var(--af-muted)' },
   '.cm-placeholder': { color: 'var(--af-faint)' },
+  '.cm-indent': {
+    backgroundImage: 'linear-gradient(to right, var(--af-line) 1px, transparent 1px)',
+    backgroundSize: '2ch 100%',
+    padding: '0.3em 0',
+  },
 
   '.cm-tooltip': {
     backgroundColor: 'var(--af-float)',
@@ -137,10 +149,110 @@ const chrome = EditorView.theme({
   },
 })
 
+// The legacy Lua mode has no syntax tree to fold on, so Lua folds by
+// indentation: a line folds over the deeper-indented lines below it.
+const indentFold = foldService.of((state, lineStart) => {
+  const line = state.doc.lineAt(lineStart)
+  if (!line.text.trim()) return null
+  const indent = /^\s*/.exec(line.text)![0].length
+  let end = -1
+  for (let n = line.number + 1; n <= state.doc.lines; n++) {
+    const l = state.doc.line(n)
+    if (!l.text.trim()) continue
+    if (/^\s*/.exec(l.text)![0].length <= indent) break
+    end = l.to
+  }
+  return end > line.to ? { from: line.to, to: end } : null
+})
+
+// Indent guides: the leading spaces of each line get a mark whose background
+// draws a hairline at the start of every indent level.
+const indentMark = Decoration.mark({ class: 'cm-indent' })
+function guides(view: EditorView): DecorationSet {
+  const b = new RangeSetBuilder<Decoration>()
+  for (const { from, to } of view.visibleRanges) {
+    for (let pos = from; pos <= to; ) {
+      const line = view.state.doc.lineAt(pos)
+      const lead = /^ +/.exec(line.text)
+      if (lead && line.text.trim()) b.add(line.from, line.from + lead[0].length, indentMark)
+      pos = line.to + 1
+    }
+  }
+  return b.finish()
+}
+const indentGuides = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+    constructor(view: EditorView) {
+      this.decorations = guides(view)
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged) this.decorations = guides(u.view)
+    }
+  },
+  { decorations: (v) => v.decorations },
+)
+
+/** Ctrl+U / Ctrl+Shift+U: lower- or upper-case each selection, or the word at a caret. */
+function changeCase(upper: boolean): Command {
+  return (view) => {
+    const tr = view.state.changeByRange((range) => {
+      const target = range.empty ? view.state.wordAt(range.head) : range
+      if (!target) return { range }
+      const text = view.state.sliceDoc(target.from, target.to)
+      return {
+        changes: { from: target.from, to: target.to, insert: upper ? text.toUpperCase() : text.toLowerCase() },
+        range: EditorSelection.range(range.anchor, range.head),
+      }
+    })
+    view.dispatch(view.state.update(tr, { scrollIntoView: true, userEvent: 'input' }))
+    return true
+  }
+}
+
+/** Ctrl+J: join each selection's lines (or the caret's line and the next) with one space. */
+const joinLines: Command = (view) => {
+  const { state } = view
+  const changes: ChangeSpec[] = []
+  const seen = new Set<number>()
+  for (const r of state.selection.ranges) {
+    const first = state.doc.lineAt(r.from).number
+    const last = state.doc.lineAt(r.to).number
+    const end = last === first ? first + 1 : last
+    for (let n = first; n < end && n < state.doc.lines; n++) {
+      if (seen.has(n)) continue
+      seen.add(n)
+      const line = state.doc.line(n)
+      const next = state.doc.line(n + 1)
+      const lead = /^\s*/.exec(next.text)![0].length
+      const sep = /\s$/.test(line.text) || !next.text.trim() || !line.text ? '' : ' '
+      changes.push({ from: line.to, to: next.from + lead, insert: sep })
+    }
+  }
+  if (changes.length === 0) return false
+  view.dispatch({ changes, scrollIntoView: true, userEvent: 'input' })
+  return true
+}
+
+const LANGUAGE_LABEL: Record<CodeLanguage, string> = { lua: 'Luau', yaml: 'YAML', markdown: 'Markdown', json: 'JSON', text: 'Plain text' }
+
+interface Caret {
+  line: number
+  col: number
+  selections: number
+  selected: number
+}
+
+function caretOf(state: EditorState): Caret {
+  const main = state.selection.main
+  const line = state.doc.lineAt(main.head)
+  return { line: line.number, col: main.head - line.from + 1, selections: state.selection.ranges.length, selected: main.to - main.from }
+}
+
 function languageExtension(lang: CodeLanguage): Extension {
   switch (lang) {
     case 'lua':
-      return StreamLanguage.define(lua)
+      return [StreamLanguage.define(lua), indentFold]
     case 'yaml':
       return yaml()
     case 'markdown':
@@ -164,6 +276,8 @@ export interface CodeEditorProps {
   autoFocus?: boolean
   /** Receives the view once, for callers that need to drive it (focus, scroll). */
   onReady?: (view: EditorView) => void
+  /** The status line under the editor (caret, selections, language); on for editable documents. */
+  status?: boolean
   /** The wrapper's classes; give it a height (h-full, h-64, min-h-0 flex-1). */
   className?: string
 }
@@ -178,8 +292,16 @@ export function CodeEditor({
   lineWrapping = false,
   autoFocus,
   onReady,
+  status,
   className,
 }: CodeEditorProps) {
+  const showStatus = status ?? !readOnly
+  const [caret, setCaret] = useState<Caret>({ line: 1, col: 1, selections: 1, selected: 0 })
+  // Alt+Z flips soft wrap; a new lineWrapping prop resets it.
+  const [wrap, setWrap] = useState(lineWrapping)
+  useEffect(() => setWrap(lineWrapping), [lineWrapping])
+  const wrapRef = useRef(wrap)
+  wrapRef.current = wrap
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -213,6 +335,9 @@ export function CodeEditor({
         bracketMatching(),
         closeBrackets(),
         rectangularSelection(),
+        crosshairCursor(),
+        indentGuides,
+        search({ top: true }),
         highlightActiveLine(),
         highlightSelectionMatches(),
         keymap.of([
@@ -227,6 +352,18 @@ export function CodeEditor({
           // no menu open the binding declines and Tab indents.
           { key: 'Tab', run: acceptCompletion },
           indentWithTab,
+          { key: 'Mod-u', run: changeCase(false) },
+          { key: 'Mod-Shift-u', run: changeCase(true) },
+          { key: 'Mod-j', run: joinLines },
+          // The panel holds find and replace together; Ctrl+H opens it as on the desktop.
+          { key: 'Mod-h', run: openSearchPanel },
+          {
+            key: 'Alt-z',
+            run: () => {
+              setWrap(!wrapRef.current)
+              return true
+            },
+          },
         ]),
         placeholder ? cmPlaceholder(placeholder) : [],
         c.lang.of(languageExtension(language)),
@@ -235,6 +372,7 @@ export function CodeEditor({
         c.extra.of(extensions ?? []),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) onChangeRef.current?.(u.state.doc.toString())
+          if (u.docChanged || u.selectionSet) setCaret(caretOf(u.state))
         }),
       ],
     })
@@ -274,12 +412,27 @@ export function CodeEditor({
   }, [readOnly])
 
   useEffect(() => {
-    view.current?.dispatch({ effects: compartments.current.wrap.reconfigure(lineWrapping ? EditorView.lineWrapping : []) })
-  }, [lineWrapping])
+    view.current?.dispatch({ effects: compartments.current.wrap.reconfigure(wrap ? EditorView.lineWrapping : []) })
+  }, [wrap])
 
   useEffect(() => {
     view.current?.dispatch({ effects: compartments.current.extra.reconfigure(extensions ?? []) })
   }, [extensions])
 
-  return <div ref={host} className={cx('min-h-0 overflow-hidden rounded-ctl border border-line bg-bg', className)} />
+  const facts = [`Ln ${caret.line}, Col ${caret.col}`]
+  if (caret.selections > 1) facts.push(`${caret.selections} selections`)
+  else if (caret.selected > 0) facts.push(`${caret.selected} selected`)
+  facts.push(LANGUAGE_LABEL[language], 'Spaces: 2')
+  if (wrap) facts.push('Wrap')
+
+  return (
+    <div className={cx('flex min-h-0 flex-col overflow-hidden rounded-ctl border border-line bg-bg', className)}>
+      <div ref={host} className="grid min-h-0 flex-1" />
+      {showStatus && (
+        <div className="shrink-0 truncate border-t border-line px-2.5 py-0.5 text-right font-mono text-xs text-faint" aria-live="off">
+          {facts.join('  ·  ')}
+        </div>
+      )}
+    </div>
+  )
 }

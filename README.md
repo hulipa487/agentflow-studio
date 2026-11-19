@@ -38,11 +38,32 @@ The runtime stays the source of truth. Studio holds no agent state of its own: c
 - **Builder** - a workbench: a form for the agent's model, safety profile, capabilities, skills and credentials, a Luau loop editor, an instructions editor and the raw YAML, with a dock beside them for a **Run** panel (chat and trace with this agent) or the Luau reference (`F1`). **Validate** runs the same checks boot does. **Apply** is a split button: *Apply* installs the agent live, *Apply & save* also writes it into the deployment's config, and the button remembers your pick. `Ctrl+Enter` applies pending edits and sends the Run panel's message (or repeats the last one), so you can edit, run and read the trace without leaving.
 - **Playground** - threaded chat against one agent, one session per thread, with streamed replies and a live trace: turns, ops, model and tool calls, tokens, durations, safety decisions and errors. An optional *act as user* runs the turn as a real profile, so memory scopes and quotas apply.
 
-**✍️ The loop editor**
-- Syntax highlighting, line numbers, auto-indent, bracket pairing, undo/redo and the keybindings you expect from an IDE.
+**✍️ The code editor**
+- One editor for every document: the loop (Luau), the instructions (Markdown, soft-wrapped), the agent YAML and the deployment config. The web app runs CodeMirror 6; the desktop app has its own editor with the same features, because Fyne has none and cannot host a web view.
+- Highlighting per language, including multi-line Lua long strings and comments, YAML block scalars and Markdown code fences. Indent guides, bracket matching, folding, a status line (line, column, selections) and soft wrap.
+- Multiple carets and selections, column selection, and IDE line commands. Find and replace with match case, whole word and regex, plus go to line.
 - Completion for the whole Lua API with inline docs, and ghost text as you type.
 - Diagnostics as wavy underlines with hover errors, before you ever hit Validate.
 - Backed by a Luau analyzer and language server that live inside Studio. Nothing is added to the runtime and no external process is started.
+
+| Keys (both apps) | Action |
+|---|---|
+| `Ctrl+F` / `Ctrl+H` | Find / replace; `Enter`, `F3` and `Shift+F3` move between matches |
+| `Ctrl+G` (desktop) / `Ctrl+Alt+G` (web) | Go to line |
+| `Ctrl+D` / `Ctrl+Shift+L` | Add the next occurrence / select every occurrence |
+| `Ctrl+Alt+Up` / `Ctrl+Alt+Down` | Add a caret above / below |
+| `Alt+click` (desktop) · `Alt+drag` | Add a caret · select a column (`Alt+Shift+drag` on desktop) |
+| `Ctrl+/` | Toggle comment |
+| `Alt+Up` / `Alt+Down` · `Shift+Alt+Up` / `Shift+Alt+Down` | Move lines · copy lines |
+| `Ctrl+Shift+K` · `Ctrl+J` · `Ctrl+L` | Delete lines · join lines · select the line |
+| `Ctrl+]` / `Ctrl+[` | Indent / outdent |
+| `Ctrl+U` / `Ctrl+Shift+U` | Lower / upper case |
+| `Ctrl+Shift+[` / `Ctrl+Shift+]` | Fold / unfold |
+| `Ctrl+Shift+\` | Jump to the matching bracket |
+| `Alt+Z` | Toggle word wrap |
+| `Ctrl+=` / `Ctrl+-` / `Ctrl+0`, `Ctrl+wheel` (desktop) | Zoom the editor |
+
+The desktop editor also has a right-click menu with fold all, unfold all and the word-wrap switch.
 
 **🔌 Connect**
 - **Channels** - webhook, Telegram, GitHub webhook, bridge and OpenAI-compatible channels: add, edit, validate against the deployment and save. The screen marks which definitions are live and which need a restart.

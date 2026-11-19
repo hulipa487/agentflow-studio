@@ -1313,14 +1313,21 @@ func emptyStateCard(title, guidance string, actionLabel string, action func()) f
 // editorFrame wraps a multi-line entry in a sleek borderless-interior panel
 // with a title row and hint, so the instructions and YAML tabs read like clean
 // code editor panes without nested double borders.
-func editorFrame(title, hint string, entry *widget.Entry, actions ...fyne.CanvasObject) fyne.CanvasObject {
+// editorFrame is a titled card around a document: a code area, or a plain
+// multi-line entry drawn without its own border.
+func editorFrame(title, hint string, body fyne.CanvasObject, actions ...fyne.CanvasObject) fyne.CanvasObject {
 	head := container.NewBorder(nil, nil,
 		subheading(title),
 		hstack(spaceXS, actions...),
 	)
 	h := caption(hint)
 	h.Wrapping = fyne.TextWrapWord
-	cleanEntry := inputFrame(container.NewThemeOverride(entry, borderlessEntryTheme{}))
+	var cleanEntry fyne.CanvasObject
+	if entry, ok := body.(*widget.Entry); ok {
+		cleanEntry = inputFrame(container.NewThemeOverride(entry, borderlessEntryTheme{}))
+	} else {
+		cleanEntry = inputFrame(body)
+	}
 	return panel(container.NewBorder(
 		vstack(spaceXS, head, h, vSpacer(spaceXS)),
 		nil, nil, nil, cleanEntry,

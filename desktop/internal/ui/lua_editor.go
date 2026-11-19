@@ -24,6 +24,7 @@ import (
 type luaEditor struct {
 	app     *App
 	editor  *codeEditor
+	area    *codeArea
 	root    fyne.CanvasObject
 	client  *lsp.Client
 	uri     string
@@ -58,6 +59,7 @@ func newLuaEditor(app *App, title, hint, source string, prelude int, capsFn func
 
 	e.editor = newCodeEditor(source)
 	e.editor.SetMinRowsVisible(18)
+	e.editor.SetLanguage("lua")
 	e.editor.onHover = e.hoverAt
 	e.editor.onHoverOut = func() {
 		e.hoverSeq++
@@ -94,10 +96,13 @@ func newLuaEditor(app *App, title, hint, source string, prelude int, capsFn func
 	)
 	titleRow := container.NewBorder(nil, nil, subheading(title), statusRow)
 	head := container.NewVBox(titleRow, oneLine(hint), widget.NewSeparator())
+	// The code area adds find/replace (Ctrl+F, Ctrl+H), go to line (Ctrl+G)
+	// and the status line around the editor.
+	e.area = newCodeArea(e.editor)
 	body := panel(container.NewBorder(
 		head,
 		nil,
-		nil, nil, e.editor,
+		nil, nil, e.area.root,
 	))
 	e.root = body
 

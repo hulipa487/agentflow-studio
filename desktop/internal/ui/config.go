@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -26,8 +25,8 @@ type configView struct {
 	app *App
 	s   *screen
 
-	editor   *widget.Entry
-	masked   *widget.Entry
+	editor   *codeEditor
+	masked   *codeEditor
 	saveBtn  *widget.Button
 	path     string
 	mtime    int64
@@ -45,12 +44,12 @@ func (a *App) showConfig() {
 
 func (a *App) newConfigView() *configView {
 	v := &configView{app: a}
-	v.editor = monoEntry(true)
-	v.editor.Wrapping = fyne.TextWrapOff
-	v.editor.OnChanged = func(string) { v.updateMeta() }
-	v.masked = monoEntry(true)
-	v.masked.Wrapping = fyne.TextWrapOff
-	v.masked.Disable()
+	editArea := newCodeAreaText("", "yaml")
+	v.editor = editArea.editor
+	v.editor.onChanged = v.updateMeta
+	maskedArea := newCodeAreaText("", "json")
+	v.masked = maskedArea.editor
+	v.masked.SetReadOnly(true)
 
 	validate := actionButton("Validate", theme.ConfirmIcon(), v.validate)
 	v.saveBtn = primaryButton("Save", theme.DocumentSaveIcon(), v.save)
@@ -59,9 +58,9 @@ func (a *App) newConfigView() *configView {
 
 	tabs := container.NewAppTabs(
 		container.NewTabItemWithIcon("Edit", theme.DocumentCreateIcon(),
-			editorFrame("agentflow.yaml", "Env placeholders stay as written (${VAR}); secrets are never resolved into this text. Ctrl+S validates and saves.", v.editor)),
+			editorFrame("agentflow.yaml", "Env placeholders stay as written (${VAR}); secrets are never resolved into this text. Ctrl+S validates and saves.", editArea.root)),
 		container.NewTabItemWithIcon("Masked view", theme.VisibilityIcon(),
-			editorFrame("Parsed config", "What the runtime parsed from the file on disk, with sensitive keys masked. Read-only.", v.masked)),
+			editorFrame("Parsed config", "What the runtime parsed from the file on disk, with sensitive keys masked. Read-only.", maskedArea.root)),
 	)
 	v.s = a.newPane("Config",
 		"The deployment's config file, for everything without its own screen: memory, prompts, tools, MCP, triggers, search, files, net and runtime settings. Saving keeps a .bak; topology changes apply at the next restart.",
@@ -70,7 +69,7 @@ func (a *App) newConfigView() *configView {
 	return v
 }
 
-func (v *configView) dirty() bool { return v.loaded && v.editor.Text != v.original }
+func (v *configView) dirty() bool { return v.loaded && v.editor.Text() != v.original }
 
 func (v *configView) updateMeta() {
 	if !v.loaded {
@@ -80,7 +79,7 @@ func (v *configView) updateMeta() {
 	if v.mtime > 0 {
 		parts = append(parts, "modified "+time.Unix(v.mtime, 0).Local().Format("2006-01-02 15:04:05"))
 	}
-	lines := strings.Count(v.editor.Text, "\n") + 1
+	lines := len(v.editor.lines)
 	parts = append(parts, fmt.Sprintf("%d lines", lines))
 	if v.dirty() {
 		parts = append(parts, "● unsaved changes")
@@ -106,7 +105,7 @@ func (v *configView) reload(confirm bool) {
 		if !f.OK {
 			v.loaded = false
 			v.editor.SetText("")
-			v.editor.Disable()
+			v.editor.SetReadOnly(true)
 			v.saveBtn.Disable()
 			v.s.meta.SetText("config directory deployment")
 			v.s.notice(f.Error+"\n\nIn a directory deployment Studio edits the fragments through Agents, Channels, Models and Safety; other sections are edited in the files themselves.", toneWarning)
@@ -116,7 +115,7 @@ func (v *configView) reload(confirm bool) {
 		v.path, v.mtime = f.Path, f.Mtime
 		v.original = f.Raw
 		v.loaded = true
-		v.editor.Enable()
+		v.editor.SetReadOnly(false)
 		v.saveBtn.Enable()
 		v.editor.SetText(f.Raw)
 		if f.View != nil {
@@ -132,7 +131,7 @@ func (v *configView) validate() {
 	if !v.loaded {
 		return
 	}
-	raw := v.editor.Text
+	raw := v.editor.Text()
 	v.s.notice("Validating…", toneNeutral)
 	async(30*time.Second, func(ctx context.Context) (api.ConfigResult, error) {
 		return v.app.api.ValidateConfig(ctx, raw)
@@ -156,7 +155,7 @@ func (v *configView) save() {
 		v.app.setStatus("no changes to save", toneNeutral)
 		return
 	}
-	raw, mtime := v.editor.Text, v.mtime
+	raw, mtime := v.editor.Text(), v.mtime
 	showConfirmPrompt(v.app.win, "Save config",
 		"Validate and replace "+v.path+"? The current file is kept as .bak. Most changes apply when AgentFlow restarts.",
 		"Save", false, func(ok bool) {
