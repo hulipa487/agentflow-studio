@@ -191,6 +191,10 @@ export interface Channel {
   timeout: string
   async: boolean
   deliver_url: string
+  app_id?: string
+  scenes?: string[]
+  api_base?: string
+  markdown?: boolean
   /** openai: how callers authenticate (key, user_token or none). */
   auth?: string
   max_request_bytes?: number
@@ -249,6 +253,10 @@ export interface ChannelDraft {
   timeout?: string
   async?: boolean
   deliver_url?: string
+  app_id?: string
+  scenes?: string[]
+  api_base?: string
+  markdown?: boolean
   media_allow?: string[]
   media_max_bytes?: number
 }

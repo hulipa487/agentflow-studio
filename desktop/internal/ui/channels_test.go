@@ -99,3 +99,32 @@ func containsString(values []string, want string) bool {
 	}
 	return false
 }
+
+// A qq channel's card shows its delivery mode, app id and scenes, with the
+// runtime's defaults filled in when the file leaves them out, and the secret
+// as stored-or-not, never its value.
+func TestQQChannelCardShowsModeAppAndScenes(t *testing.T) {
+	fyneApp := test.NewApp()
+	claimUI(t)
+	defer fyneApp.Quit()
+	win := fyneApp.NewWindow("channels")
+	a := New(fyneApp, win, appconfig.Config{Theme: "dark"})
+	a.content = container.NewStack()
+	v := &channelsView{app: a}
+
+	card := v.channelCard(api.Channel{Name: "qq", Type: "qq", Agent: "assistant", AppID: "1024", HasSecret: true, SecretRef: "${QQ_BOT_SECRET}"})
+	labels, _ := collectLabelsAndButtons(card)
+	joined := strings.Join(labels, " | ")
+	for _, want := range []string{"websocket", "1024", "c2c, group, guild"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("card lacks %q; labels=%v", want, labels)
+		}
+	}
+
+	card = v.channelCard(api.Channel{Name: "qq", Type: "qq", Agent: "assistant", Mode: "webhook", AppID: "1024", Scenes: []string{"dm"}, Markdown: true})
+	labels, _ = collectLabelsAndButtons(card)
+	joined = strings.Join(labels, " | ")
+	if !strings.Contains(joined, "webhook") || !strings.Contains(joined, "dm") || strings.Contains(joined, "c2c") || !strings.Contains(joined, "markdown") {
+		t.Fatalf("stored mode and scenes not shown as stored; labels=%v", labels)
+	}
+}

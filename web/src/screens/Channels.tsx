@@ -12,7 +12,7 @@ import { plural } from '@/lib/format'
 import { useClient } from '@/state/session'
 import { confirm, info, toast } from '@/state/ui'
 import { ChannelEditor } from './channels/ChannelEditor'
-import { channelAgents, channelTitle, humanBytes } from './channels/model'
+import { QQ_DEFAULT_SCENES, channelAgents, channelTitle, humanBytes } from './channels/model'
 import { useAlive } from './channels/useAlive'
 
 interface ChannelsData {
@@ -81,6 +81,36 @@ function ChannelFacts({ ch }: { ch: Channel }) {
           <SecretChip set={ch.has_secret_token} secretRef={ch.secret_token_ref} />
         </Fact>,
       )
+      break
+    case 'qq':
+      facts.push(
+        <Fact key="mode" label="mode">
+          <Value>{ch.mode || 'websocket'}</Value>
+        </Fact>,
+        <Fact key="app" label="app id">
+          <Value>{ch.app_id || '—'}</Value>
+        </Fact>,
+        <Fact key="scenes" label="scenes">
+          <Value>{(ch.scenes ?? []).length > 0 ? (ch.scenes ?? []).join(', ') : QQ_DEFAULT_SCENES.join(', ')}</Value>
+        </Fact>,
+        <Fact key="secret" label="app secret">
+          <SecretChip set={ch.has_secret} secretRef={ch.secret_ref} />
+        </Fact>,
+      )
+      if (ch.markdown) {
+        facts.push(
+          <Fact key="md" label="replies">
+            <Value>markdown</Value>
+          </Fact>,
+        )
+      }
+      if (ch.api_base) {
+        facts.push(
+          <Fact key="api" label="api base">
+            <Value title={ch.api_base}>{ch.api_base}</Value>
+          </Fact>,
+        )
+      }
       break
     case 'ghhook':
       facts.push(

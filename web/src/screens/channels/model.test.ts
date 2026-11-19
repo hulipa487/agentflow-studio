@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Channel } from '@/api/types'
-import { buildDraft, channelAgents, formFor, keysPlaceholder } from './model'
+import { buildDraft, channelAgents, formFor, keysPlaceholder, type ChannelForm } from './model'
 
 const base: Channel = {
   index: 0,
@@ -76,5 +76,52 @@ describe('openai channel form', () => {
   it('lists every agent a channel routes to', () => {
     expect(channelAgents({ ...base, agents: ['a', 'b'] })).toBe('a, b')
     expect(channelAgents({ ...base, type: 'webhook', agent: 'echo' })).toBe('echo')
+  })
+})
+
+describe('qq channel form', () => {
+  const qqForm = (over: Partial<ChannelForm> = {}): ChannelForm => ({
+    ...formFor(null, ['assistant']),
+    name: 'qq',
+    type: 'qq',
+    appID: '1024',
+    ...over,
+  })
+
+  it('starts on the websocket gateway with the default scenes', () => {
+    const f = formFor(null, ['assistant'])
+    expect(f.qqMode).toBe('websocket')
+    expect(f.scenes).toEqual(['c2c', 'group', 'guild'])
+  })
+
+  it('builds a draft with app id, mode and scenes in display order, and no path in websocket mode', () => {
+    const r = buildDraft(qqForm({ scenes: ['guild', 'c2c'], path: '/webhook/qq/', secret: '${QQ_BOT_SECRET}' }))
+    expect(r.error).toBeUndefined()
+    expect(r.draft).toMatchObject({ type: 'qq', mode: 'websocket', app_id: '1024', scenes: ['c2c', 'guild'], secret: '${QQ_BOT_SECRET}' })
+    expect(r.draft?.path).toBeUndefined()
+  })
+
+  it('sends the markdown switch only when it is on', () => {
+    expect(buildDraft(qqForm({ markdown: true })).draft?.markdown).toBe(true)
+    expect(buildDraft(qqForm()).draft?.markdown).toBeUndefined()
+    expect(formFor({ ...base, name: 'qq', path: '', type: 'qq', markdown: true }, ['assistant']).markdown).toBe(true)
+  })
+
+  it('keeps the path in webhook mode', () => {
+    const r = buildDraft(qqForm({ qqMode: 'webhook', path: '/webhook/qq/main/' }))
+    expect(r.draft?.path).toBe('/webhook/qq/main/')
+  })
+
+  it('asks for an app id and at least one scene', () => {
+    expect(buildDraft(qqForm({ appID: ' ' })).error).toMatch(/AppID/)
+    expect(buildDraft(qqForm({ scenes: [] })).error).toMatch(/scene/)
+  })
+
+  it('opens a stored channel with its own scenes and mode', () => {
+    const f = formFor(
+      { ...base, name: 'qq', path: '', type: 'qq', mode: 'webhook', app_id: '42', scenes: ['DM'], api_base: 'https://proxy.example.com' },
+      ['assistant'],
+    )
+    expect(f).toMatchObject({ qqMode: 'webhook', appID: '42', scenes: ['dm'], apiBase: 'https://proxy.example.com' })
   })
 })

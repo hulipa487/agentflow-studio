@@ -233,6 +233,25 @@ func (v *channelsView) channelCard(ch api.Channel) fyne.CanvasObject {
 			row("webhook secret", channelSecretValue(ch.HasSecretTok, ch.SecretTokRef)))
 	case "ghhook":
 		cells = append(cells, row("secret", channelSecretValue(ch.HasSecret, ch.SecretRef)))
+	case "qq":
+		mode := ch.Mode
+		if mode == "" {
+			mode = "websocket"
+		}
+		scenes := strings.Join(ch.Scenes, ", ")
+		if scenes == "" {
+			scenes = strings.Join(qqDefaultScenes, ", ")
+		}
+		cells = append(cells, row("mode", widget.NewLabel(mode)),
+			row("app id", monoInline(ch.AppID)),
+			row("scenes", widget.NewLabel(scenes)),
+			row("app secret", channelSecretValue(ch.HasSecret, ch.SecretRef)))
+		if ch.Markdown {
+			cells = append(cells, row("replies", widget.NewLabel("markdown")))
+		}
+		if ch.APIBase != "" {
+			cells = append(cells, row("api base", monoInline(ch.APIBase)))
+		}
 	case "bridge":
 		if ch.DeliverURL != "" {
 			cells = append(cells, row("deliver", monoInline(ch.DeliverURL)))
@@ -357,7 +376,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 
 	name := widget.NewEntry()
 	name.SetPlaceHolder("telegram-main")
-	typ := widget.NewSelect([]string{"webhook", "telegram", "ghhook", "bridge", "openai"}, nil)
+	typ := widget.NewSelect([]string{"webhook", "telegram", "qq", "ghhook", "bridge", "openai"}, nil)
 	agent := widget.NewSelect(v.agents, nil)
 	path := widget.NewEntry()
 	path.SetPlaceHolder("optional · e.g. /webhook/")
@@ -385,6 +404,21 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 	deliverURL := widget.NewEntry()
 	deliverURL.SetPlaceHolder("https://adapter.example.com/deliver")
 	async := widget.NewCheck("Async (202 + job id instead of a blocking reply)", nil)
+	qqMode := widget.NewSelect([]string{"websocket", "webhook"}, nil)
+	qqAppID := widget.NewEntry()
+	qqAppID.SetPlaceHolder("102xxxxxx")
+	qqMarkdown := widget.NewCheck("Send replies as Markdown", nil)
+	qqAPIBase := widget.NewEntry()
+	qqAPIBase.SetPlaceHolder("optional · default https://api.bot.qq.com")
+	qqScenes := map[string]*widget.Check{}
+	qqSceneRow := container.NewHBox()
+	for _, s := range []struct{ id, label string }{
+		{"c2c", "Private chats"}, {"group", "Group @-mentions"}, {"guild", "Guild @-mentions"}, {"dm", "Guild DMs"},
+	} {
+		c := widget.NewCheck(s.label, nil)
+		qqScenes[s.id] = c
+		qqSceneRow.Add(c)
+	}
 	mediaAllow := widget.NewEntry()
 	mediaAllow.SetPlaceHolder("image/*, application/pdf")
 	mediaMax := widget.NewEntry()
@@ -413,6 +447,12 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			allowUsers.SetText(strings.Join(ids, ", "))
 		}
 		async.SetChecked(existing.Async)
+		if existing.Type == "qq" {
+			qqMode.SetSelected(existing.Mode)
+			qqAppID.SetText(existing.AppID)
+			qqAPIBase.SetText(existing.APIBase)
+			qqMarkdown.SetChecked(existing.Markdown)
+		}
 		mediaAllow.SetText(strings.Join(existing.MediaAllow, ", "))
 		if existing.MediaMaxBytes > 0 {
 			mediaMax.SetText(strconv.Itoa(existing.MediaMaxBytes))
@@ -452,6 +492,18 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 	if mode.Selected == "" {
 		mode.SetSelected("polling")
 	}
+	if qqMode.Selected == "" {
+		qqMode.SetSelected("websocket")
+	}
+	scenes := qqDefaultScenes
+	if existing != nil && existing.Type == "qq" && len(existing.Scenes) > 0 {
+		scenes = existing.Scenes
+	}
+	for _, s := range scenes {
+		if c := qqScenes[strings.ToLower(s)]; c != nil {
+			c.SetChecked(true)
+		}
+	}
 
 	secretHint := func(set bool, ref, empty string) string {
 		switch {
@@ -487,7 +539,28 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			typeBox.Add(caption("Webhook and auto modes need gateway.public_url. Polling ignores the path."))
 			typeBox.Add(field("Allowed Telegram user IDs", allowUsers))
 			typeBox.Add(caption("Comma-separated numeric IDs; empty accepts anyone the bot can see."))
+		case "qq":
+			secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), "AppSecret, e.g. ${QQ_BOT_SECRET}"))
+			typeBox.Add(field("AppID", qqAppID))
+			typeBox.Add(field("AppSecret", secret))
+			if existing != nil && existing.HasSecret {
+				typeBox.Add(clearSecret)
+			}
+			typeBox.Add(caption("From the bot's page on the QQ Open Platform (q.qq.com). The secret signs webhook callbacks and fetches the access token."))
+			typeBox.Add(field("Event delivery", qqMode))
+			if qqMode.Selected == "webhook" {
+				typeBox.Add(caption("Set <public https url><path> as the callback URL in the console (ports 80, 443, 8080 or 8443). Path defaults to /webhook/qq/<name>/."))
+			} else {
+				typeBox.Add(caption("The runtime connects out to the QQ gateway; nothing needs to be reachable from the internet. Leave Path empty."))
+			}
+			typeBox.Add(fieldLabel("Scenes"))
+			typeBox.Add(qqSceneRow)
+			typeBox.Add(caption("Guild DMs need an intent the platform grants on application."))
+			typeBox.Add(qqMarkdown)
+			typeBox.Add(caption("Private chats and groups only; the platform grants markdown per bot. A refused markdown reply is resent as plain text."))
+			typeBox.Add(field("API base", qqAPIBase))
 		case "ghhook":
+			secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), "GitHub webhook secret"))
 			typeBox.Add(field("Webhook secret", secret))
 			if existing != nil && existing.HasSecret {
 				typeBox.Add(clearSecret)
@@ -527,6 +600,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 			timeout.SetPlaceHolder("55s")
 			typeBox.Add(field("Deliver URL", deliverURL))
 			typeBox.Add(caption("The adapter receives neutral replies here as JSON. Absolute http(s) URL."))
+			secret.SetPlaceHolder(secretHint(existing != nil && existing.HasSecret, secretRefOf(existing), "inbound HMAC secret"))
 			typeBox.Add(field("Inbound HMAC secret", secret))
 			if existing != nil && existing.HasSecret {
 				typeBox.Add(clearSecret)
@@ -545,6 +619,7 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 	}
 	typ.OnChanged = func(string) { renderType() }
 	openaiAuth.OnChanged = func(string) { renderType() }
+	qqMode.OnChanged = func(string) { renderType() }
 	renderType()
 
 	content := container.NewVBox(
@@ -597,6 +672,25 @@ func (a *App) editChannel(v *channelsView, existing *api.Channel) {
 		case "webhook":
 			d.Timeout = strings.TrimSpace(timeout.Text)
 			d.Async = async.Checked
+		case "qq":
+			d.Mode = qqMode.Selected
+			d.AppID = strings.TrimSpace(qqAppID.Text)
+			d.APIBase = strings.TrimSpace(qqAPIBase.Text)
+			d.Markdown = qqMarkdown.Checked
+			for _, s := range []string{"c2c", "group", "guild", "dm"} {
+				if qqScenes[s].Checked {
+					d.Scenes = append(d.Scenes, s)
+				}
+			}
+			if d.AppID == "" {
+				return d, fmt.Errorf("the AppID is required")
+			}
+			if len(d.Scenes) == 0 {
+				return d, fmt.Errorf("pick at least one scene")
+			}
+			if d.Mode == "websocket" {
+				d.Path = ""
+			}
 		case "bridge":
 			d.DeliverURL = strings.TrimSpace(deliverURL.Text)
 			d.Timeout = strings.TrimSpace(timeout.Text)
@@ -750,3 +844,7 @@ func monoInline(text string) *widget.Label {
 	l.Truncation = fyne.TextTruncateEllipsis
 	return l
 }
+
+// qqDefaultScenes mirrors the runtime's default for a qq channel with no
+// scenes listed.
+var qqDefaultScenes = []string{"c2c", "group", "guild"}

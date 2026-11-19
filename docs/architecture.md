@@ -5,7 +5,8 @@ A request moves down through a short stack. A channel driver turns platform byte
 ```
 ┌─ Channels (bytes in / replies out) ─────────────────────────────────────────┐
 │  webhook (sync | async)   ghhook (GitHub HMAC)   bridge (HMAC adapter)       │
-│  telegram: polling | webhook | auto     studio (synthetic, playground only)  │
+│  telegram: polling | webhook | auto     qq: websocket gateway | webhook       │
+│  studio (synthetic, playground only)                                          │
 │  media: per-channel allow-list → blob store (fs | s3)   ── one shared httpd ─ │
 └───────────┬──────────────────────────────────────────────────────────────────┘
             │ session.Message{id, from, text, channel, reply_to, attachments}

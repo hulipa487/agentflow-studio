@@ -66,7 +66,7 @@ The runtime stays the source of truth. Studio holds no agent state of its own: c
 The desktop editor also has a right-click menu with fold all, unfold all and the word-wrap switch.
 
 **🔌 Connect**
-- **Channels** - webhook, Telegram, GitHub webhook, bridge and OpenAI-compatible channels: add, edit, validate against the deployment and save. The screen marks which definitions are live and which need a restart.
+- **Channels** - webhook, Telegram, QQ Bot, GitHub webhook, bridge and OpenAI-compatible channels: add, edit, validate against the deployment and save. The screen marks which definitions are live and which need a restart.
 - **Models** - add, edit and delete LLM endpoints in place, test one with a real one-token call, and save the live set back to the config.
 - **Credentials** - the encrypted credential store by bucket, engine-wide or per user. Create, edit and revoke.
 

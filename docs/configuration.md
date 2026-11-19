@@ -692,7 +692,7 @@ A spawn profile that declares `budget.tokens_per_day` gets a metered LLM pool **
 
 ### `gateway` — one shared HTTP listener
 
-All HTTP channels (webhook, ghhook, bridge, telegram webhook/auto) mount paths on **one shared HTTP server** — there is no per-channel `listen`. The listener is set once at `gateway.listen` (default `:8080`), and the server also serves `GET /health` → `200 {"ok":true}` for probes and reverse-proxy health checks. `gateway.public_url` is the externally-reachable base (e.g. `https://bot.example.com`) used when the runtime should register webhooks for you.
+All HTTP channels (webhook, ghhook, bridge, telegram webhook/auto, qq webhook) mount paths on **one shared HTTP server** — there is no per-channel `listen`. The listener is set once at `gateway.listen` (default `:8080`), and the server also serves `GET /health` → `200 {"ok":true}` for probes and reverse-proxy health checks. `gateway.public_url` is the externally-reachable base (e.g. `https://bot.example.com`) used when the runtime should register webhooks for you.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -710,9 +710,21 @@ All HTTP channels (webhook, ghhook, bridge, telegram webhook/auto) mount paths o
 | `telegram` (`mode: polling`) | Default. Long-poll `getUpdates`, `allow_users` enforced. Clears any stale Telegram-side webhook first — getUpdates 409s while one is registered (e.g. reverting from webhook mode) |
 | `telegram` (`mode: webhook`) | Receives POST updates at `path` (default `/webhook/telegram/`); requires `gateway.public_url`. Every delivery must carry the `secret_token` header (401/403 otherwise, checked before parsing); configured per channel, generated per boot when absent |
 | `telegram` (`mode: auto`) | Probes `<public_url>/health` at startup: registers `setWebhook` when reachable, else `deleteWebhook` + long-poll. A `setWebhook` failure also clears the webhook before polling. Needs `gateway.public_url` |
+| `qq` (`mode: websocket`) | Default. Tencent's official QQ Bot API v2 (QQ Open Platform). The runtime connects out to the QQ gateway with the app access token (fetched from `app_id` + `secret`, refreshed before it expires), subscribes to the intents for its `scenes`, heartbeats, and resumes the session after a dropped connection; nothing needs to be reachable from the internet. A close for disallowed intents or a banned bot stops the channel with an error |
+| `qq` (`mode: webhook`) | The platform POSTs events to `path` (default `/webhook/qq/<name>/`); set `<public https url><path>` as the callback URL in the console (ports 80, 443, 8080 or 8443). Every request, the URL-validation handshake included, must carry a valid Ed25519 signature made with the key derived from `secret` (401/403 otherwise, checked before parsing) |
 | `openai` | Serves the OpenAI Chat Completions API at `<path>chat/completions` and the model list at `<path>models`. `model` names one of the exposed `agents`, each of which runs its own `loop:`; give an agent `loop: plugin:openai_passthrough` to forward the client's messages, tools and sampling parameters to its model unchanged. `auth` is `user_token` (per-user bearer, needs `runtime.identity.enabled`), `key` (a shared key from `keys`) or `none` (loopback listeners only). `journal` defaults to `metadata` for this type, so conversation text never enters the audit journal. See [the OpenAI-compatible API](openai-api.md) |
 
-Every HTTP channel `path` must end in `/` (a subtree mount). A UUID-style path segment is a recommended unguessable secret prefix. Two channels mounting the same path are a boot error, and so is an `openai` channel whose endpoints overlap another channel's subtree. Telegram's `token` and `secret_token`, ghhook's `secret`, bridge's `secret` and `token`, and an `openai` channel's `keys` are secrets (see the registry): env-interpolated on the single-file path, lazy references on the configdir path — and an unresolvable one skips the channel with a warning, never a boot failure.
+Every HTTP channel `path` must end in `/` (a subtree mount). A UUID-style path segment is a recommended unguessable secret prefix. Two channels mounting the same path are a boot error, and so is an `openai` channel whose endpoints overlap another channel's subtree. Telegram's `token` and `secret_token`, ghhook's `secret`, qq's `secret`, bridge's `secret` and `token`, and an `openai` channel's `keys` are secrets (see the registry): env-interpolated on the single-file path, lazy references on the configdir path — and an unresolvable one skips the channel with a warning, never a boot failure.
+
+**QQ Bot** (`type: qq`) details:
+
+- **Scenes and intents.** `c2c` (private chats with the bot) and `group` (@-mentions of the bot in QQ groups) share the `GROUP_AND_C2C_EVENT` intent; `guild` (@-mentions in guild channels) uses `PUBLIC_GUILD_MESSAGES`; `dm` (guild direct messages) uses `DIRECT_MESSAGE`, which the platform grants on application, so it is not in the default set.
+- **Sessions.** Each message's reply target, and its `payload.chat_id` for the router, is `c2c:<user_openid>`, `group:<group_openid>`, `guild:<channel_id>` or `dm:<guild_id>`, so a group or channel is one conversation and each private chat is its own. The sender is `user:qq:<openid>` (`member_openid` in groups, the author id in guilds); the payload also carries the scene, message id, event id, `union_openid` and the nickname when the platform sends them. QQ authenticates senders, so the identity layer treats them as verified and linkable.
+- **Replies.** Within the platform's passive-reply window (60 minutes for private chats, 5 for groups and guilds) a reply references the latest inbound message with `msg_id` and an increasing `msg_seq`, up to 4 replies per message in private chats and 5 in groups. After that, or when the platform answers that the window has closed, the reply goes out as a proactive message, which the platform rate-limits and a user can turn off. Long text is split into chunks of at most 1800 characters.
+- **Markdown.** With `markdown: true`, text replies in private chats and groups go out as markdown messages (`msg_type: 2`), still passive within the reply window; guild channels and DMs stay plain text. Markdown is a capability the platform grants per bot. If it refuses a markdown message, the same text is resent as plain text and markdown pauses for 10 minutes, so nothing is lost while the bot lacks it. A fenced code block cut by chunking is closed at the end of one chunk and reopened at the start of the next.
+- **Media.** Inbound attachments are downloaded under the channel's `media` policy; a voice message with no text uses the platform's speech-recognition text. Outbound, QQ fetches media by URL: an attachment needs a public `http(s)` `url` (uploaded as rich media in private chats and groups, sent as an image link in guilds). A blob-store attachment without a URL is reported as an error, not dropped.
+- **Duplicates.** The platform may deliver a message more than once (a webhook retry, a replay after resume); repeats of a message id within 30 minutes are dropped.
+- **Console setup.** Copy the AppID and AppSecret from the bot's page at q.qq.com. For webhook mode, enter the callback URL there and add the runtime's egress IP to the IP allowlist the console asks for; for websocket mode only the allowlist applies. While the bot is in sandbox, only the sandbox groups, guilds and members you configure in the console can reach it.
 
 **Audit mode** is per channel: `journal: full` (the default for every type except `openai`) records message text and attachment descriptors, `journal: metadata` (the `openai` default) records one row per message with ids, sizes, user and timings and **never the text**, and `journal: off` records nothing for that channel. See [`audit`](#audit--message-journal).
 
@@ -753,6 +765,16 @@ gateway:
       secret: ${BRIDGE_SECRET}       # HMAC key for inbound events (required)
       token: ${BRIDGE_TOKEN}         # optional bearer on outbound deliveries
 #     timeout: 10s                   # per delivery (default 10s)
+    - type: qq
+      name: qq
+      agent: bot
+      app_id: "102xxxxxx"            # the bot's AppID (QQ Open Platform console)
+      secret: ${QQ_BOT_SECRET}       # the AppSecret
+      mode: websocket                # websocket (default) | webhook
+#     path: /webhook/qq/qq/          # webhook mode only (this is the default)
+#     scenes: [c2c, group, guild]    # c2c | group | guild | dm (default c2c, group, guild)
+#     api_base: https://api.bot.qq.com   # default
+#     markdown: true                 # markdown replies in private chats and groups
     - type: openai
       name: api
       path: /v1/                     # serves <path>chat/completions and <path>models

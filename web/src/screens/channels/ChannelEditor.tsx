@@ -11,6 +11,8 @@ import {
   CHANNEL_TYPES,
   JOURNAL_MODES,
   OPENAI_AUTH_MODES,
+  QQ_MODES,
+  QQ_SCENES,
   TELEGRAM_MODES,
   buildDraft,
   channelTitle,
@@ -81,7 +83,7 @@ export function ChannelEditor({
   const [busy, setBusy] = useState<'validate' | 'save' | null>(null)
 
   const set = <K extends keyof ChannelForm>(key: K, value: ChannelForm[K]) => setForm((f) => ({ ...f, [key]: value }))
-  const text = (key: 'name' | 'path' | 'allowUsers' | 'timeout' | 'deliverURL' | 'mediaAllow' | 'mediaMax' | 'agents' | 'maxRequestBytes') => ({
+  const text = (key: 'name' | 'path' | 'allowUsers' | 'timeout' | 'deliverURL' | 'mediaAllow' | 'mediaMax' | 'agents' | 'maxRequestBytes' | 'appID' | 'apiBase') => ({
     value: form[key],
     onChange: (e: { target: { value: string } }) => set(key, e.target.value),
   })
@@ -172,6 +174,9 @@ export function ChannelEditor({
 
   const bridge = form.type === 'bridge'
   const openai = form.type === 'openai'
+  const qq = form.type === 'qq'
+  const toggleScene = (id: string, on: boolean) =>
+    set('scenes', on ? [...form.scenes.filter((s) => s !== id), id] : form.scenes.filter((s) => s !== id))
 
   return (
     <Modal
@@ -226,9 +231,20 @@ export function ChannelEditor({
               <Select value={form.agent} onChange={(v) => set('agent', v)} options={agents} mono placeholder={form.agent === '' ? 'choose an agent' : undefined} />
             </Field>
           )}
-          <Field label="Path" hint={bridge ? 'Path is required for a bridge and must end with /.' : 'Optional route on the shared listener. An explicit path must end with /.'}>
-            <Input mono placeholder={bridge ? 'e.g. /bridge/' : 'optional · e.g. /webhook/'} {...text('path')} />
-          </Field>
+          {!(qq && form.qqMode === 'websocket') && (
+            <Field
+              label="Path"
+              hint={
+                bridge
+                  ? 'Path is required for a bridge and must end with /.'
+                  : qq
+                    ? 'Defaults to /webhook/qq/<name>/. Must end with /.'
+                    : 'Optional route on the shared listener. An explicit path must end with /.'
+              }
+            >
+              <Input mono placeholder={bridge ? 'e.g. /bridge/' : qq ? 'optional · /webhook/qq/<name>/' : 'optional · e.g. /webhook/'} {...text('path')} />
+            </Field>
+          )}
         </div>
 
         {form.type === 'telegram' && (
@@ -250,6 +266,42 @@ export function ChannelEditor({
               onClear={(v) => set('clearSecretToken', v)}
               clearLabel="Remove the stored webhook secret"
             />
+          </div>
+        )}
+
+        {qq && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="AppID" hint="From the bot's page on the QQ Open Platform (q.qq.com).">
+              <Input mono placeholder="102xxxxxx" {...text('appID')} />
+            </Field>
+            {secretField('AppSecret', 'AppSecret, e.g. ${QQ_BOT_SECRET}', 'Fetches the access token and verifies webhook callbacks.')}
+            <Field
+              label="Event delivery"
+              hint={
+                form.qqMode === 'webhook'
+                  ? 'Set <public https url><path> as the callback URL in the console (ports 80, 443, 8080 or 8443).'
+                  : 'The runtime connects out to the QQ gateway; nothing needs to be reachable from the internet.'
+              }
+            >
+              <Select value={form.qqMode} onChange={(v) => set('qqMode', v)} options={QQ_MODES} />
+            </Field>
+            <Field label="API base" hint="Optional. Defaults to https://api.bot.qq.com.">
+              <Input mono placeholder="https://api.bot.qq.com" {...text('apiBase')} />
+            </Field>
+            <Field label="Scenes" hint="Guild DMs need an intent the platform grants on application." className="sm:col-span-2">
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {QQ_SCENES.map((s) => (
+                  <Checkbox key={s.id} checked={form.scenes.includes(s.id)} onChange={(v) => toggleScene(s.id, v)} label={s.label} />
+                ))}
+              </div>
+            </Field>
+            <Field
+              label="Replies"
+              hint="Private chats and groups only; the platform grants markdown per bot. A refused markdown reply is resent as plain text."
+              className="sm:col-span-2"
+            >
+              <Checkbox checked={form.markdown} onChange={(v) => set('markdown', v)} label="Send replies as Markdown" />
+            </Field>
           </div>
         )}
 

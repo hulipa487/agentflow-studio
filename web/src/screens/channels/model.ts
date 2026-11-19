@@ -4,8 +4,17 @@
 import type { Channel, ChannelDraft } from '@/api/types'
 import { splitList } from '@/lib/format'
 
-export const CHANNEL_TYPES = ['webhook', 'telegram', 'ghhook', 'bridge', 'openai']
+export const CHANNEL_TYPES = ['webhook', 'telegram', 'qq', 'ghhook', 'bridge', 'openai']
 export const TELEGRAM_MODES = ['polling', 'webhook', 'auto']
+export const QQ_MODES = ['websocket', 'webhook']
+/** QQ scenes in display order; the runtime listens to the first three when none are listed. */
+export const QQ_SCENES = [
+  { id: 'c2c', label: 'Private chats' },
+  { id: 'group', label: 'Group @-mentions' },
+  { id: 'guild', label: 'Guild @-mentions' },
+  { id: 'dm', label: 'Guild DMs' },
+]
+export const QQ_DEFAULT_SCENES = ['c2c', 'group', 'guild']
 export const OPENAI_AUTH_MODES = ['key', 'user_token', 'none']
 export const JOURNAL_MODES = ['metadata', 'full', 'off']
 
@@ -58,6 +67,12 @@ export interface ChannelForm {
   journal: string
   maxRequestBytes: string
   exposeReasoning: boolean
+  // qq
+  qqMode: string
+  appID: string
+  scenes: string[]
+  apiBase: string
+  markdown: boolean
 }
 
 export function formFor(existing: Channel | null, agents: string[]): ChannelForm {
@@ -86,6 +101,11 @@ export function formFor(existing: Channel | null, agents: string[]): ChannelForm
     journal: 'metadata',
     maxRequestBytes: '',
     exposeReasoning: false,
+    qqMode: 'websocket',
+    appID: '',
+    scenes: [...QQ_DEFAULT_SCENES],
+    apiBase: '',
+    markdown: false,
   }
   if (!existing) return form
   // A file may use the agent: shorthand for an openai channel's single agent.
@@ -116,6 +136,11 @@ export function formFor(existing: Channel | null, agents: string[]): ChannelForm
     journal: JOURNAL_MODES.includes(existing.journal ?? '') ? (existing.journal as string) : '',
     maxRequestBytes: (existing.max_request_bytes ?? 0) > 0 ? String(existing.max_request_bytes) : '',
     exposeReasoning: existing.expose_reasoning ?? false,
+    qqMode: existing.type === 'qq' && QQ_MODES.includes(existing.mode) ? existing.mode : 'websocket',
+    appID: existing.app_id ?? '',
+    scenes: existing.type === 'qq' && (existing.scenes ?? []).length > 0 ? (existing.scenes ?? []).map((s) => s.toLowerCase()) : [...QQ_DEFAULT_SCENES],
+    apiBase: existing.api_base ?? '',
+    markdown: existing.markdown ?? false,
   }
 }
 
@@ -177,6 +202,20 @@ export function buildDraft(f: ChannelForm): DraftResult {
       const timeout = f.timeout.trim()
       if (timeout) draft.timeout = timeout
       if (f.async) draft.async = true
+      break
+    }
+    case 'qq': {
+      draft.mode = f.qqMode
+      draft.app_id = f.appID.trim()
+      if (draft.app_id === '') return { error: 'the AppID is required' }
+      const scenes = QQ_SCENES.map((s) => s.id).filter((id) => f.scenes.includes(id))
+      if (scenes.length === 0) return { error: 'pick at least one scene' }
+      draft.scenes = scenes
+      const base = f.apiBase.trim()
+      if (base) draft.api_base = base
+      if (f.markdown) draft.markdown = true
+      // The gateway needs no route; only webhook mode mounts one.
+      if (f.qqMode === 'websocket') delete draft.path
       break
     }
     case 'bridge': {

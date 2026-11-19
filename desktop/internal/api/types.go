@@ -180,6 +180,10 @@ type Channel struct {
 	Timeout         string   `json:"timeout"`
 	Async           bool     `json:"async"`
 	DeliverURL      string   `json:"deliver_url"`
+	AppID           string   `json:"app_id,omitempty"`
+	Scenes          []string `json:"scenes,omitempty"`
+	APIBase         string   `json:"api_base,omitempty"`
+	Markdown        bool     `json:"markdown,omitempty"`
 	Auth            string   `json:"auth,omitempty"`
 	MaxRequestBytes int      `json:"max_request_bytes,omitempty"`
 	ExposeReasoning bool     `json:"expose_reasoning,omitempty"`
@@ -236,6 +240,10 @@ type ChannelDraft struct {
 	Timeout         string   `json:"timeout,omitempty"`
 	Async           bool     `json:"async,omitempty"`
 	DeliverURL      string   `json:"deliver_url,omitempty"`
+	AppID           string   `json:"app_id,omitempty"`
+	Scenes          []string `json:"scenes,omitempty"`
+	APIBase         string   `json:"api_base,omitempty"`
+	Markdown        bool     `json:"markdown,omitempty"`
 	MediaAllow      []string `json:"media_allow,omitempty"`
 	MediaMaxBytes   int      `json:"media_max_bytes,omitempty"`
 }
