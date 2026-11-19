@@ -18,9 +18,8 @@ export interface ApiEntry {
 }
 
 // The documented surface of the prelude (docs/loops-reference.md). The
-// runtime's internal/vm/prelude.go is the source of truth, and the desktop
-// Studio's internal/lua/api.go is the list this one mirrors entry for entry:
-// keep the three in step, together with the prelude version. The analyzer
+// runtime's internal/vm/prelude.go is the source of truth: keep this list in
+// step with it, together with the prelude version. The analyzer
 // treats a version mismatch as an error, the same as the boot gate.
 // prettier-ignore
 export const preludeEntries: readonly ApiEntry[] = [

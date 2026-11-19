@@ -1,6 +1,6 @@
-// Global keyboard shortcuts. They follow the desktop app where a browser lets
-// them: Ctrl+N and Ctrl+1…9 belong to the browser, so those are Alt+N and
-// Alt+1…9 here, and F5 stays the browser's reload (Alt+R refreshes a screen).
+// Global keyboard shortcuts. Ctrl+N and Ctrl+1…9 belong to the browser, so
+// those are Alt+N and Alt+1…9, and F5 stays the browser's reload (Alt+R
+// refreshes a screen). The desktop app, being the same page, uses the same.
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { modalOpen } from '@/components/ui'

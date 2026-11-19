@@ -1,58 +1,69 @@
-# AgentFlow Studio (desktop)
+# AgentFlow Studio desktop: the web app (../web) in the system webview, via Wails v2
 #
-#   make build   # build the binary
+#   make web     # build ../web and copy it into frontend/dist
+#   make build   # build the binary (runs `make web` first if needed)
+#   make windows # cross-compile Windows amd64 and arm64 .exe files
+#   make winres  # regenerate the Windows icon, manifest and version resources
 #   make run     # build and run
-#   make test    # go test ./...
-#   make tidy    # go mod tidy
+#   make test    # go test
 #
-# The documentation it embeds is ../docs, shared with the web app; refresh the
-# contract files there with `make docs-sync` at the repository root.
+# No Wails CLI is needed: a Wails v2 app builds with plain `go build` and the
+# desktop + production tags.
 #
-# Fyne requires CGO. Windows uses zig (hermetic) unless a gcc is on PATH;
-# Linux uses the system gcc; macOS uses clang.
+# Linux needs the WebKitGTK 4.1 development files (libwebkit2gtk-4.1-dev on
+# Debian/Ubuntu) to build, and only libwebkit2gtk-4.1-0 to run. Windows needs
+# the WebView2 runtime to run (part of Windows 11 and current Windows 10);
+# macOS needs nothing extra.
 
-HOSTOS := $(shell go env GOHOSTOS)
+HOSTOS  := $(shell go env GOHOSTOS)
+VERSION ?= dev
+TAGS    := desktop,production
+LDFLAGS := -s -w -X main.version=$(VERSION)
+BIN     := agentflow-studio
 
-# Go's Windows linker defaults to the console subsystem, so a plain go build
-# opens a CMD window beside the Fyne UI. With cgo the final PE is written by
-# the external linker (zig), where -H=windowsgui alone is not enough; the
-# -Wl,--subsystem,windows flag is what actually sets the GUI subsystem.
-# (fyne package sets this itself; go build does not.)
+ifeq ($(HOSTOS),linux)
+  TAGS := $(TAGS),webkit2_41
+endif
 ifeq ($(HOSTOS),windows)
-  export CGO_ENABLED := 1
-  export CC          := zig cc
-  export CXX         := zig c++
-  LDFLAGS := -ldflags "-H=windowsgui -extldflags=-Wl,--subsystem,windows"
+  LDFLAGS += -H windowsgui
   BIN     := agentflow-studio.exe
-else ifeq ($(HOSTOS),darwin)
-  export CGO_ENABLED := 1
-  export CC          := clang
-  export CXX         := clang++
-  LDFLAGS :=
-  BIN     := agentflow-studio
-else
-  export CGO_ENABLED := 1
-  export CC          := cc
-  export CXX         := c++
-  LDFLAGS :=
-  BIN     := agentflow-studio
 endif
 
-.DEFAULT_GOAL := build
+export CGO_ENABLED := 1
 
-build:
-	go build $(LDFLAGS) -o $(BIN) .
+.PHONY: web build windows winres run test clean
+
+web:
+	cd ../web && npm run build
+	rm -rf frontend/dist
+	cp -r ../web/dist frontend/dist
+
+frontend/dist/index.html:
+	$(MAKE) web
+
+build: frontend/dist/index.html
+	go build -tags $(TAGS) -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) .
+
+# Windows binaries cross-compile from any OS: Wails needs no cgo there.
+windows: frontend/dist/index.html
+	for arch in amd64 arm64; do \
+	  CGO_ENABLED=0 GOOS=windows GOARCH=$$arch go build -tags desktop,production -trimpath \
+	    -ldflags "-s -w -H windowsgui -X main.version=$(VERSION)" -o agentflow-studio-$$arch.exe . ; \
+	done
+
+# The .syso files are committed, so a plain go build on Windows picks up the
+# icon (winres/icon*.png), the manifest (per-monitor DPI awareness, Common
+# Controls v6 for native dialogs) and the version info. Rerun after changing
+# winres/.
+winres:
+	go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64,arm64
 
 run: build
 	./$(BIN)
 
 test:
-	go test ./...
-
-tidy:
-	go mod tidy
+	go test -tags $(TAGS) ./...
 
 clean:
-	rm -f agentflow-studio agentflow-studio.exe
-
-.PHONY: build run test tidy clean
+	rm -rf $(BIN) frontend/dist
+	mkdir -p frontend/dist && touch frontend/dist/.gitkeep

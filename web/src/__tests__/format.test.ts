@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { humanCount, humanDuration, orDash, shortID, splitList, utcDay } from '@/lib/format'
 
-// The same cases the desktop app asserts (internal/ui/ui_test.go), so both
-// apps print numbers identically.
+// The cases the Fyne desktop app asserted, kept since its removal, so numbers
+// still print the way they always have.
 describe('format', () => {
   it('humanCount', () => {
     const cases: [number, string][] = [

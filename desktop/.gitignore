@@ -1,6 +1,6 @@
-/agentflow-studio-wails
-/agentflow-studio-wails.exe
+/agentflow-studio
+/agentflow-studio.exe
+/agentflow-studio-*.exe
 # the web build, copied in by `make web`
 /frontend/dist/*
 !/frontend/dist/.gitkeep
-/agentflow-studio-wails-*.exe

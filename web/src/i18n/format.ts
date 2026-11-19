@@ -1,5 +1,4 @@
-// The message syntax both Studio apps share (the desktop twin is
-// desktop/internal/i18n/format.go; keep the two in step).
+// The message syntax of Studio's catalogues (../../../i18n).
 //
 //   {name}                                    a parameter
 //   {n, plural, =0 {…} one {…} other {…}}     a count; # prints it

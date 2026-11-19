@@ -7,7 +7,7 @@ package main
 //
 //   POST save         {name, content}   save dialog, then write the file
 //   POST open-folder  {path}            show a folder in the file manager
-//   GET  fyne-config                     the Fyne app's saved connections
+//   GET  fyne-config                     the old Fyne app's saved connections
 //   POST background   {r, g, b}          window colour behind the page
 //   POST close                           the app's own close button
 //
@@ -193,8 +193,9 @@ func openInFileManager(dir string) error {
 	return nil
 }
 
-// fyneProfile mirrors a saved connection in the Fyne app's config.json
-// (desktop/internal/appconfig).
+// fyneProfile mirrors a saved connection in the config.json of the Fyne
+// desktop app this one replaced (its internal/appconfig, at the git tag
+// fyne-desktop-final). Reading it lets existing users start signed in.
 type fyneProfile struct {
 	Name        string `json:"name"`
 	URL         string `json:"url"`

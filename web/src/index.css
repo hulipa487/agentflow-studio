@@ -3,8 +3,8 @@
 @import '@fontsource-variable/jetbrains-mono';
 
 /* ---------------------------------------------------------------------------
-   Design tokens. The palettes are the desktop Studio's (internal/ui/theme.go),
-   value for value, so both apps read as one product. Components use the
+   Design tokens. The palettes are the ones the earlier Fyne desktop app
+   introduced, value for value. Components use the
    semantic names below (bg-surface, text-muted, border-line, ...) and never a
    raw hex.
    --------------------------------------------------------------------------- */

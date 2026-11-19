@@ -1,13 +1,2 @@
-# desktop build output
-/desktop/agentflow-studio
-/desktop/agentflow-studio.exe
+# build output: see desktop/.gitignore and web/.gitignore
 *.exe
-/desktop/dist/
-
-# packaged desktop app output
-/desktop/FyneApp.toml
-
-# rendered UI snapshots (development aid)
-/desktop/snapshots/
-
-# web: see web/.gitignore

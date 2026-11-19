@@ -1,6 +1,5 @@
-// Wire types for AgentFlow's /admin/api surface. They mirror the desktop
-// Studio's internal/api (types.go, operate.go) field for field; the JSON keys
-// are the runtime's. Lists can be null (a Go nil slice), and fields marked
+// Wire types for AgentFlow's /admin/api surface; the JSON keys are the
+// runtime's. Lists can be null (a Go nil slice), and fields marked
 // optional are ones the runtime omits when empty.
 
 /**

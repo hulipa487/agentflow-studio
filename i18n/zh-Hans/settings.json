@@ -77,7 +77,7 @@
   "settings.shortcutDocs": "打开文档",
   "settings.shortcutBack": "返回上一个视图",
   "settings.shortcutDocsBack": "打开文档 / 返回上一个视图",
-  "settings.shortcutsBrowserNote": "这些与桌面应用不同：桌面应用使用 Ctrl+N、Ctrl+1…9 和 F5，而浏览器把它们留给新窗口、切换标签页和刷新页面，所以这里新建智能体是 {alt}+N，切换视图是 {alt}+1…9，刷新是 {alt}+R。",
+  "settings.shortcutsBrowserNote": "浏览器把 Ctrl+N、Ctrl+1…9 和 F5 留给新窗口、切换标签页和刷新页面，所以 Studio 在浏览器和桌面应用中都用 {alt}+N 新建智能体，{alt}+1…9 切换视图，{alt}+R 刷新。",
   "settings.about": "关于",
   "settings.studioVersion": "Studio 版本",
   "settings.webBuild": "网页版",

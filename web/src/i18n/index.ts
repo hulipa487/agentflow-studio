@@ -2,7 +2,7 @@
 // and t() to read a message.
 //
 // The catalogues are the shared files in ../../../i18n (one JSON file per
-// namespace, per language), the same ones the desktop app embeds. English is
+// namespace, per language). English is
 // the source: a key missing from another language falls back to it, and a key
 // missing everywhere prints as the key, so a typo is visible on screen.
 //

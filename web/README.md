@@ -1,9 +1,9 @@
 # AgentFlow Studio (web)
 
 AgentFlow Studio in a browser tab: build an agent, apply it live, chat with it
-and watch every step of the turn. It is the web counterpart of the
-[desktop Studio](../desktop) — same screens, same shell, same theme —
-and talks to the same `/admin/api/*` surface of the runtime. The runtime stays
+and watch every step of the turn. It talks to the runtime's `/admin/api/*`
+surface. The [desktop app](../desktop) is this app in the system webview, so
+a change here reaches both. The runtime stays
 the source of truth for config, persistence, memory and traces; this app keeps
 nothing on a server.
 
@@ -76,7 +76,7 @@ expose like the admin API itself.
 ### Where the token is kept
 
 - **Remember the token in this browser** on: `localStorage`, in plain text —
-  the same trade the desktop app makes with its config file. **Lock** forgets it.
+  in the desktop app, the webview's. **Lock** forgets it.
 - Off: `sessionStorage` only. A reload keeps you signed in; closing the tab
   forgets the token.
 
@@ -85,8 +85,6 @@ address or token never becomes the next visit's default. Profiles and the
 switcher live in the connection pill in the command bar.
 
 ## Screens
-
-Everything the desktop app has:
 
 - **Overview** — instance, region, version, uptime and config epoch; live
   sessions; agents and channels; credential store; sparklines of the sampled
@@ -116,7 +114,7 @@ Everything the desktop app has:
 ### Loop editor
 
 The Luau editor's diagnostics, completion and hover come from a TypeScript port
-of the desktop app's in-process analyzer (`src/lua`, from `../desktop/internal/lua`): the
+of the Fyne desktop app's in-process analyzer (`src/lua`): the
 chunk contract (`-- af-prelude-version`, a global `loop()`), unknown prelude
 names with "did you mean", capability checks against the agent's effective
 capabilities, and AgentFlow-specific hazards. It knows the documented prelude;
@@ -143,12 +141,12 @@ for a "Discard changes?" answer.
 | `F1` | Documentation; in the builder, the Luau reference dock |
 | `Esc` | Back |
 
-These differ from the desktop app only where the browser owns the key:
-`Ctrl+N`, `Ctrl+1…9` and `F5` are the browser's, so navigation uses `Alt`.
+`Ctrl+N`, `Ctrl+1…9` and `F5` are the browser's, so navigation uses `Alt`; the
+desktop app, being this page, uses the same keys.
 
 ## Theme
 
-The palettes are the desktop app's, value for value (`src/index.css`): the
+The palettes (`src/index.css`): the
 trans flag's blue, pink and white as one continuous gradient hairline under
 the command bar, a flag-gradient logo, a blue-to-pink marker on the active
 rail row and tone-matched chips. Light and dark variants of both palettes; the
@@ -176,7 +174,7 @@ src/state               connections (saved profiles), session, appearance, UI
 src/components/ui       the component kit, CodeMirror editor, Markdown
 src/components/shell    command bar, rail, status bar, command palette, shortcuts
 src/lua                 the Luau analyzer and its CodeMirror extension
-src/docs                the library over ../docs, the guides shared with the desktop app
+src/docs                the library over ../docs, the bundled guides
 src/i18n                t(), the current language, and the catalogues from ../i18n
 src/screens             one file per screen (+ a folder for its parts)
 src/nav.ts              destinations: rail, breadcrumb, shortcuts and palette
@@ -193,8 +191,8 @@ npm test             # vitest: API client, proxy, Luau analyzer, screen logic
 ```
 
 The documentation is not copied into this app: `src/docs/library.ts` bundles
-the repository's [`docs/`](../docs) directory, the same files the desktop app
-embeds. A new page there needs an entry in the manifest in that file, and a
+the repository's [`docs/`](../docs) directory as it is. A new page there needs
+an entry in the manifest in that file, and a
 test fails if one is missing.
 
 Two things worth knowing when changing the client (`src/api/client.ts`):

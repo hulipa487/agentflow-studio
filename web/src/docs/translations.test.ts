@@ -1,8 +1,7 @@
 // The translated guides must match their English source in structure: the
 // same headings (a translated heading takes the English heading's anchor by
 // position), the same code blocks (only prose comments may be translated),
-// the same link targets and the same table shapes. The desktop app has the
-// same check (desktop/docs_i18n_test.go).
+// the same link targets and the same table shapes.
 import { describe, expect, it } from 'vitest'
 import { bundledDocFiles, bundledTranslations, docHeadingIDs, docOutline, englishSource, readDoc, translatedSource } from './library'
 

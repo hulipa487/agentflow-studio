@@ -5,7 +5,7 @@ import { paletteMatch } from '@/components/shell/CommandPalette'
 
 const proxy = { available: true, platform: 'linux' }
 
-// Mirrors TestDescribeURL in the desktop app (internal/ui/login_test.go).
+// The cases the Fyne desktop app asserted (TestDescribeURL), kept since its removal.
 describe('describeURL', () => {
   const cases: [string, boolean, string, string][] = [
     ['http://127.0.0.1:8080', true, 'this machine', 'http'],

@@ -17,14 +17,14 @@ AgentFlow Studio
 
 AgentFlow Studio is the client for an AgentFlow runtime. Connect to any deployment and you get the whole thing in one window: write a loop, apply it to the running engine, chat with it, and read the trace of what it did - then manage the models, channels, users and credentials it runs on.
 
-It comes two ways, with the same screens:
+It is one app, two ways to open it:
 
 | | Where it runs | Built with |
 |---|---|---|
-| [**Desktop**](desktop) | A native app on Windows, macOS and Linux | Go + [Fyne](https://fyne.io/) |
+| [**Desktop**](desktop) | A window on Windows, macOS and Linux | The web app in the system webview, via Go + [Wails](https://wails.io/) |
 | [**Web**](web) | A browser tab, served from your own machine | React + TypeScript |
 
-The desktop app is the one this page describes: no web server to host, no CORS to configure, and on the same machine it can skip TCP entirely and talk over a Unix socket or a Windows named pipe. The web app reaches the same runtime through a small local proxy; [its README](web/README.md) covers how.
+The screens are the same because they are the same code: the desktop app embeds the web app and adds what a browser tab cannot do (a local proxy to Unix sockets and Windows named pipes, native save dialogs, its own title bar on Windows). Neither needs a web server to host or CORS to configure; [the web README](web/README.md) and [the desktop README](desktop/README.md) cover how each reaches the runtime.
 
 - [x] A Luau editor with completion, diagnostics and hover docs?
 - [x] Apply a loop to a live engine without restarting it?
@@ -43,20 +43,20 @@ The runtime stays the source of truth. Studio holds no agent state of its own: c
 - **Playground** - threaded chat against one agent, one session per thread, with streamed replies and a live trace: turns, ops, model and tool calls, tokens, durations, safety decisions and errors. An optional *act as user* runs the turn as a real profile, so memory scopes and quotas apply.
 
 **✍️ The code editor**
-- One editor for every document: the loop (Luau), the instructions (Markdown, soft-wrapped), the agent YAML and the deployment config. The web app runs CodeMirror 6; the desktop app has its own editor with the same features, because Fyne has none and cannot host a web view.
+- One editor for every document: the loop (Luau), the instructions (Markdown, soft-wrapped), the agent YAML and the deployment config, on CodeMirror 6.
 - Highlighting per language, including multi-line Lua long strings and comments, YAML block scalars and Markdown code fences. Indent guides, bracket matching, folding, a status line (line, column, selections) and soft wrap.
 - Multiple carets and selections, column selection, and IDE line commands. Find and replace with match case, whole word and regex, plus go to line.
 - Completion for the whole Lua API with inline docs, and ghost text as you type.
 - Diagnostics as wavy underlines with hover errors, before you ever hit Validate.
 - Backed by a Luau analyzer and language server that live inside Studio. Nothing is added to the runtime and no external process is started.
 
-| Keys (both apps) | Action |
+| Keys | Action |
 |---|---|
 | `Ctrl+F` / `Ctrl+H` | Find / replace; `Enter`, `F3` and `Shift+F3` move between matches |
-| `Ctrl+G` (desktop) / `Ctrl+Alt+G` (web) | Go to line |
+| `Ctrl+Alt+G` | Go to line |
 | `Ctrl+D` / `Ctrl+Shift+L` | Add the next occurrence / select every occurrence |
 | `Ctrl+Alt+Up` / `Ctrl+Alt+Down` | Add a caret above / below |
-| `Alt+click` (desktop) · `Alt+drag` | Add a caret · select a column (`Alt+Shift+drag` on desktop) |
+| `Ctrl+click` · `Alt+drag` | Add a caret · select a column |
 | `Ctrl+/` | Toggle comment |
 | `Alt+Up` / `Alt+Down` · `Shift+Alt+Up` / `Shift+Alt+Down` | Move lines · copy lines |
 | `Ctrl+Shift+K` · `Ctrl+J` · `Ctrl+L` | Delete lines · join lines · select the line |
@@ -65,9 +65,6 @@ The runtime stays the source of truth. Studio holds no agent state of its own: c
 | `Ctrl+Shift+[` / `Ctrl+Shift+]` | Fold / unfold |
 | `Ctrl+Shift+\` | Jump to the matching bracket |
 | `Alt+Z` | Toggle word wrap |
-| `Ctrl+=` / `Ctrl+-` / `Ctrl+0`, `Ctrl+wheel` (desktop) | Zoom the editor |
-
-The desktop editor also has a right-click menu with fold all, unfold all and the word-wrap switch.
 
 **🔌 Connect**
 - **Channels** - webhook, Telegram, QQ Bot, GitHub webhook, bridge and OpenAI-compatible channels: add, edit, validate against the deployment and save. The screen marks which definitions are live and which need a restart.
@@ -89,28 +86,26 @@ Secrets are write-only everywhere: a field left blank keeps the stored value, an
 - **Config** - the raw config file for everything without its own screen, with validate, an atomic save that keeps a `.bak`, and a masked view of what the runtime parsed.
 
 **🪟 The shell**
-- **Command bar** - the breadcrumb, a search field that opens the go-to palette, the connection pill (saved profiles, switch, lock), the language switch and the theme toggle.
-- **Language** - English, 简体中文 and 繁體中文, for the interface and the bundled guides alike. The **EN / 简体 / 繁體** switch is in the command bar, on the sign-in screen and in Settings; it applies at once and is remembered. The first launch follows the OS (desktop) or the browser (web).
+- **Command bar** - the breadcrumb, a search field that opens the go-to palette, the connection pill (saved profiles, switch, lock), the language switch and the theme toggle. In the desktop app on Windows it is also the window's title bar, with the minimise, maximise and close buttons.
+- **Language** - English, 简体中文 and 繁體中文, for the interface and the bundled guides alike. The **EN / 简体 / 繁體** switch is in the command bar, on the sign-in screen and in Settings; it applies at once and is remembered. The first launch follows the language of the system (desktop) or the browser (web).
 - **Rail** - flat and compact, so every screen fits the default window without scrolling. The logo collapses it.
 - **Status bar** - which runtime this is, on every screen: address, instance, region, topology, version, uptime and busy or idle sessions.
 
 **📚 Documentation**
-- The complete AgentFlow guide set - getting started, architecture, the configuration reference, the Luau API reference, deployment and the OpenAI-compatible API - is embedded in the binary and rendered natively. Search and links work offline.
+- The complete AgentFlow guide set - getting started, architecture, the configuration reference, the Luau API reference, deployment and the OpenAI-compatible API - in English, 简体中文 and 繁體中文, is built into the app. Search and links work offline.
 
 ## Getting Started
 
 You need a running AgentFlow instance (see [its README](https://github.com/hulipa487/agentflow#getting-started)) with `runtime.studio.enabled: true`, which is the default.
 
-Build from source. You need Go 1.27+ and a C/C++ toolchain, because Fyne uses cgo: gcc on Linux, Xcode's clang on macOS, [zig](https://ziglang.org) on Windows.
+Build from source. The desktop app needs Go 1.27+ and Node.js (it embeds the web build); on Linux also a C toolchain and the WebKitGTK 4.1 development files (`libwebkit2gtk-4.1-dev`), on macOS Xcode's clang. Windows needs neither, and `make -C desktop windows` cross-compiles the Windows .exe from any OS. [desktop/README.md](desktop/README.md) has the details.
 
 ```bash
 make desktop
 ./desktop/agentflow-studio
 ```
 
-`make -C desktop run` does both. On Windows the Makefile also sets the GUI subsystem, so no console window opens beside the app; a plain `go build` there would open one.
-
-For the browser instead, you need Node.js:
+For the browser instead, Node.js is enough:
 
 ```bash
 cd web
@@ -141,20 +136,20 @@ A few things worth knowing:
 
 - **The per-boot token is local only.** A runtime with no `ADMIN_TOKEN` and no operators mints a token at each start and answers the admin API only from the same machine. To connect from another machine, set `ADMIN_TOKEN` or `runtime.admin.operators` on the runtime.
 - **A bad connection is never saved.** Studio checks the URL and the token before it stores anything, and a failure points at the field to fix.
-- **The token is stored in plain text** in your user config directory when *Remember the token on this computer* is checked (the default). Uncheck it to be asked at each launch. Treat it like a shell secret: it can install agent logic and run their tools.
+- **The token is stored in plain text** in the app's (or the browser's) local storage when *Remember the token* is checked (the default). Uncheck it to be asked at each launch. Treat it like a shell secret: it can install agent logic and run their tools.
 - **Several deployments.** Saved connection profiles and a region switcher let you move between cells without retyping anything.
 
-The config file is `agentflow-studio/config.json` under the OS config directory (`%APPDATA%`, `~/.config`, `~/Library/Application Support`). Set `AGENTFLOW_STUDIO_CONFIG` to use another path.
+The desktop app keeps that storage in the webview's profile: `$XDG_DATA_HOME/agentflow-studio` on Linux, the app data folder on Windows. On its first launch it imports the connections, language and theme saved by the earlier Fyne desktop app (`agentflow-studio/config.json` under the OS config directory, or `AGENTFLOW_STUDIO_CONFIG`).
 
 ## Keyboard shortcuts
 
 | Shortcut | Action |
 |---|---|
 | `Ctrl+K` (or `Ctrl+Shift+P`) | Go to any screen, agent or action |
-| `Ctrl+N` | New agent |
-| `Ctrl+1` … `Ctrl+9` | Overview, Agents, Playground, Channels, Models, Credentials, Safety, Users, Logs |
+| `Alt+N` | New agent |
+| `Alt+1` … `Alt+9` | Overview, Agents, Playground, Channels, Models, Credentials, Safety, Users, Logs |
 | `F1` | Documentation; in the builder, the Luau reference dock |
-| `F5` | Refresh the current screen |
+| `Alt+R` | Refresh the current screen |
 | `Ctrl+S` | Apply in the builder (its remembered choice); validate and save in Config |
 | `Ctrl+Space` | API completion in the loop editor |
 | `Ctrl+Enter` | Send in the playground; in the builder, apply pending edits and run |
@@ -171,47 +166,28 @@ The config file is `agentflow-studio/config.json` under the OS config directory 
 
 | Path | What's there |
 |---|---|
-| `desktop/` | The desktop app, a Go module of its own |
-| `desktop/main.go` | App bootstrap, single-instance guard |
-| `desktop/internal/ui` | The shell and every screen |
-| `desktop/internal/api` | The admin API client and stream parsers, with no UI dependency |
-| `desktop/internal/lua` | The Luau analyzer and the in-process language server |
-| `desktop/internal/docs` | The documentation library: manifest, search, links |
-| `desktop/internal/appconfig` | Saved connections and preferences |
-| `web/` | The web app: `src/screens`, `src/api`, `src/lua`, and the local proxy in `server/` |
-| `docs/` | The Markdown guides, the users OpenAPI spec and the Luau type stubs. One copy, shipped by both apps |
+| `web/` | The app: `src/screens`, `src/api`, `src/lua` (the Luau analyzer and language server), `src/docs`, and the local proxy in `server/` |
+| `desktop/` | The desktop app: the web build in the system webview, a Go module of its own (proxy, save dialog, window, title bar) |
+| `docs/` | The Markdown guides, their translations, the users OpenAPI spec and the Luau type stubs |
+| `i18n/` | The message catalogues in English, 简体中文 and 繁體中文 |
 
 ```bash
-make test        # both apps: go test in desktop/, vitest in web/
+make test        # vitest in web/, go test in desktop/
 make docs-sync   # refresh the OpenAPI spec and Luau stubs from the runtime repo
 ```
 
-**The two apps are kept in step by hand.** They share no code, only facts: the admin API types (`desktop/internal/api` and `web/src/api`), the Lua API table behind editor completion (`desktop/internal/lua/api.go` and `web/src/lua/api.ts`), and the screens themselves. A change to one belongs in the same commit as the change to the other.
+**New screens and features go in `web/`.** The desktop app shows the web app, so a change there reaches both. The desktop side changes only for what a browser cannot do; `web/src/lib/desktop.ts` is the page's side of it and falls back to the browser's behaviour everywhere else.
 
-**So are the message catalogues.** Every string either app shows lives in `i18n/<language>/<namespace>.json` (`en`, `zh-Hans`, `zh-Hant`), one copy that the desktop app embeds and the web app bundles, so the two cannot drift apart in wording. English is the source and the fallback. `i18n/README.md` has the message syntax, the style rules and the glossary; each app has a test that fails when the three languages do not hold the same keys and parameters, or when code asks for a key that does not exist. In Chinese the desktop app draws text with a CJK font it finds on the system (Fyne's bundled font has none).
+**The message catalogues.** Every string the app shows lives in `i18n/<language>/<namespace>.json` (`en`, `zh-Hans`, `zh-Hant`). English is the source and the fallback. `i18n/README.md` has the message syntax, the style rules and the glossary; a test fails when the three languages do not hold the same keys and parameters, or when code asks for a key that does not exist.
 
-**The guides are translated too.** `docs/zh-Hans/` and `docs/zh-Hant/` hold a translation of every guide under the same file name; both apps show a guide in the current language and fall back to English where a translation is missing. A translation keeps the English headings one for one, its code blocks (only prose comments are translated), its link targets and its table shapes, and both apps give each translated heading the English heading's anchor, so `configuration.md#memory` resolves in every language. `desktop/docs_i18n_test.go` and `web/src/docs/translations.test.ts` fail when a translation is missing or breaks that structure. Change an English guide, then its two translations, in the same commit.
+**The guides are translated too.** `docs/zh-Hans/` and `docs/zh-Hant/` hold a translation of every guide under the same file name; the app shows a guide in the current language and falls back to English where a translation is missing. A translation keeps the English headings one for one, its code blocks (only prose comments are translated), its link targets and its table shapes, and each translated heading takes the English heading's anchor, so `configuration.md#memory` resolves in every language. `web/src/docs/translations.test.ts` fails when a translation is missing or breaks that structure. Change an English guide, then its two translations, in the same commit.
 
-**The docs are shared for real.** The desktop app embeds `docs/` (it is a small Go module so the embed can reach it) and the web app bundles the same files at build time. A new page needs a manifest entry in both `desktop/internal/docs/docs.go` and `web/src/docs/library.ts`, and each app has a test that fails if its entry is missing. `docs/openapi/users.yaml` and `docs/luau/af.d.luau` are copies of files versioned with the runtime; `make docs-sync` expects that checkout next to this one, or at `AGENTFLOW_DIR`.
+**The docs are bundled at build time.** A new page needs a manifest entry in `web/src/docs/library.ts`, and a test fails if it is missing. `docs/openapi/users.yaml` and `docs/luau/af.d.luau` are copies of files versioned with the runtime; `make docs-sync` expects that checkout next to this one, or at `AGENTFLOW_DIR`.
 
-To see every desktop screen without clicking through them, render them to PNGs in both themes:
-
-```bash
-cd desktop
-STUDIO_SNAPSHOT_DIR=./snapshots go test ./internal/ui -run TestSnapshots
-```
-
-`STUDIO_SNAPSHOT_LANG=zh-Hans` (or `zh-Hant`) renders them in Chinese; give each language its own `STUDIO_SNAPSHOT_DIR`.
-
-Packaging the desktop app is optional; the binary runs as it is. For an installable app, from `desktop/`:
-
-```bash
-go install fyne.io/tools/cmd/fyne@latest
-fyne package -name "AgentFlow Studio"
-```
+**The Fyne desktop app** that came before the Wails one is at the git tag `fyne-desktop-final`.
 
 ## Desktop or web?
-- **Desktop** when you want nothing to host: the token goes straight to the runtime with no CORS entry, a Unix socket or named pipe keeps the admin API off the network, and the editor, its language server and the docs are all in one binary.
+- **Desktop** when you want an app in its own window: one binary with the editor, its language server and the docs, native save dialogs, and a built-in proxy to Unix sockets and named pipes that keeps the admin API off the network.
 - **Web** when installing an app is the obstacle: it runs from `npm start` on your own machine, and its local proxy reaches sockets and pipes too.
 - Both work offline once built, in light and dark, on Windows, MacOS and Linux.
 

@@ -1,24 +1,26 @@
-# AgentFlow Studio: the desktop app (desktop/), the web app (web/) and the
-# documentation both ship (docs/).
+# AgentFlow Studio: the web app (web/), the desktop app that shows it in the
+# system webview (desktop/), and the documentation both ship (docs/).
 #
 #   make desktop     # build the desktop app          (desktop/agentflow-studio)
 #   make web         # install and build the web app  (web/dist)
 #   make test        # test both
 #   make docs-sync   # refresh the contract files in docs/ from the runtime repo
 #
-# Each app also builds on its own: see desktop/Makefile and web/package.json.
+# Each also builds on its own: see desktop/Makefile and web/package.json. The
+# desktop build embeds the web build, so it needs the web app's dependencies.
 
 .DEFAULT_GOAL := desktop
 
 desktop:
-	$(MAKE) -C desktop build
+	cd web && npm ci
+	$(MAKE) -C desktop web build
 
 web:
 	cd web && npm ci && npm run build
 
 test:
-	$(MAKE) -C desktop test
 	cd web && npm test
+	$(MAKE) -C desktop test
 
 # The user API contract and the Luau editor stubs are versioned in the runtime
 # repo; keep these copies in step when they change. AGENTFLOW_DIR can point at

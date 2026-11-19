@@ -1,6 +1,6 @@
 // Luau language intelligence for the loop editor: the public surface the
-// builder codes against. The analyzer behind it is a port of the desktop
-// Studio's in-process language server (internal/lua): token.ts, lexer.ts,
+// builder codes against. The analyzer behind it is a port of the Fyne desktop
+// app's in-process language server (internal/lua): token.ts, lexer.ts,
 // api.ts, analysis.ts and service.ts mirror the Go files of the same names,
 // luau.ts adapts them to string offsets, and codemirror.ts is the editor wiring.
 

@@ -3,8 +3,8 @@
 package main
 
 // A test aid, compiled in only with -tags probe: a control socket on
-// 127.0.0.1 that runs JavaScript in the window and resizes it, so the spike's
-// resize checks can be scripted. It is never part of a normal build.
+// 127.0.0.1 that runs JavaScript in the window and resizes it, so resize and
+// screen checks can be scripted. It is never part of a normal build.
 
 import (
 	"context"

@@ -77,7 +77,7 @@
   "settings.shortcutDocs": "Open docs",
   "settings.shortcutBack": "Return to previous view",
   "settings.shortcutDocsBack": "Open docs / return to previous view",
-  "settings.shortcutsBrowserNote": "These differ from the desktop app, which uses Ctrl+N, Ctrl+1…9 and F5. A browser keeps those for a new window, switching tabs and reloading the page, so here a new agent is {alt}+N, the views are {alt}+1…9 and refresh is {alt}+R.",
+  "settings.shortcutsBrowserNote": "A browser keeps Ctrl+N, Ctrl+1…9 and F5 for a new window, switching tabs and reloading the page, so Studio uses {alt}+N for a new agent, {alt}+1…9 for the views and {alt}+R to refresh, in the browser and the desktop app alike.",
   "settings.about": "About",
   "settings.studioVersion": "Studio version",
   "settings.webBuild": "web",

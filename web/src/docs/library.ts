@@ -1,5 +1,5 @@
-// The bundled documentation set: the repository's docs/ directory, the same
-// files the desktop Studio embeds. There is no copy to keep in step. Pages are
+// The bundled documentation set: the repository's docs/ directory, compiled
+// in as it is, so there is no copy to keep in step. Pages are
 // compiled into the app, so the viewer works offline and on every transport.
 //
 // Each guide may have a Simplified and a Traditional Chinese translation at

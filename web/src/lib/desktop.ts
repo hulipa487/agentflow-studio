@@ -1,4 +1,4 @@
-// The desktop shell. In the desktop app (desktop-wails) this web app is shown
+// The desktop shell. In the desktop app (../desktop) this web app is shown
 // in the system webview, and the shell's Go side answers under the local
 // proxy's prefix with the things a browser tab cannot do: a save dialog,
 // opening a folder in the file manager, the old desktop app's saved

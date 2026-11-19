@@ -1,5 +1,4 @@
-// A CodeMirror 6 editor themed from the design tokens. It is the web
-// counterpart of the desktop app's purpose-built editor widget: line numbers,
+// A CodeMirror 6 editor themed from the design tokens: line numbers,
 // highlighting, bracket pairing, auto-indent, search, multi-cursor, undo/redo
 // and the usual IDE keys. Language intelligence for Luau loops (diagnostics,
 // completion, hover) is supplied by the caller through `extensions`.

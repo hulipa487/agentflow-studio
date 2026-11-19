@@ -1,6 +1,5 @@
 // A bundled contract file (the OpenAPI document, the Luau type definitions)
-// shown read-only. The desktop app hands these to the OS's handler for the
-// file type; a browser copies or downloads them instead.
+// shown read-only, to copy or save (a save dialog in the desktop app).
 import { Download, X } from 'lucide-react'
 import { readAsset, type DocAsset } from '@/docs/library'
 import { Button, Chip, CopyButton, EmptyState, IconButton } from '@/components/ui'

@@ -1,6 +1,6 @@
 // The shell: a command bar (where am I, jump anywhere, which runtime), a
-// compact rail, and a status bar with the runtime's identity. It mirrors the
-// desktop app's shell so the two read as one product.
+// compact rail, and a status bar with the runtime's identity. In the desktop
+// app on Windows the command bar is also the window's title bar.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { BookOpen, Check, ChevronDown, Lock, Moon, PanelLeft, Plus, Search, Settings, Sun } from 'lucide-react'

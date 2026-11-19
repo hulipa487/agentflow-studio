@@ -77,7 +77,7 @@
   "settings.shortcutDocs": "開啟文件",
   "settings.shortcutBack": "返回上一個畫面",
   "settings.shortcutDocsBack": "開啟文件 / 返回上一個畫面",
-  "settings.shortcutsBrowserNote": "這些與桌面應用程式不同：桌面應用程式使用 Ctrl+N、Ctrl+1…9 和 F5，而瀏覽器把它們保留給新視窗、切換分頁和重新載入頁面，所以這裡新增代理是 {alt}+N，切換畫面是 {alt}+1…9，重新整理是 {alt}+R。",
+  "settings.shortcutsBrowserNote": "瀏覽器把 Ctrl+N、Ctrl+1…9 和 F5 保留給新視窗、切換分頁和重新載入頁面，所以 Studio 在瀏覽器和桌面應用程式中都以 {alt}+N 新增代理，{alt}+1…9 切換畫面，{alt}+R 重新整理。",
   "settings.about": "關於",
   "settings.studioVersion": "Studio 版本",
   "settings.webBuild": "網頁版",

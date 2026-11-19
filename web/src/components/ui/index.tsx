@@ -1,6 +1,5 @@
 // The component kit. Every screen is built from these, so spacing, radii and
-// tones stay consistent; they are the web counterparts of the desktop app's
-// building blocks in internal/ui/theme.go and screen.go.
+// tones stay consistent.
 import {
   forwardRef,
   useEffect,

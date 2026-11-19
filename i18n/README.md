@@ -10,18 +10,14 @@ directory per language and one JSON file per namespace:
 A key is `<namespace>.<name>` and lives in `<namespace>.json`, so
 `channels.saveFailed` is in `en/channels.json`, `zh-Hans/channels.json` and
 `zh-Hant/channels.json`. Each file is one flat JSON object of key to message.
-The web app bundles these files (`web/src/i18n`), the desktop app embeds them
-(`desktop/internal/i18n`); both apps have a test that fails when the three
-languages do not hold the same keys and the same parameters.
+The web app bundles these files (`web/src/i18n`), and the desktop app shows
+the web app; a test fails when the three languages do not hold the same keys
+and the same parameters.
 
 ## Reading a message
 
-    // web
     import { t } from '@/i18n'
     t('agents.count', { n: agents.length })
-
-    // desktop
-    i18n.T("agents.count", "n", len(agents))
 
 Markup in the web app goes through `tr` (`@/i18n/rich`): the message marks a
 span with a tag and the caller says what the tag renders as.

@@ -1,10 +1,9 @@
-// Saved connection profiles, the browser counterpart of the desktop app's
-// config.json (internal/appconfig). A profile is an address, how to reach it,
-// and optionally its token.
+// Saved connection profiles. A profile is an address, how to reach it, and
+// optionally its token. In the desktop app the same storage is the webview's.
 //
 // Where the token lives:
-//   - "Remember" on:  localStorage, in plain text, like the desktop app's
-//     config file. Anyone with this browser profile can read it.
+//   - "Remember" on:  localStorage, in plain text. Anyone with this browser
+//     (or desktop app) profile can read it.
 //   - "Remember" off: sessionStorage only, so a reload keeps you signed in but
 //     closing the tab forgets it.
 import { create } from 'zustand'
