@@ -32,6 +32,14 @@ a second binary next to it.
   localStorage, as in a browser. On Linux that storage lives in
   `$XDG_DATA_HOME/agentflow-studio` whatever the binary is called
   (`prgname_linux.go`); on Windows in the app data folder.
+- **No native title bar on Windows.** The window is frameless there and the
+  app's own top bar is the title bar: its empty space drags the window, a
+  double-click maximises, and minimise / maximise / close buttons sit at its
+  right end (`web/src/components/shell/WindowControls.tsx`); the login and
+  reconnecting screens get a thin strip with the same. The close button saves
+  the window state like the native one. Linux and macOS keep the title bar
+  their desktop draws; `AGENTFLOW_STUDIO_FRAMELESS=1` or `0` overrides either
+  way.
 - A second launch brings the running window forward (Wails' single-instance
   lock).
 - `probe.go` (build tag `probe` only) is a test aid: a loopback control socket

@@ -9,6 +9,7 @@ package main
 //   POST open-folder  {path}            show a folder in the file manager
 //   GET  fyne-config                     the Fyne app's saved connections
 //   POST background   {r, g, b}          window colour behind the page
+//   POST close                           the app's own close button
 //
 // Like the proxy, this is reachable only from the app's own webview.
 
@@ -34,6 +35,10 @@ const maxSaveBytes = 64 << 20
 type desktop struct {
 	mu  sync.Mutex
 	ctx context.Context // the Wails app context, set at startup
+	// frameless is reported by /__af/__ping, so the web app knows to draw the
+	// window controls; close is what its close button runs.
+	frameless bool
+	close     func(ctx context.Context)
 	// The window calls, swappable in tests.
 	saveDialog func(ctx context.Context, name string) (string, error)
 	setBg      func(ctx context.Context, r, g, b uint8)
@@ -77,7 +82,7 @@ func decode(r *http.Request, limit int64, v any) error {
 // serve handles one /__af/__desktop/<action> request.
 func (d *desktop) serve(w http.ResponseWriter, r *http.Request, action string) {
 	ctx := d.context()
-	needsWindow := action == "save" || action == "background"
+	needsWindow := action == "save" || action == "background" || action == "close"
 	if needsWindow && ctx == nil {
 		refuse(w, http.StatusServiceUnavailable, "the window is not ready")
 		return
@@ -137,6 +142,14 @@ func (d *desktop) serve(w http.ResponseWriter, r *http.Request, action string) {
 		}
 		d.setBg(ctx, clampByte(in.R), clampByte(in.G), clampByte(in.B))
 		reply(w, map[string]any{"ok": true})
+
+	case action == "close" && r.Method == http.MethodPost:
+		reply(w, map[string]any{"ok": true})
+		if d.close != nil {
+			// After the reply, so the page is not left waiting on a request
+			// the quitting app will never finish.
+			go d.close(ctx)
+		}
 
 	default:
 		refuse(w, http.StatusNotFound, "no such desktop action")

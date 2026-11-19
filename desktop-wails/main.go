@@ -17,6 +17,8 @@ import (
 	"embed"
 	"io/fs"
 	"log"
+	"os"
+	goruntime "runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -45,6 +47,21 @@ var version = "dev"
 // onReadyHooks run once the page has loaded; only test builds add any.
 var onReadyHooks []func(context.Context)
 
+// wantFrameless decides whether the window drops the native title bar. On
+// Windows it does: its white caption bar clashes with the app's own top bar,
+// which then carries the minimise, maximise and close buttons and drags the
+// window. Linux and macOS keep the title bar the desktop draws.
+// AGENTFLOW_STUDIO_FRAMELESS=1 or 0 overrides either way.
+func wantFrameless() bool {
+	switch os.Getenv("AGENTFLOW_STUDIO_FRAMELESS") {
+	case "1", "true", "yes":
+		return true
+	case "0", "false", "no":
+		return false
+	}
+	return goruntime.GOOS == "windows"
+}
+
 func main() {
 	assets, err := fs.Sub(embedded, "frontend/dist")
 	if err != nil {
@@ -61,6 +78,14 @@ func main() {
 	state := loadWindowState(dataDir)
 	var ctx context.Context
 	proxy := newProxy()
+	frameless := wantFrameless()
+	proxy.desktop.frameless = frameless
+	// The app's own close button: save the window like the native one does,
+	// then quit.
+	proxy.desktop.close = func(c context.Context) {
+		saveWindowState(dataDir, currentWindowState(c, state))
+		runtime.Quit(c)
+	}
 
 	err = wails.Run(&options.App{
 		Title:     "AgentFlow Studio",
@@ -68,6 +93,9 @@ func main() {
 		Height:    state.Height,
 		MinWidth:  minWidth,
 		MinHeight: minHeight,
+		// Without the native title bar the web app draws the window controls
+		// in its own top bar (see wantFrameless).
+		Frameless: frameless,
 		WindowStartState: func() options.WindowStartState {
 			if state.Maximised {
 				return options.Maximised

@@ -122,3 +122,20 @@ func jsonString(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
 }
+
+func TestPingReportsFramelessAndCloseRuns(t *testing.T) {
+	p := readyProxy(t)
+	p.desktop.frameless = true
+	closed := make(chan bool, 1)
+	p.desktop.close = func(context.Context) { closed <- true }
+	ping := decodeBody(t, call(t, p, "GET", "/__af/__ping", "", "", nil).Body.Bytes())
+	if ping["frameless"] != true || ping["shell"] != "wails" {
+		t.Fatalf("ping = %+v", ping)
+	}
+	if got := decodeBody(t, call(t, p, "POST", "/__af/__desktop/close", "", "", nil).Body.Bytes()); got["ok"] != true {
+		t.Fatalf("close = %+v", got)
+	}
+	if !<-closed {
+		t.Fatal("close did not run")
+	}
+}

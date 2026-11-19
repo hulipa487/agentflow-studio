@@ -51,5 +51,9 @@
   "shell.palette.invite": "Issue a registration invite",
   "shell.palette.inviteHint": "Mint a single-use invite code (Users)",
   "shell.palette.lock": "Lock",
-  "shell.palette.lockHint": "Forget the admin token and return to the sign-in screen"
+  "shell.palette.lockHint": "Forget the admin token and return to the sign-in screen",
+  "shell.window.minimise": "Minimise",
+  "shell.window.maximise": "Maximise",
+  "shell.window.restore": "Restore down",
+  "shell.window.close": "Close"
 }

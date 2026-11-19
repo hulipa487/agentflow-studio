@@ -7,7 +7,7 @@ import { ApiError, errorMessage, normalizeURL, probeProxy, transportOf, type Tra
 import { describeURL } from '@/api/describe'
 import { Banner, BrandBanner, Button, Checkbox, Chip, Field, IconButton, Input, Segmented, Spinner, cx } from '@/components/ui'
 import { APP_VERSION } from '@/components/shell/Shell'
-import { t, useLang } from '@/i18n'
+import { t, useLang, type Params } from '@/i18n'
 import { useAppearance, useResolvedMode } from '@/state/appearance'
 import { tokenFor, useConnections } from '@/state/connections'
 import { useSession } from '@/state/session'
@@ -17,6 +17,11 @@ const EXAMPLES: Record<Transport, string> = {
   unix: 'unix:///run/agentflow/admin.sock',
   npipe: 'npipe://agentflow-admin',
 }
+
+// A message on this screen is kept as its key (or as the runtime's own text)
+// and translated when it is drawn, so switching language while one is shown
+// changes it too.
+type Msg = { key: string; params?: Params } | { text: string } | { described: true }
 
 export default function Login() {
   const profiles = useConnections((s) => s.profiles)
@@ -33,12 +38,12 @@ export default function Login() {
   const [showToken, setShowToken] = useState(false)
   const [proxy, setProxy] = useState({ available: false, platform: '', probed: false })
   const [viaProxy, setViaProxy] = useState(initial?.viaProxy ?? true)
-  const [urlError, setURLError] = useState('')
-  const [tokenError, setTokenError] = useState('')
-  const [message, setMessage] = useState<{ text: string; tone: 'danger' | 'neutral' } | null>(() => {
+  const [urlError, setURLError] = useState<Msg | null>(null)
+  const [tokenError, setTokenError] = useState<Msg | null>(null)
+  const [message, setMessage] = useState<{ msg: Msg; tone: 'danger' | 'neutral' } | null>(() => {
     // An automatic reconnect that failed says why, once.
     const text = useSession.getState().restoreError
-    return text ? { text, tone: 'danger' } : null
+    return text ? { msg: { text }, tone: 'danger' } : null
   })
   const [step, setStep] = useState('')
   const abort = useRef<AbortController | null>(null)
@@ -73,36 +78,37 @@ export default function Login() {
   const described = useMemo(() => describeURL(url, proxy), [url, proxy, lang])
   const forcedProxy = kind !== 'http'
   const usingProxy = forcedProxy || (viaProxy && proxy.available)
+  const say = (m: Msg | null): string => (!m ? '' : 'key' in m ? t(m.key, m.params) : 'text' in m ? m.text : described.text)
 
   const pickTransport = (next: Transport) => {
     if (transportOf(url) !== next) setURL(EXAMPLES[next])
-    setURLError('')
+    setURLError(null)
     setMessage(null)
     urlInput.current?.focus()
   }
 
   /** Marks the field a failure points at and returns the message to show. */
-  const explain = (err: unknown): string => {
-    let text = errorMessage(err)
+  const explain = (err: unknown): Msg => {
+    const text = errorMessage(err)
     if (err instanceof ApiError) {
       if (err.status === 401) {
-        setTokenError(t('login.tokenRejected'))
-        text = t('login.authFailed', { message: err.message })
+        setTokenError({ key: 'login.tokenRejected' })
         tokenInput.current?.focus()
+        return { key: 'login.authFailed', params: { message: err.message } }
       } else if (err.status === 0 || err.status === 502) {
-        setURLError(t('login.nothingAnswered'))
+        setURLError({ key: 'login.nothingAnswered' })
         urlInput.current?.focus()
       } else if (err.status === 403) {
-        setURLError(t('login.localOnly'))
+        setURLError({ key: 'login.localOnly' })
         urlInput.current?.focus()
       } else if (err.status === 503) {
-        text = t('login.studioOff', { message: text })
+        return { key: 'login.studioOff', params: { message: text } }
       }
     }
-    return text
+    return { text }
   }
 
-  const fail = (err: unknown) => setMessage({ text: explain(err), tone: 'danger' })
+  const fail = (err: unknown) => setMessage({ msg: explain(err), tone: 'danger' })
 
   // A failed automatic reconnect gets the same field hints as a failed
   // Connect; its own message, which names the connection, is already shown.
@@ -120,20 +126,20 @@ export default function Login() {
       return
     }
     setMessage(null)
-    setURLError('')
-    setTokenError('')
+    setURLError(null)
+    setTokenError(null)
     if (url.trim() === '') {
-      setURLError(t('login.urlRequired'))
+      setURLError({ key: 'login.urlRequired' })
       urlInput.current?.focus()
       return
     }
     if (!described.ok) {
-      setURLError(described.text)
+      setURLError({ described: true })
       urlInput.current?.focus()
       return
     }
     if (token.trim() === '') {
-      setTokenError(t('login.tokenRequired'))
+      setTokenError({ key: 'login.tokenRequired' })
       tokenInput.current?.focus()
       return
     }
@@ -150,10 +156,10 @@ export default function Login() {
     } catch (err) {
       if (ctl.signal.aborted) {
         if (timedOut) {
-          setURLError(t('login.noAnswer'))
-          setMessage({ text: t('login.timedOut', { url: normalizeURL(url) }), tone: 'danger' })
+          setURLError({ key: 'login.noAnswer' })
+          setMessage({ msg: { key: 'login.timedOut', params: { url: normalizeURL(url) } }, tone: 'danger' })
         } else {
-          setMessage({ text: t('login.cancelled'), tone: 'neutral' })
+          setMessage({ msg: { key: 'login.cancelled' }, tone: 'neutral' })
         }
       } else {
         fail(err)
@@ -199,8 +205,8 @@ export default function Login() {
                         setToken(tokenFor(p))
                         setRemember(!p.forgetToken)
                         setViaProxy(p.viaProxy && proxy.available)
-                        setURLError('')
-                        setTokenError('')
+                        setURLError(null)
+                        setTokenError(null)
                         setMessage(null)
                       }}
                       className={cx(
@@ -237,17 +243,17 @@ export default function Login() {
             />
           </Field>
 
-          <Field label={t('login.instanceURL')} error={urlError || (!described.ok ? described.text : '')} hint={described.text}>
+          <Field label={t('login.instanceURL')} error={say(urlError) || (!described.ok ? described.text : '')} hint={described.text}>
             <Input
               ref={urlInput}
               mono
               value={url}
               disabled={busy}
-              invalid={urlError !== '' || !described.ok}
+              invalid={urlError !== null || !described.ok}
               placeholder={EXAMPLES[kind]}
               onChange={(e) => {
                 setURL(e.target.value)
-                setURLError('')
+                setURLError(null)
                 setMessage(null)
               }}
               onKeyDown={(e) => {
@@ -260,7 +266,7 @@ export default function Login() {
             />
           </Field>
 
-          <Field label={t('login.adminToken')} error={tokenError} hint={t('login.tokenHint')}>
+          <Field label={t('login.adminToken')} error={say(tokenError)} hint={t('login.tokenHint')}>
             <div className="relative">
               <Input
                 ref={tokenInput}
@@ -268,13 +274,13 @@ export default function Login() {
                 type={showToken ? 'text' : 'password'}
                 value={token}
                 disabled={busy}
-                invalid={tokenError !== ''}
+                invalid={tokenError !== null}
                 placeholder={t('login.tokenPlaceholder')}
                 autoComplete="off"
                 className="pr-9"
                 onChange={(e) => {
                   setToken(e.target.value)
-                  setTokenError('')
+                  setTokenError(null)
                   setMessage(null)
                 }}
               />
@@ -319,7 +325,7 @@ export default function Login() {
 
           {message && (
             <Banner tone={message.tone} onClose={() => setMessage(null)}>
-              {message.text}
+              {say(message.msg)}
             </Banner>
           )}
 

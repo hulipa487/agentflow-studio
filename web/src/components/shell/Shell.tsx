@@ -13,6 +13,8 @@ import { useUI } from '@/state/ui'
 import { humanDuration, shortID } from '@/lib/format'
 import { t } from '@/i18n'
 import { LanguageToggle } from './LanguageToggle'
+import { WindowControls, useWindowDrag } from './WindowControls'
+import { useFramelessWindow } from '@/lib/desktop'
 
 const APP_VERSION = '0.1.0'
 
@@ -133,9 +135,12 @@ function TopBar() {
   const toggleTheme = useAppearance((s) => s.toggle)
   const toggleRail = useUI((s) => s.toggleRail)
   const setPalette = useUI((s) => s.setPalette)
+  // In the desktop app on Windows this bar is also the window's title bar.
+  const frameless = useFramelessWindow()
+  const drag = useWindowDrag()
   return (
-    <header className="shrink-0 border-b border-line bg-float">
-      <div className="flex h-11 items-center gap-2 pl-2.5 pr-3">
+    <header className="shrink-0 border-b border-line bg-float" {...drag}>
+      <div className={cx('flex h-11 items-center gap-2 pl-2.5', frameless ? 'pr-0' : 'pr-3')}>
         <button
           type="button"
           onClick={toggleRail}
@@ -171,6 +176,7 @@ function TopBar() {
           <IconButton icon={mode === 'light' ? Moon : Sun} label={t('shell.toggleTheme')} onClick={toggleTheme} />
           <IconButton icon={Settings} label={t('nav.settings')} onClick={() => navigate('/settings')} />
         </div>
+        <WindowControls />
       </div>
     </header>
   )

@@ -51,5 +51,9 @@
   "shell.palette.invite": "发放注册邀请",
   "shell.palette.inviteHint": "生成一次性邀请码（用户）",
   "shell.palette.lock": "锁定",
-  "shell.palette.lockHint": "清除管理令牌并返回登录页面"
+  "shell.palette.lockHint": "清除管理令牌并返回登录页面",
+  "shell.window.minimise": "最小化",
+  "shell.window.maximise": "最大化",
+  "shell.window.restore": "向下还原",
+  "shell.window.close": "关闭"
 }

@@ -128,7 +128,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if rest == "/__ping" {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "proxy": true, "platform": platform(), "shell": "wails"})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "proxy": true, "platform": platform(), "shell": "wails", "frameless": p.desktop.frameless,
+		})
 		return
 	}
 	if action, ok := strings.CutPrefix(rest, "/__desktop/"); ok {

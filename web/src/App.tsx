@@ -9,6 +9,8 @@ import { useSession } from '@/state/session'
 import { useAppearance } from '@/state/appearance'
 import { t, useLang } from '@/i18n'
 import { LanguageToggle } from '@/components/shell/LanguageToggle'
+import { LoginTitleBar } from '@/components/shell/WindowControls'
+import { useFramelessWindow } from '@/lib/desktop'
 import Login from '@/screens/Login'
 import Overview from '@/screens/Overview'
 import Agents from '@/screens/Agents'
@@ -53,6 +55,8 @@ export default function App() {
   // Subscribing re-renders the whole tree when the language changes; t() reads
   // the store directly, so no screen has to subscribe on its own.
   useLang()
+  // The desktop window without a native title bar (Windows): see LoginTitleBar.
+  const frameless = useFramelessWindow()
 
   // Reconnect at once when a URL and token were remembered.
   useEffect(() => {
@@ -71,14 +75,23 @@ export default function App() {
   // Also while switching to another saved connection: the welcome screen
   // mounts once the attempt is over, so it can say why one failed.
   if (!booted || (restoring && !client)) {
-    return <Restoring />
+    return (
+      <>
+        <Restoring />
+        {/* A reconnect can take a while: the window can still be moved and closed. */}
+        <LoginTitleBar>{null}</LoginTitleBar>
+      </>
+    )
   }
   if (!client) {
     return (
       <>
         <Login />
-        {/* Before a connection there is no command bar to hold the switch. */}
-        <LanguageToggle className="fixed right-4 top-4 z-30" />
+        {/* Before a connection there is no command bar to hold the switch.
+            In the frameless desktop window it sits in the title strip. */}
+        <LoginTitleBar>
+          <LanguageToggle className={frameless ? undefined : 'fixed right-4 top-4 z-30'} />
+        </LoginTitleBar>
         <Overlays />
       </>
     )

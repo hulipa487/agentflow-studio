@@ -51,5 +51,9 @@
   "shell.palette.invite": "發出註冊邀請",
   "shell.palette.inviteHint": "產生一次性邀請碼（使用者）",
   "shell.palette.lock": "鎖定",
-  "shell.palette.lockHint": "清除管理權杖並返回登入頁面"
+  "shell.palette.lockHint": "清除管理權杖並返回登入頁面",
+  "shell.window.minimise": "最小化",
+  "shell.window.maximise": "最大化",
+  "shell.window.restore": "還原",
+  "shell.window.close": "關閉"
 }

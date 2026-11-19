@@ -318,3 +318,14 @@
      in a cascade layer cannot override the styles CodeMirror injects. */
   .cm-editor .cm-ghost { opacity: 0.45; }
 }
+
+/* The desktop app's frameless window (components/shell/WindowControls.tsx):
+   the marked bar's empty space drags the window. The shell's Wails runtime
+   reads --wails-draggable on the element under the pointer, and the value is
+   inherited, so anything clickable inside the bar opts back out. */
+[data-window-drag] {
+  --wails-draggable: drag;
+}
+[data-window-drag] :is(button, a, input, select, textarea, label, [role='button'], [role='radio'], [role='menuitem'], [data-window-controls]) {
+  --wails-draggable: no-drag;
+}

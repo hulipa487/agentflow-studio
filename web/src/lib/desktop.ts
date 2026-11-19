@@ -12,25 +12,58 @@ import { importProfiles } from '@/state/connections'
 
 const DESKTOP = PROXY_PREFIX + '/__desktop/'
 
-let shell: Promise<boolean> | null = null
+let probe: Promise<{ shell: boolean; frameless: boolean }> | null = null
+
+function probeShell() {
+  probe ??= probeProxy().then((p) => ({ shell: p.shell === 'wails', frameless: p.shell === 'wails' && p.frameless }))
+  return probe
+}
 
 /** Whether this page runs inside the desktop shell. Asked once, then cached. */
 export function inDesktopShell(): Promise<boolean> {
-  shell ??= probeProxy().then((p) => p.shell === 'wails')
-  return shell
+  return probeShell().then((p) => p.shell)
+}
+
+function useProbe(pick: (p: { shell: boolean; frameless: boolean }) => boolean): boolean {
+  const [yes, setYes] = useState(false)
+  useEffect(() => {
+    let live = true
+    void probeShell().then((p) => live && setYes(pick(p)))
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return yes
 }
 
 /** inDesktopShell as React state: false until the answer arrives. */
 export function useDesktopShell(): boolean {
-  const [yes, setYes] = useState(false)
-  useEffect(() => {
-    let live = true
-    void inDesktopShell().then((v) => live && setYes(v))
-    return () => {
-      live = false
-    }
-  }, [])
-  return yes
+  return useProbe((p) => p.shell)
+}
+
+/**
+ * Whether the desktop window has no native title bar, so the page draws the
+ * window controls and lets its top bar drag the window.
+ */
+export function useFramelessWindow(): boolean {
+  return useProbe((p) => p.frameless)
+}
+
+// The Wails runtime the shell injects into the page (window.runtime).
+interface WailsRuntime {
+  WindowMinimise(): void
+  WindowToggleMaximise(): void
+  WindowIsMaximised(): Promise<boolean>
+}
+const wails = (): WailsRuntime | undefined => (window as unknown as { runtime?: WailsRuntime }).runtime
+
+export const desktopWindow = {
+  minimise: () => wails()?.WindowMinimise(),
+  toggleMaximise: () => wails()?.WindowToggleMaximise(),
+  isMaximised: async () => (await wails()?.WindowIsMaximised()) ?? false,
+  /** Closes the app the way the native close button does, saving the window first. */
+  close: () => void call('close', {}).catch(() => {}),
 }
 
 async function call<T>(action: string, body?: unknown): Promise<T> {
