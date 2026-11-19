@@ -652,20 +652,28 @@ export function Loading({ text = 'Loading…', className }: { text?: string; cla
   )
 }
 
+/** The brand assets, served from public/brand/ (copies of assets/brand/ at the repo root). */
+export const brandAsset = (name: string) => `${import.meta.env.BASE_URL}brand/${name}`
+
+/** The AgentFlow mark: the brand kit's hexagon, the same in every palette and theme. */
 export function Logo({ size = 22, className }: { size?: number; className?: string }) {
-  const id = useId()
+  return <img src={brandAsset('logo.svg')} width={size} height={size} alt="" aria-hidden draggable={false} className={cx('shrink-0 select-none', className)} />
+}
+
+/**
+ * The AgentFlow banner (mark and wordmark), in the kit's dark or light version
+ * to match the theme. Both are in the page and CSS shows the one that fits, so
+ * a theme switch needs no re-render.
+ */
+export function BrandBanner({ height = 64, className }: { height?: number; className?: string }) {
+  const img = (file: string, theme: string) => (
+    <img src={brandAsset(file)} height={height} style={{ height }} alt="AgentFlow" draggable={false} className={cx('brand-banner w-auto select-none', theme)} />
+  )
   return (
-    <svg width={size} height={size} viewBox="0 0 128 128" className={className} aria-hidden>
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--af-logo-a)" />
-          <stop offset="0.5" stopColor="var(--af-logo-b)" />
-          <stop offset="1" stopColor="var(--af-logo-c)" />
-        </linearGradient>
-      </defs>
-      <rect x="3" y="3" width="122" height="122" rx="30" fill="var(--af-surface)" stroke="var(--af-line)" strokeWidth="3" />
-      <path d="M64 26 L100 102 H86 L64 60 L42 102 H28 Z" fill={`url(#${id})`} />
-    </svg>
+    <span className={cx('inline-flex', className)}>
+      {img('logo-banner-darkmode.svg', 'brand-banner-dark')}
+      {img('logo-banner-lightmode.svg', 'brand-banner-light')}
+    </span>
   )
 }
 

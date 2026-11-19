@@ -73,9 +73,6 @@ func remapObject(o fyne.CanvasObject, m map[color.NRGBA]color.NRGBA) {
 		remapObject(v.content, m)
 		v.Refresh()
 		return
-	case *transStripe:
-		v.Refresh()
-		return
 	case *canvas.Rectangle:
 		v.FillColor = remapColor(v.FillColor, m)
 		v.StrokeColor = remapColor(v.StrokeColor, m)

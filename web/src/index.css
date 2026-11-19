@@ -34,9 +34,6 @@
   --af-tone-danger: #301723;
   /* The flag: blue, pink, white, pink, blue. */
   --af-flag: linear-gradient(90deg, #5bcefa 0%, #f5a9b8 22%, #feffff 50%, #f5a9b8 78%, #5bcefa 100%);
-  --af-logo-a: #5bcefa;
-  --af-logo-b: #ffffff;
-  --af-logo-c: #f5a9b8;
   --af-shadow: 0 12px 40px rgb(0 0 0 / 0.45);
   color-scheme: dark;
 }
@@ -64,9 +61,6 @@
   --af-tone-warning: #fcf2de;
   --af-tone-danger: #fce7ee;
   --af-flag: linear-gradient(90deg, #1682b0 0%, #d6688b 22%, #cbddea 50%, #d6688b 78%, #1682b0 100%);
-  --af-logo-a: #1682b0;
-  --af-logo-b: #f5a9b8;
-  --af-logo-c: #d6688b;
   --af-shadow: 0 12px 40px rgb(18 31 43 / 0.16);
   color-scheme: light;
 }
@@ -94,9 +88,6 @@
   --af-tone-warning: #302511;
   --af-tone-danger: #33161c;
   --af-flag: linear-gradient(90deg, #9d7bff 0%, #65a8df 25%, #2dd4bf 50%, #65a8df 75%, #9d7bff 100%);
-  --af-logo-a: #9d7bff;
-  --af-logo-b: #e2e8f0;
-  --af-logo-c: #2dd4bf;
   --af-shadow: 0 12px 40px rgb(0 0 0 / 0.5);
   color-scheme: dark;
 }
@@ -124,9 +115,6 @@
   --af-tone-warning: #fdf1dc;
   --af-tone-danger: #fde8e8;
   --af-flag: linear-gradient(90deg, #6d28d9 0%, #4f63b6 25%, #0d9488 50%, #4f63b6 75%, #6d28d9 100%);
-  --af-logo-a: #6d28d9;
-  --af-logo-b: #9d7bff;
-  --af-logo-c: #0d9488;
   --af-shadow: 0 12px 40px rgb(21 22 36 / 0.16);
   color-scheme: light;
 }
@@ -259,12 +247,24 @@
   .flag-stripe {
     background: var(--af-flag);
   }
-  /* The wordmark on the welcome screen. */
-  .flag-text {
-    background: linear-gradient(90deg, var(--af-accent), var(--af-accent2));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  /* The AgentFlow brand (assets/brand/): the banner shows the kit's dark or
+     light version to match the theme, and the rule under it is the kit's
+     gradient. Neither follows the palette — the brand is the same in every
+     palette. */
+  .brand-banner-light {
+    display: none;
+  }
+  :root[data-theme='light'] .brand-banner-dark {
+    display: none;
+  }
+  :root[data-theme='light'] .brand-banner-light {
+    display: block;
+  }
+  .brand-rule {
+    background: linear-gradient(90deg, #38bdf8, #6366f1, #a855f7);
+  }
+  :root[data-theme='light'] .brand-rule {
+    background: linear-gradient(90deg, #0284c7, #4f46e5, #9333ea);
   }
 
   /* Rendered Markdown (the documentation viewer and inline guides). */

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Eye, EyeOff, Moon, Sun, Trash2, X } from 'lucide-react'
 import { ApiError, errorMessage, normalizeURL, probeProxy, transportOf, type Transport } from '@/api/client'
 import { describeURL } from '@/api/describe'
-import { Banner, Button, Checkbox, Chip, Field, IconButton, Input, Logo, Segmented, Spinner, cx } from '@/components/ui'
+import { Banner, BrandBanner, Button, Checkbox, Chip, Field, IconButton, Input, Segmented, Spinner, cx } from '@/components/ui'
 import { APP_VERSION } from '@/components/shell/Shell'
 import { useAppearance, useResolvedMode } from '@/state/appearance'
 import { tokenFor, useConnections } from '@/state/connections'
@@ -175,12 +175,11 @@ export default function Login() {
   return (
     <div className="relative flex h-full flex-col items-center overflow-y-auto px-4 py-10">
       <div className="my-auto flex w-full max-w-[480px] flex-col items-center">
-        <Logo size={68} />
-        <h1 className="mt-4 text-xl font-semibold tracking-[-0.01em]">
-          AgentFlow <span className="flag-text">Studio</span>
-        </h1>
+        <BrandBanner height={72} />
+        {/* The banner carries the AgentFlow name; this line names the app. */}
+        <h1 className="mt-1 text-xl font-semibold tracking-[-0.01em]">Studio</h1>
         <p className="mt-1 text-base text-muted">Build, run and trace agents on your own runtime.</p>
-        <div className="flag-stripe mt-4 h-[3px] w-44 rounded-full" />
+        <div className="brand-rule mt-4 h-[3px] w-44 rounded-full" />
 
         <form
           className="mt-6 flex w-full flex-col gap-3.5 rounded-card border border-line bg-surface p-5"

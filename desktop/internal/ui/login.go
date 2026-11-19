@@ -301,7 +301,8 @@ func (v *loginView) build() fyne.CanvasObject {
 	)
 	card := panel(container.New(layout.NewCustomPaddedLayout(spaceS, spaceS, spaceS, spaceS), widthBox(440, v.form)))
 
-	title := widget.NewLabelWithStyle("AgentFlow Studio", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	// The banner carries the AgentFlow name; this line names the app.
+	title := widget.NewLabelWithStyle("Studio", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	title.SizeName = theme.SizeNameHeadingText
 	tagline := muted("Build, run and trace agents on your own runtime.")
 	tagline.Alignment = fyne.TextAlignCenter
@@ -327,10 +328,10 @@ func (v *loginView) build() fyne.CanvasObject {
 	footer := container.NewCenter(hstack(spaceXS, vCenter(version), themeBtn))
 
 	body := vstack(spaceS,
-		container.NewCenter(logoMark(72)),
+		container.NewCenter(brandBanner(60, 34)),
 		container.NewCenter(title),
 		container.NewCenter(tagline),
-		container.NewCenter(newTransStripe(168, 3)),
+		container.NewCenter(newBrandRule(168, 3)),
 		vSpacer(spaceS),
 		container.NewCenter(card),
 		footer,

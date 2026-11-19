@@ -1,6 +1,10 @@
 <div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/logo-banner-darkmode.svg">
+  <img src="assets/brand/logo-banner-lightmode.svg" alt="AgentFlow" height="96">
+</picture>
 <h1>
-🎛️ AgentFlow Studio
+AgentFlow Studio
 <p>
 </h1>
 <i> Build it, apply it live, watch every step. <p></p></i>

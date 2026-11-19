@@ -58,7 +58,7 @@ func TestThemeRemapUpdatesCanvasObjects(t *testing.T) {
 	old := activePalette
 	rect := canvas.NewRectangle(colorSurface)
 	text := canvas.NewText("status", colorText)
-	img := canvas.NewImageFromResource(logoDarkResource)
+	img := canvas.NewImageFromResource(brandLogoResource)
 	box := container.NewHBox(rect, text, img)
 
 	setThemePalette(themeLight)
@@ -70,8 +70,8 @@ func TestThemeRemapUpdatesCanvasObjects(t *testing.T) {
 	if got := text.Color.(color.NRGBA); got != lightPalette.Text {
 		t.Fatalf("text color = %#v, want %#v", got, lightPalette.Text)
 	}
-	if img.Resource == nil || img.Resource.Name() != logoLightResource.Name() {
-		t.Fatalf("logo resource = %v, want %v", img.Resource, logoLightResource)
+	if img.Resource == nil || img.Resource.Name() != brandLogoResource.Name() {
+		t.Fatalf("logo resource = %v, want %v", img.Resource, brandLogoResource)
 	}
 
 	// Switch to Obsidian Light and verify in-place remap
@@ -85,8 +85,8 @@ func TestThemeRemapUpdatesCanvasObjects(t *testing.T) {
 	if got := text.Color.(color.NRGBA); got != obsidianLightPalette.Text {
 		t.Fatalf("obsidian light text color = %#v, want %#v", got, obsidianLightPalette.Text)
 	}
-	if img.Resource == nil || img.Resource.Name() != logoObsidianLightResource.Name() {
-		t.Fatalf("obsidian light logo resource = %v, want %v", img.Resource, logoObsidianLightResource)
+	if img.Resource == nil || img.Resource.Name() != brandLogoResource.Name() {
+		t.Fatalf("obsidian light logo resource = %v, want %v", img.Resource, brandLogoResource)
 	}
 
 	// Switch to Obsidian Dark and verify in-place remap back from Light
@@ -100,8 +100,8 @@ func TestThemeRemapUpdatesCanvasObjects(t *testing.T) {
 	if got := text.Color.(color.NRGBA); got != obsidianDarkPalette.Text {
 		t.Fatalf("obsidian dark text color = %#v, want %#v", got, obsidianDarkPalette.Text)
 	}
-	if img.Resource == nil || img.Resource.Name() != logoObsidianDarkResource.Name() {
-		t.Fatalf("obsidian dark logo resource = %v, want %v", img.Resource, logoObsidianDarkResource)
+	if img.Resource == nil || img.Resource.Name() != brandLogoResource.Name() {
+		t.Fatalf("obsidian dark logo resource = %v, want %v", img.Resource, brandLogoResource)
 	}
 }
 
