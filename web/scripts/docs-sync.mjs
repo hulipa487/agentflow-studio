@@ -4,9 +4,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+function runtimeFlag(argv) {
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--runtime' && argv[i + 1]) return argv[i + 1]
+    if (argv[i].startsWith('--runtime=')) return argv[i].slice('--runtime='.length)
+  }
+  return ''
+}
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const studioRoot = path.resolve(scriptDir, '..', '..')
-const runtimeRoot = path.resolve(studioRoot, process.env.AGENTFLOW_DIR || '../agentflow')
+const runtimeRoot = path.resolve(studioRoot, runtimeFlag(process.argv.slice(2)) || process.env.AGENTFLOW_DIR || '../agentflow')
 
 const PAIRS = [
   ['api/openapi/users.yaml', 'docs/openapi/users.yaml'],

@@ -14,15 +14,16 @@
 install:
 	cd web && npm ci
 
-desktop:
-	@test -d web/node_modules || (cd web && npm ci)
+web/node_modules:
+	cd web && npm ci
+
+desktop: web/node_modules
 	$(MAKE) -C desktop web build
 
-web:
-	@test -d web/node_modules || (cd web && npm ci)
+web: web/node_modules
 	cd web && npm run build
 
-test:
+test: web/node_modules
 	cd web && npm run check
 	$(MAKE) -C desktop test
 
@@ -31,6 +32,6 @@ test:
 # a checkout elsewhere.
 AGENTFLOW_DIR ?= ../agentflow
 docs-sync:
-	AGENTFLOW_DIR="$(AGENTFLOW_DIR)" node web/scripts/docs-sync.mjs
+	node web/scripts/docs-sync.mjs --runtime "$(AGENTFLOW_DIR)"
 
 .PHONY: install desktop web test docs-sync

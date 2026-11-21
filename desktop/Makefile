@@ -25,18 +25,20 @@ ifeq ($(HOSTOS),linux)
   TAGS := $(TAGS),webkit2_41
 endif
 ifeq ($(HOSTOS),windows)
+  export CGO_ENABLED := 0
   LDFLAGS += -H windowsgui
   BIN     := agentflow-studio.exe
+  RUN_BIN := $(BIN)
+else
+  export CGO_ENABLED := 1
+  RUN_BIN := ./$(BIN)
 endif
-
-export CGO_ENABLED := 1
 
 .PHONY: web build windows winres run test clean
 
 web:
 	cd ../web && npm run build
-	rm -rf frontend/dist
-	cp -r ../web/dist frontend/dist
+	node ../web/scripts/desktop-assets.mjs sync
 
 frontend/dist/index.html:
 	$(MAKE) web
@@ -46,10 +48,7 @@ build: frontend/dist/index.html
 
 # Windows binaries cross-compile from any OS: Wails needs no cgo there.
 windows: frontend/dist/index.html
-	for arch in amd64 arm64; do \
-	  CGO_ENABLED=0 GOOS=windows GOARCH=$$arch go build -tags desktop,production -trimpath \
-	    -ldflags "-s -w -H windowsgui -X main.version=$(VERSION)" -o agentflow-studio-$$arch.exe . ; \
-	done
+	node ../web/scripts/desktop-assets.mjs build-windows "$(VERSION)"
 
 # The .syso files are committed, so a plain go build on Windows picks up the
 # icon (winres/icon*.png), the manifest (per-monitor DPI awareness, Common
@@ -59,11 +58,10 @@ winres:
 	go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --arch amd64,arm64
 
 run: build
-	./$(BIN)
+	$(RUN_BIN)
 
 test:
 	go test -tags $(TAGS) ./...
 
 clean:
-	rm -rf $(BIN) frontend/dist
-	mkdir -p frontend/dist && touch frontend/dist/.gitkeep
+	node ../web/scripts/desktop-assets.mjs clean
