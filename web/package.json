@@ -2,6 +2,7 @@
   "name": "agentflow-studio-web",
   "private": true,
   "version": "0.1.0",
+  "license": "AGPL-3.0-only",
   "description": "AgentFlow Studio in the browser: build, run and trace agents on your own runtime.",
   "type": "module",
   "scripts": {

@@ -192,6 +192,6 @@ make docs-sync   # refresh the OpenAPI spec and Luau stubs from the runtime repo
 - **Web** when installing an app is the obstacle: it runs from `npm start` on your own machine, and its local proxy reaches sockets and pipes too.
 - Both work offline once built, in light and dark, on Windows, MacOS and Linux.
 
-**LICENSE**: MIT
+**LICENSE**: AGPLv3
 
 Made with Vibe and ❤️ by hulipa and her team.
