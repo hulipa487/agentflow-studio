@@ -100,7 +100,7 @@ end
     expect(codes(diags)).toContain('syntax.unclosed-bracket')
   })
 
-  it('does not treat type annotations as globals', () => {
+  it('flags Luau-only type syntax without spamming unknown globals and accepts Lua 5.1 type()', () => {
     const src = `-- af-prelude-version: 1
 type Reply = { text: string }
 
@@ -114,7 +114,37 @@ function loop()
   session.send(format(msg.text, 1))
 end
 `
-    expect(hasCode(analyze(src, { preludeVersion: 1 }), 'global.unknown')).toBe(false)
+    const diags = analyze(src, { preludeVersion: 1 })
+    expect(hasCode(diags, 'global.unknown')).toBe(false)
+    expect(codes(diags).filter((c) => c === 'syntax.luau-only').length).toBeGreaterThanOrEqual(5)
+
+    const validLua = `-- af-prelude-version: 1
+function loop()
+  local msg = session.inbox()
+  if type(msg.text) == "string" then
+    session.send(msg.text)
+  end
+end
+`
+    expect(analyze(validLua, { preludeVersion: 1 })).toEqual([])
+  })
+
+  it('flags Luau-only constructs (continue, compound ops, interpolated strings) and removed globals', () => {
+    const src = `-- af-prelude-version: 1
+function loop()
+  local n = 1
+  n += 2
+  local d = 10 // 3
+  local s = \`count: {n}\`
+  collectgarbage("count")
+  while true do
+    continue
+  end
+end
+`
+    const diags = analyze(src, { preludeVersion: 1 })
+    expect(codes(diags).filter((c) => c === 'syntax.luau-only')).toHaveLength(4)
+    expect(codes(diags)).toContain('sandbox.unavailable')
   })
 
   it('completes and hovers', () => {

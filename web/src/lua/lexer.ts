@@ -241,6 +241,7 @@ class Lexer {
       }
       if (r === '`') {
         this.i++
+        this.errorAt(start, this.i, 'syntax.luau-only', i18n('lua.diag.luauInterpolated'))
         this.add('string', start, this.i)
         return
       }

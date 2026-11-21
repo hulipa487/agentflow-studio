@@ -30,11 +30,14 @@
   "docs.page.gettingStarted": "概述",
   "docs.page.architecture": "架构与部署",
   "docs.page.multiRegion": "多区域部署",
-  "docs.page.loops": "Luau 循环",
+  "docs.page.loops": "Lua 循环",
   "docs.page.memory": "记忆",
   "docs.page.extending": "扩展",
   "docs.page.configuration": "配置",
   "docs.page.loopsReference": "循环 API 参考",
   "docs.page.openaiApi": "OpenAI 兼容 API",
-  "docs.englishOnly": "本指南尚未翻译，以下显示英文原文。"
+  "docs.englishOnly": "本指南尚未翻译，以下显示英文原文。",
+  "docs.examples": "示例循环",
+  "docs.openInBuilder": "在构建器中打开",
+  "docs.exampleNotBundled": "此版本未内置该示例循环。"
 }

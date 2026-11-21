@@ -225,7 +225,6 @@ These are ordinary globals, not entry points the engine invokes. The prelude or 
 | memory profile `recall: plugin:recency` | `memory_recall_handler(query, opts)` | the prelude's `memory.recall` |
 | memory profile `recall: plugin:semantic` | `memory_semantic_recall_handler(query, opts)` | the prelude's `memory.recall` |
 | support chunk `plugin:token_budget` | `token_budget(messages, budget)` | the loop, when it wants prompt trimming |
-| support chunk `plugin:fact_extractor` | `fact_extractor_turn(turn)` | the loop, after a turn |
 | loop plugin `plugin:per_chat` | `loop()` | nothing — it *is* a loop, not a helper |
 
 > **What this section used to say**: It listed 26 hooks — `gateway.ingress`, `loop.before_turn`, `session.migrate`, `shell.before_exec`, `agent.start`, `core.on_reload` and others — with kinds, signatures and defaults, and stated that the core dispatched them. No dispatcher exists, so a plugin defining one of those names was silently never called. Two of them named builtins (`plugin:exec_policy` for `shell.before_exec`, `plugin:ttl` for `shell.teardown`) that were loaded into every session state and invoked by nothing; both are now removed. **Shell commands are gated by the `shell.exec` capability alone — there is no command policy filter.** Loops are restarted on a crash and hot-reloaded on a file change, which is what `session.resume` and `core.on_reload` were reaching for; a loop that needs to carry state across either uses `session.state.*`.

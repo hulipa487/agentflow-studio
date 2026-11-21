@@ -1,6 +1,7 @@
 // Center pane: the thread header with its status, the transcript, the composer.
-import { forwardRef, useImperativeHandle, useRef, type ReactNode } from 'react'
-import { Send, Square } from 'lucide-react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react'
+import { Download, Paperclip, Send, Square, X } from 'lucide-react'
+import type { MediaPart } from '@/api/types'
 import { Button, CopyButton, Dot, IconButton, Panel, cx, toneText } from '@/components/ui'
 import { t } from '@/i18n'
 import { clockTime, shortID } from '@/lib/format'
@@ -10,11 +11,132 @@ import { useStickToBottom } from './useStickToBottom'
 
 const ROLE_LABEL_KEY = { you: 'playground.roleYou', agent: 'playground.roleAgent', error: 'playground.roleError' } as const
 
-function Bubble({ m }: { m: Message }) {
+type MediaLoader = (handle: string, signal?: AbortSignal) => Promise<Blob>
+
+const SAFE_IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+
+function isSafeHttpURL(raw?: string): boolean {
+  if (!raw) return false
+  return raw.startsWith('https://') || raw.startsWith('http://')
+}
+
+function formatBytes(n?: number): string {
+  if (!n || n <= 0) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MiB`
+}
+
+function AttachmentView({ part, loadMedia }: { part: MediaPart; loadMedia?: MediaLoader }) {
+  const [blobURL, setBlobURL] = useState<string | null>(null)
+  const [blobMIME, setBlobMIME] = useState<string>(part.mime ?? '')
+  const [err, setErr] = useState<string | null>(null)
+
+  const handle = part.handle
+  const mime = (blobMIME || part.mime || '').toLowerCase()
+  const isImage = SAFE_IMAGE_MIMES.has(mime) || (part.type === 'image' && mime === '')
+  const isAudio = mime.startsWith('audio/') || part.type === 'audio'
+
+  useEffect(() => {
+    if (!handle || !loadMedia) return
+    const ctl = new AbortController()
+    let objectURL: string | null = null
+    setErr(null)
+    loadMedia(handle, ctl.signal).then(
+      (blob) => {
+        if (ctl.signal.aborted) return
+        objectURL = URL.createObjectURL(blob)
+        setBlobURL(objectURL)
+        if (blob.type) setBlobMIME(blob.type)
+      },
+      (e) => {
+        if (!ctl.signal.aborted) setErr(e instanceof Error ? e.message : String(e))
+      },
+    )
+    return () => {
+      ctl.abort()
+      if (objectURL) URL.revokeObjectURL(objectURL)
+    }
+  }, [handle, loadMedia])
+
+  const label = part.name || (handle ? handle.slice(0, 22) : part.type || 'attachment')
+  const meta = [mime || part.type, formatBytes(part.size)].filter(Boolean).join(' · ')
+
+  if (handle && blobURL && isImage) {
+    return (
+      <div className="flex flex-col gap-1">
+        <a href={blobURL} download={part.name || 'image'} className="block w-fit">
+          <img src={blobURL} alt={label} className="max-h-[280px] max-w-full rounded border border-line object-contain bg-bg" />
+        </a>
+        <div className="flex items-center gap-2 text-xs text-muted">
+          <span className="truncate font-mono">{label}</span>
+          {meta && <span className="shrink-0 text-faint">{meta}</span>}
+          <a href={blobURL} download={part.name || 'image'} className="ml-auto inline-flex items-center gap-1 text-accent hover:underline">
+            <Download className="h-3 w-3" />
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  if (handle && blobURL && isAudio) {
+    return (
+      <div className="flex flex-col gap-1 rounded border border-line bg-bg p-2">
+        <audio controls src={blobURL} className="w-full max-w-[320px]" />
+        <div className="flex items-center gap-2 text-xs text-muted">
+          <span className="truncate font-mono">{label}</span>
+          {meta && <span className="shrink-0 text-faint">{meta}</span>}
+        </div>
+      </div>
+    )
+  }
+
+  if (handle && blobURL) {
+    return (
+      <a
+        href={blobURL}
+        download={part.name || 'attachment'}
+        className="flex items-center gap-2 rounded border border-line bg-bg px-2.5 py-1.5 text-xs hover:border-accent"
+      >
+        <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted" />
+        <span className="min-w-0 truncate font-mono text-text">{label}</span>
+        {meta && <span className="shrink-0 text-faint">{meta}</span>}
+        <Download className="ml-auto h-3.5 w-3.5 shrink-0 text-accent" />
+      </a>
+    )
+  }
+
+  if (!handle && isSafeHttpURL(part.url)) {
+    return (
+      <a
+        href={part.url}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="flex items-center gap-2 rounded border border-line bg-bg px-2.5 py-1.5 text-xs hover:border-accent"
+      >
+        <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted" />
+        <span className="min-w-0 truncate font-mono text-accent underline">{label}</span>
+        {meta && <span className="shrink-0 text-faint">{meta}</span>}
+      </a>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded border border-line bg-bg px-2.5 py-1.5 text-xs text-muted">
+      <Paperclip className="h-3.5 w-3.5 shrink-0" />
+      <span className="min-w-0 truncate font-mono">{label}</span>
+      {meta && <span className="shrink-0 text-faint">{meta}</span>}
+      {err && <span className="ml-auto text-danger">{err}</span>}
+    </div>
+  )
+}
+
+function Bubble({ m, loadMedia }: { m: Message; loadMedia?: MediaLoader }) {
   const mine = m.role === 'you'
   const failed = m.role === 'error'
+  const hasAttachments = (m.attachments?.length ?? 0) > 0
   // An attachment-only reply has no text but is not a missing reply.
-  const waiting = m.role === 'agent' && m.text === '' && !m.note
+  const waiting = m.role === 'agent' && m.text === '' && !m.note && !hasAttachments
   return (
     <div className={cx('flex px-2', mine ? 'justify-end' : 'justify-start')}>
       <div
@@ -32,9 +154,18 @@ function Bubble({ m }: { m: Message }) {
           <span className="ml-auto font-mono text-xs text-faint">{clockTime(m.at)}</span>
         </div>
         {/* Replies are untrusted model output: always plain text, never markup. */}
-        <div className={cx('mt-0.5 select-text whitespace-pre-wrap break-words text-base leading-relaxed', failed && 'text-danger', waiting && 'text-muted')}>
-          {waiting ? m.pending ? <span className="animate-pulse">…</span> : t('playground.noReply') : m.text}
-        </div>
+        {(waiting || m.text !== '') && (
+          <div className={cx('mt-0.5 select-text whitespace-pre-wrap break-words text-base leading-relaxed', failed && 'text-danger', waiting && 'text-muted')}>
+            {waiting ? m.pending ? <span className="animate-pulse">…</span> : t('playground.noReply') : m.text}
+          </div>
+        )}
+        {hasAttachments && (
+          <div className="mt-1.5 flex flex-col gap-1.5">
+            {m.attachments!.map((att, idx) => (
+              <AttachmentView key={`${att.handle ?? att.url ?? idx}-${idx}`} part={att} loadMedia={loadMedia} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -57,8 +188,13 @@ export const ChatPane = forwardRef<
     stopping: boolean
     draft: string
     onDraft: (v: string) => void
+    /** Optional pending inbound attachments for multimodal testing. */
+    attachments?: MediaPart[]
+    onAttachments?: (next: MediaPart[]) => void
     onSend: () => void
     onStop: () => void
+    /** Optional loader for authenticated media handles (Studio preview/download). */
+    loadMedia?: MediaLoader
     /** Extra header buttons, before Stop. */
     actions?: ReactNode
     /** The line beside Send; defaults to the send shortcut. */
@@ -66,10 +202,32 @@ export const ChatPane = forwardRef<
     /** What the empty transcript suggests. */
     emptyHint?: string
   }
->(function ChatPane({ agent, thread, status, messages, sending, stopping, draft, onDraft, onSend, onStop, actions, hint, emptyHint }, handle) {
+>(function ChatPane({ agent, thread, status, messages, sending, stopping, draft, onDraft, attachments, onAttachments, onSend, onStop, loadMedia, actions, hint, emptyHint }, handle) {
   const { ref, onScroll, pin } = useStickToBottom<HTMLDivElement>(messages, agent + '\n' + thread)
   const input = useRef<HTMLTextAreaElement>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   useImperativeHandle(handle, () => ({ pinToEnd: pin, focusComposer: () => input.current?.focus() }), [pin])
+
+  const pickFiles = async (files: FileList | null) => {
+    if (!files || !onAttachments) return
+    const next = [...(attachments ?? [])]
+    const maxFileBytes = 10 * 1024 * 1024
+    for (const file of Array.from(files)) {
+      if (file.size > maxFileBytes) continue
+      const dataURL = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result ?? ''))
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(file)
+      }).catch(() => '')
+      const comma = dataURL.indexOf(',')
+      if (comma < 0) continue
+      const mime = file.type || 'application/octet-stream'
+      const type = mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'audio' : mime.startsWith('video/') ? 'video' : 'file'
+      next.push({ type, mime, data: dataURL.slice(comma + 1), name: file.name, size: file.size })
+    }
+    onAttachments(next)
+  }
 
   const rebuilt = messages.some((m) => m.fromTrace)
   const shownStatus = statusText(status)
@@ -113,7 +271,7 @@ export const ChatPane = forwardRef<
               </div>
             )}
             {messages.map((m) => (
-              <Bubble key={m.id} m={m} />
+              <Bubble key={m.id} m={m} loadMedia={loadMedia} />
             ))}
           </div>
         )}
@@ -121,6 +279,24 @@ export const ChatPane = forwardRef<
 
       <div className="shrink-0 border-t border-line p-2.5">
         <div className="rounded-ctl border border-line bg-bg transition-colors duration-100 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 hover:border-faint focus-within:hover:border-accent">
+          {attachments && attachments.length > 0 && onAttachments && (
+            <div className="flex flex-wrap gap-1.5 border-b border-line px-2.5 py-1.5">
+              {attachments.map((att, idx) => (
+                <span key={`${att.name ?? idx}-${idx}`} className="inline-flex items-center gap-1 rounded border border-line bg-surface px-2 py-0.5 font-mono text-xs text-text">
+                  <Paperclip className="h-3 w-3 text-muted" />
+                  <span className="max-w-[160px] truncate">{att.name || att.type}</span>
+                  <button
+                    type="button"
+                    className="text-muted hover:text-danger"
+                    aria-label="Remove attachment"
+                    onClick={() => onAttachments(attachments.filter((_, i) => i !== idx))}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <textarea
             ref={input}
             value={draft}
@@ -132,12 +308,27 @@ export const ChatPane = forwardRef<
             className="block w-full resize-none bg-transparent px-2.5 pt-2 text-base leading-relaxed text-text placeholder:text-faint focus:outline-none"
           />
           <div className="flex items-center gap-2 py-1 pl-2.5 pr-1">
+            {onAttachments && (
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    void pickFiles(e.target.files)
+                    e.target.value = ''
+                  }}
+                />
+                <IconButton icon={Paperclip} label="Attach media or file" onClick={() => fileInput.current?.click()} disabled={sending} />
+              </>
+            )}
             <span className="min-w-0 flex-1 truncate text-xs text-faint">{hint ?? t('playground.sendHint', { mod: MOD })}</span>
             <Button
               variant="primary"
               icon={Send}
               className="w-[92px]"
-              disabled={sending || draft.trim() === ''}
+              disabled={sending || (draft.trim() === '' && !(attachments && attachments.length > 0))}
               onClick={() => {
                 onSend()
                 input.current?.focus()

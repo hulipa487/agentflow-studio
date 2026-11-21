@@ -3,11 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { analyzeSource } from './analysis'
 import { SeverityError } from './token'
 
-// testdata/ mirrors the core repository's examples/loops (by way of the
-// desktop Studio's testdata); refresh it when those change. The examples must
-// all parse and pass the entry checks; warnings are logged so a rule that is
-// too eager shows up here.
-const examples = import.meta.glob<string>('./testdata/*.lua', { query: '?raw', import: 'default', eager: true })
+// Validate the live repository examples directly so loop syntax checks stay
+// in sync with every shipped loop and scenario.
+const examples = import.meta.glob<string>(['../../../examples/loops/*.lua', '../../../examples/*/loops/*.lua'], { query: '?raw', import: 'default', eager: true })
 
 describe('example loops', () => {
   const files = Object.keys(examples).sort()

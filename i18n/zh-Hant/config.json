@@ -40,5 +40,6 @@
   "config.maskedHint": "執行環境從磁碟檔案解析出的內容，敏感鍵已遮罩。唯讀。",
   "config.maskedHintDirty": "執行環境從磁碟檔案解析出的內容，敏感鍵已遮罩。唯讀。不包含你未儲存的編輯。",
   "config.whatMasked": "遮罩檢視",
-  "config.noParse": "磁碟上的檔案無法解析為 YAML，因此沒有結構化檢視。"
+  "config.noParse": "磁碟上的檔案無法解析為 YAML，因此沒有結構化檢視。",
+  "config.fragment": "組態片段"
 }

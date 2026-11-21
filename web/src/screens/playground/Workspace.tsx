@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import type { Client } from '@/api/client'
+import type { MediaPart } from '@/api/types'
 import { Button, Page } from '@/components/ui'
 import { t } from '@/i18n'
 import { useAsync, useScreenActions } from '@/lib/hooks'
@@ -27,6 +28,7 @@ export function Workspace({ client, agents, reloadAgents }: { client: Client; ag
   const [filter, setFilter] = useState<TraceFilter>('All events')
   const [actAs, setActAs] = useState('')
   const [draft, setDraft] = useState('')
+  const [attachments, setAttachments] = useState<MediaPart[]>([])
   const chat = useRef<ChatPaneHandle>(null)
 
   // A runtime without the identity layer just offers no suggestions.
@@ -63,8 +65,9 @@ export function Workspace({ client, agents, reloadAgents }: { client: Client; ag
   }
 
   const send = () => {
-    if (!s.send(draft, actAs)) return
+    if (!s.send(draft, actAs, attachments)) return
     setDraft('')
+    setAttachments([])
     chat.current?.pinToEnd()
   }
 
@@ -114,8 +117,11 @@ export function Workspace({ client, agents, reloadAgents }: { client: Client; ag
             stopping={s.stopping}
             draft={draft}
             onDraft={setDraft}
+            attachments={attachments}
+            onAttachments={setAttachments}
             onSend={send}
             onStop={() => void s.stop()}
+            loadMedia={(h, sig) => client.mediaBlob(h, sig)}
           />
         }
         right={<TracePane events={s.events} scope={agent + '\n' + s.thread} filter={filter} onFilter={setFilter} onRefresh={() => void s.refreshTrace()} refreshing={s.tracing} />}

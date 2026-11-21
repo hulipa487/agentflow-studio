@@ -2,16 +2,16 @@
 
 AgentFlow 可以把代理公開為 OpenAI **chat completions** 端點。任何使用 Chat Completions API 的用戶端，無論是代理框架、程式設計助理、聊天前端，或單純的 SDK 程式碼，都只需要一個基底 URL 與一把 API 金鑰。不需要安裝轉換層，也沒有第二個連接埠：這個頻道和其他所有頻道一樣，掛載在同一個 `gateway.listen` 上。
 
-這個端點是一個**頻道**，不是代理伺服器。它負責認證、解析、對應回覆，並以 SSE 傳送。它不對內容含義做任何判斷：由路由處理常式選擇工作階段，由代理的迴圈決定請求是什麼。使用內建路由與 `plugin:openai_passthrough` 迴圈時，每個請求都會得到自己的單輪次工作階段，並原封不動地轉送給代理的模型；所以本身就是代理的用戶端（有自己的系統提示詞、自己的工具、自己的對話）拿到的，就恰好是一個模型。
+這個端點是一個**頻道**，不是代理伺服器。它負責認證、解析、對應回覆，並以 SSE 傳送。它不對內容含義做任何判斷：由路由處理常式選擇工作階段，由代理的迴圈決定請求是什麼。使用內建路由與直通迴圈（`examples/loops/openai_passthrough.lua`）時，每個請求都會得到自己的單輪次工作階段，並原封不動地轉送給代理的模型；所以本身就是代理的用戶端（有自己的系統提示詞、自己的工具、自己的對話）拿到的，就恰好是一個模型。
 
 ## 快速入門
 
-當代理的迴圈是 `plugin:openai_passthrough` 時，代理就以其模型的身分回答。頻道不會替你選擇迴圈：列在 `agents` 下的代理，執行的是它自己的 `loop:` 所指定的迴圈。
+當代理的迴圈以 `llm.forward()` 轉送請求時（範例位於 `examples/loops/openai_passthrough.lua`），代理就以其模型的身分回答。頻道不會替你選擇迴圈：列在 `agents` 下的代理，執行的是它自己的 `loop:` 所指定的迴圈。
 
 ```yaml
 agents:
   coder:
-    loop: plugin:openai_passthrough
+    loop: ./examples/loops/openai_passthrough.lua
     model: default
     capabilities: [llm.chat]      # llm.forward 與 openai.request 受它管控
 
@@ -149,7 +149,7 @@ gateway:
 
 ## 直通迴圈
 
-`plugin:openai_passthrough` 只有四行：
+`examples/loops/openai_passthrough.lua` 只有四行：
 
 ```lua
 -- af-prelude-version: 1
@@ -192,7 +192,7 @@ function loop()
 end
 ```
 
-執行環境儲存庫中的 `examples/loops/openai_memory.lua` 是這個模式的完整版本。
+`agentflow-studio` 儲存庫中的 `examples/loops/openai_memory.lua` 是這個模式的完整版本。
 
 `llm.forward` 的選項：`model`（另一個 `models:` 項目）、`messages`（取代用戶端的訊息）、`prepend` / `append`（在前後加入輪次）、`tools`（在用戶端的工具之外加入定義）、`params`（覆寫取樣參數：`temperature`、`max_tokens`、`top_p`、`stop`、`seed`、`response_format`、`parallel_tool_calls`、`tool_choice`、`thinking`），以及 `max_tokens_cap`（限制用戶端 `max_tokens` 的上限）。
 

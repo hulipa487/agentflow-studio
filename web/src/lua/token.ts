@@ -28,8 +28,8 @@ export const keywords: ReadonlySet<string> = new Set([
   'in', 'local', 'nil', 'not', 'or',
   'repeat', 'return', 'then', 'true',
   'until', 'while',
-  // Luau additions.
-  'continue', 'type', 'export',
+  // Luau-only keyword kept here so the analyzer can flag it explicitly.
+  'continue',
 ])
 
 /** Reports whether ch (one code point) can appear in a name. */
@@ -77,6 +77,7 @@ export interface Diagnostic {
   severity: SeverityLevel
   code: string
   message: string
+  capability?: string
 }
 
 /**

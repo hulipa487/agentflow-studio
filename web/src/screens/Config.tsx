@@ -8,10 +8,10 @@ import { useNavigate } from 'react-router-dom'
 import { Check, Eye, Pencil, RotateCw, Save, Undo2 } from 'lucide-react'
 import { EditorView } from '@codemirror/view'
 import { ApiError, errorMessage } from '@/api/client'
-import { AsyncView, Banner, Button, CopyButton, Page, Panel, Segmented, Tabs, type Tone } from '@/components/ui'
+import { AsyncView, Banner, Button, CopyButton, Page, Panel, Segmented, Select, Tabs, type Tone } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
 import { t, type Params } from '@/i18n'
-import { useAsync, useScreenActions, useStored, useUnsavedGuard } from '@/lib/hooks'
+import { useAsync, useAlive, useScreenActions, useStored, useUnsavedGuard } from '@/lib/hooks'
 import { copyText } from '@/lib/format'
 import { MOD } from '@/nav'
 import { useClient, useSession } from '@/state/session'
@@ -21,6 +21,7 @@ import { EditorFrame, baseName, errorLine, renderView, stamp, type ViewFormat } 
 /** The file as it was last read from (or written to) disk. */
 interface Loaded {
   path: string
+  file?: string
   mtime: number
   original: string
   view: unknown
@@ -52,7 +53,11 @@ export default function Config() {
   const client = useClient()
   const navigate = useNavigate()
   const configDir = useSession((s) => s.runtime?.config_path ?? '')
-  const { data, error, loading, refreshing, reload } = useAsync((signal) => client.config(signal), [client])
+  const [selectedFile, setSelectedFile] = useState<string>('')
+  const { data, error, loading, refreshing, reload } = useAsync(
+    (signal) => client.config(signal, selectedFile || undefined),
+    [client, selectedFile],
+  )
 
   const [doc, setDoc] = useState<Loaded | null>(null)
   const [text, setText] = useState('')
@@ -62,13 +67,7 @@ export default function Config() {
   const [storedFormat, setFormat] = useStored<ViewFormat>('agentflow-studio:config-view-format', 'json')
   const format: ViewFormat = storedFormat === 'yaml' ? 'yaml' : 'json'
   const editor = useRef<EditorView | null>(null)
-  const alive = useRef(true)
-  useEffect(() => {
-    alive.current = true
-    return () => {
-      alive.current = false
-    }
-  }, [])
+  const alive = useAlive()
 
   // Every answer from the runtime replaces the editor: the first load, and a
   // reload the operator asked for (and confirmed, if there were edits).
@@ -81,12 +80,27 @@ export default function Config() {
       return
     }
     const raw = data.raw ?? ''
-    setDoc({ path: data.path, mtime: data.mtime, original: raw, view: data.view })
+    setDoc({ path: data.path, file: data.file, mtime: data.mtime, original: raw, view: data.view })
     setText(raw)
-  }, [data])
+    if (data.file && selectedFile === '') setSelectedFile(data.file)
+  }, [data, selectedFile])
 
   const dirty = doc !== null && text !== doc.original
   useUnsavedGuard(dirty)
+
+  const switchFile = async (next: string) => {
+    if (!next || next === selectedFile) return
+    if (dirty) {
+      const ok = await confirm({
+        title: t('config.discardTitle'),
+        message: t('config.reloadDiscard'),
+        confirmLabel: t('common.discard'),
+        danger: true,
+      })
+      if (!ok || !alive.current) return
+    }
+    setSelectedFile(next)
+  }
 
   const reloadFile = async (ask: boolean) => {
     if (ask && dirty) {
@@ -121,7 +135,7 @@ export default function Config() {
     setBusy('validate')
     setNotice({ tone: 'neutral', key: 'config.validating' })
     try {
-      const r = await client.validateConfig(text)
+      const r = await client.validateConfig(text, doc.file)
       if (!alive.current) return
       if (!r.ok) {
         setNotice({ tone: 'danger', key: 'config.invalid', params: { error: r.error } })
@@ -151,7 +165,7 @@ export default function Config() {
     if (!ok || !alive.current) return
     setBusy('save')
     try {
-      const r = await client.saveConfig(raw, mtime)
+      const r = await client.saveConfig(raw, mtime, doc.file)
       if (!alive.current) return
       if (!r.ok) {
         setNotice({ tone: 'danger', text: r.error })
@@ -324,18 +338,28 @@ export default function Config() {
         )}
         {doc && (
           <div className="flex min-h-0 flex-1 flex-col gap-2">
-            <Tabs
-              value={tab}
-              onChange={setTab}
-              tabs={[
-                { id: 'edit', label: t('common.edit'), icon: Pencil },
-                { id: 'masked', label: t('config.tabMasked'), icon: Eye },
-              ]}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Tabs
+                value={tab}
+                onChange={setTab}
+                tabs={[
+                  { id: 'edit', label: t('common.edit'), icon: Pencil },
+                  { id: 'masked', label: t('config.tabMasked'), icon: Eye },
+                ]}
+              />
+              {data?.mode === 'configdir' && data.files && data.files.length > 0 && (
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="text-xs text-muted">{t('config.fragment')}</span>
+                  <div className="w-[240px]">
+                    <Select value={doc.file ?? data.files[0]} onChange={(v) => void switchFile(v)} options={data.files} />
+                  </div>
+                </div>
+              )}
+            </div>
             {/* The editor stays mounted behind the masked tab so its undo history and scroll position survive the visit. */}
             <EditorFrame
               hidden={tab !== 'edit'}
-              title={baseName(doc.path)}
+              title={doc.file || baseName(doc.path)}
               hint={t('config.editHint', { placeholder: '${VAR}', mod: MOD })}
             >
               <CodeEditor

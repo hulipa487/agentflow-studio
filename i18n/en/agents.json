@@ -37,5 +37,7 @@
   "agents.liveSessionsMessage": "Agent \"{name}\" has live sessions. Stop them and delete it?",
   "agents.forceMessage": "{reason}\n\nForce the delete?",
   "agents.forceDelete": "Force delete",
-  "agents.deleted": "deleted {name}"
+  "agents.deleted": "deleted {name}",
+  "agents.exampleLoopsTitle": "Example loops",
+  "agents.exampleLoopsHint": "Bundled from examples/loops/. Pick one to inspect and customize in the builder."
 }

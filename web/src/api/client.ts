@@ -250,6 +250,12 @@ export class Client {
     return this.json('POST', `/admin/api/studio/threads/${enc(thread)}/stop${query({ agent })}`, {}, signal, 10_000)
   }
 
+  /** Fetches a media blob by handle through the authenticated Studio endpoint. */
+  async mediaBlob(handle: string, signal?: AbortSignal): Promise<Blob> {
+    const res = await this.raw('GET', `/admin/api/studio/media/${enc(handle)}`, undefined, signal)
+    return res.blob()
+  }
+
   /**
    * Runs one playground turn and calls onEvent for every SSE event (trace,
    * reply, error, done). Resolves when the stream ends; abort the signal to
@@ -426,18 +432,18 @@ export class Client {
 
   // ---- raw config -----------------------------------------------------------
 
-  config(signal?: AbortSignal): Promise<T.ConfigFile> {
-    return this.json('GET', '/admin/api/config', undefined, signal)
+  config(signal?: AbortSignal, file?: string): Promise<T.ConfigFile> {
+    return this.json('GET', '/admin/api/config' + query({ file }), undefined, signal)
   }
 
   /** Boot-equivalent validation; a refusal is ok=false, not a thrown error. */
-  validateConfig(raw: string): Promise<T.ConfigResult> {
-    return this.json('POST', '/admin/api/config/validate', { raw })
+  validateConfig(raw: string, file?: string): Promise<T.ConfigResult> {
+    return this.json('POST', '/admin/api/config/validate', file ? { raw, file } : { raw })
   }
 
   /** Validates, backs up to .bak and atomically replaces the file. 409 = changed on disk. */
-  saveConfig(raw: string, mtime: number): Promise<T.ConfigResult> {
-    return this.json('POST', '/admin/api/config/save', { raw, mtime })
+  saveConfig(raw: string, mtime: number, file?: string): Promise<T.ConfigResult> {
+    return this.json('POST', '/admin/api/config/save', file ? { raw, mtime, file } : { raw, mtime })
   }
 
   // ---- users ----------------------------------------------------------------
@@ -484,6 +490,17 @@ export class Client {
     } catch {
       return text
     }
+  }
+
+  /** Full-fidelity regional migration bundle (profile, memory, files, credentials). */
+  async exportUserBundle(id: string): Promise<string> {
+    const res = await this.raw('GET', `/admin/api/users/${enc(id)}/bundle`)
+    return res.text()
+  }
+
+  /** Imports a previously exported migration bundle into this instance. */
+  importUserBundle(bundle: unknown): Promise<{ ok: boolean; user_id?: string }> {
+    return this.json('POST', '/admin/api/users/import', bundle)
   }
 
   /** Purges a profile. The runtime requires ?confirm=<id>. */

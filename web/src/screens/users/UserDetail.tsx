@@ -114,6 +114,16 @@ export function UserDetail({
       },
     )
 
+  const exportBundle = () =>
+    run(
+      'bundle',
+      () => client.exportUserBundle(id),
+      (text) => {
+        const name = `agentflow-bundle-${shortID(id)}.json`
+        void downloadText(name, text).then((saved) => saved && toast(t('users.exported', { name: saved }), 'success'))
+      },
+    )
+
   const unlink = async (idn: Identity) => {
     const ok = await confirm({
       title: t('users.unlink.title'),
@@ -179,6 +189,9 @@ export function UserDetail({
           </Button>
           <Button icon={Download} loading={busy === 'export'} disabled={busy !== ''} onClick={exportProfile}>
             {t('users.export')}
+          </Button>
+          <Button icon={Download} loading={busy === 'bundle'} disabled={busy !== ''} onClick={exportBundle}>
+            Migration bundle
           </Button>
           <IconButton icon={Trash2} label={t('users.deleteProfile')} tone="danger" loading={busy === 'delete'} disabled={busy !== ''} onClick={remove} />
         </div>

@@ -1,11 +1,11 @@
 ## Lua 插件开发
 
-AgentFlow 插件就是普通的 [Luau](https://luau-lang.org/) 脚本。YAML 决定哪个智能体运行哪个插件；插件决定行为。本文档中的长篇指南（循环）介绍执行模型、完整 API、可直接运行的模式以及常见陷阱清单；本节是参考摘要。
+AgentFlow 插件是标准的 Lua 5.1 脚本，由内置纯 Go 虚拟机（`gopher-lua`，带可挂起的 `pcall`/`xpcall`、`utf8`、`bit32` 与 `table.unpack`/`pack` 辅助函数）执行。YAML 决定哪个智能体运行哪个插件；插件决定行为。本文档中的长篇指南（循环）介绍执行模型、完整 API、可直接运行的模式以及常见陷阱清单；本节是参考摘要。
 
 插件分三类：
 
 - **循环插件**——定义一个全局函数 `loop()`，在会话协程的整个生命周期内掌管它。标准写法是 `while true do local msg = session.inbox() ... end`。
-- **辅助代码块**——在循环插件*之前*加载到每个会话状态中。辅助代码块定义循环要读取的全局变量和辅助函数。`plugin:token_budget`、`plugin:routing_table`、`plugin:recency`、`plugin:semantic` 和 `plugin:fact_extractor` 等内置插件都是辅助代码块。
+- **辅助代码块**——在循环插件*之前*加载到每个会话状态中。辅助代码块定义循环要读取的全局变量和辅助函数。`plugin:token_budget`、`plugin:routing_table`、`plugin:recency` 和 `plugin:semantic` 等内置插件都是辅助代码块。
 - **覆盖插件（shadow）**——放在 `plugins/` 中、与某个内置插件同名的用户插件。它会在加载时于整个实例范围内替换该内置插件。
 
 ### 异步桥接
@@ -281,7 +281,7 @@ shell.write(id, path, content)
 shell.destroy(id)
 ```
 
-**并不存在一个持续存在的沙箱 shell。** `shell.run` 是在一个 [gVisor](https://gvisor.dev) 沙箱中执行的一条命令，沙箱为这条命令启动，执行完即销毁。沙箱得到两样东西：一个已声明的**环境**作为只读根文件系统，以及来自文件存储的一个**项目**，以读写方式挂载在 `/workspace`，命令就从这里开始执行。`/tmp` 和主目录基于内存，用后丢弃。没有网络。命令结束时，引擎会把项目目录与它放进去的内容作比较，把差异写回项目的工作树——也就是 `files.*` 读写的同一棵树。何时 `files.commit` 由循环决定。
+**并不存在一个持续存在的沙箱 shell。** `shell.run` 是在一个临时沙箱（[gVisor](https://gvisor.dev) `runsc` 或 [microsandbox](https://github.com/superradcompany/microsandbox) `msb`）中执行的一条命令，沙箱为这条命令启动，执行完即销毁。沙箱得到两样东西：一个已声明的**环境**作为工具链根目录，以及来自文件存储的一个**项目**，以读写方式挂载在 `/workspace`，命令就从这里开始执行。`/workspace` 之外的临时状态会在结束后丢弃。没有网络。命令结束时，引擎会把项目目录与它放进去的内容作比较，把差异写回项目的工作树——也就是 `files.*` 读写的同一棵树。何时 `files.commit` 由循环决定。
 
 所以循环要遵守的规则很简单：
 

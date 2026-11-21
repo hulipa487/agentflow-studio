@@ -1,11 +1,11 @@
 ## Lua Plugin Development
 
-AgentFlow plugins are plain [Luau](https://luau-lang.org/) scripts. YAML defines which plugin runs for which agent; the plugin defines the behavior. The long-form guide in this documentation (Loops) covers the execution model, the complete API, runnable patterns and a gotchas list; this section is the reference summary.
+AgentFlow plugins are plain Lua 5.1 scripts executed by the embedded pure-Go VM (`gopher-lua`, with yieldable `pcall`/`xpcall`, `utf8`, `bit32`, and `table.unpack`/`pack` helpers). YAML defines which plugin runs for which agent; the plugin defines the behavior. The long-form guide in this documentation (Loops) covers the execution model, the complete API, runnable patterns and a gotchas list; this section is the reference summary.
 
 There are three kinds of plugin:
 
 - **Loop plugin** — defines a global `loop()` function that owns the session coroutine for its lifetime. The canonical pattern is `while true do local msg = session.inbox() ... end`.
-- **Support chunk** — loaded into every session state *before* the loop plugin. Support chunks define globals and helper functions the loop reads. Builtins like `plugin:token_budget`, `plugin:routing_table`, `plugin:recency`, `plugin:semantic` and `plugin:fact_extractor` are support chunks.
+- **Support chunk** — loaded into every session state *before* the loop plugin. Support chunks define globals and helper functions the loop reads. Builtins like `plugin:token_budget`, `plugin:routing_table`, `plugin:recency` and `plugin:semantic` are support chunks.
 - **Shadow** — a user plugin placed in `plugins/` with the same name as a builtin. It replaces the builtin instance-wide at load time.
 
 ### The async bridge
@@ -282,7 +282,7 @@ shell.write(id, path, content)
 shell.destroy(id)
 ```
 
-**A sandbox shell is not a thing that exists.** `shell.run` is one command in one [gVisor](https://gvisor.dev) sandbox, started for that command and destroyed after it. The sandbox gets two things: a declared **environment** as its read-only root filesystem, and one **project** from the files store mounted read-write at `/workspace`, where the command starts. `/tmp` and the home directory are memory-backed and discarded. There is no network. When the command ends, the engine compares the project directory with what it put there and writes the difference back to the project's working tree — the same tree `files.*` reads and writes. The loop decides when to `files.commit`.
+**A sandbox shell is not a thing that exists.** `shell.run` is one command in an ephemeral sandbox ([gVisor](https://gvisor.dev) `runsc` or [microsandbox](https://github.com/superradcompany/microsandbox) `msb`), started for that command and destroyed after it. The sandbox gets two things: a declared **environment** as its toolchain root, and one **project** from the files store mounted read-write at `/workspace`, where the command starts. Temporary state outside `/workspace` is discarded. There is no network. When the command ends, the engine compares the project directory with what it put there and writes the difference back to the project's working tree — the same tree `files.*` reads and writes. The loop decides when to `files.commit`.
 
 So the rules for a loop are short:
 

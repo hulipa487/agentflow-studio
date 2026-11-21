@@ -70,6 +70,11 @@ export function Shortcuts() {
           return
         }
       }
+      if (e.key === '?' && !mod && !e.altKey && !inEditable(e.target) && !(e.target as HTMLElement | null)?.closest?.('.cm-editor')) {
+        e.preventDefault()
+        ui.setShortcuts(!ui.shortcutsOpen)
+        return
+      }
       if (e.key === 'Escape' && !inEditable(e.target) && !(e.target as HTMLElement | null)?.closest?.('.cm-editor')) {
         if (ui.actions.back) {
           e.preventDefault()

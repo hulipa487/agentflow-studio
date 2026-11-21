@@ -4,15 +4,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { findExample } from '@/docs/examples'
 import { DOC_ASSETS, docHeadingIDs, docOutline, docPages, docTitle, readDoc, type DocPage } from '@/docs/library'
 import { Chip, EmptyState } from '@/components/ui'
 import { Markdown } from '@/components/ui/Markdown'
 import { useScreenActions } from '@/lib/hooks'
+import { useSession } from '@/state/session'
 import { t, useLang } from '@/i18n'
 import { AssetViewer } from './docs/AssetViewer'
+import { ExampleViewer } from './docs/ExampleViewer'
 import { Outline } from './docs/Outline'
 import { Sidebar } from './docs/Sidebar'
 import { docPath, findHeading, offsetIn, outlineElements } from './docs/helpers'
+import { newAgentPath } from './NewAgentDialog'
 
 /** How far below the top of the reading column a heading comes to rest. */
 const TOP_GAP = 16
@@ -48,11 +52,14 @@ function Viewer({ pages }: { pages: DocPage[] }) {
   // put in the URL, so the URL change does not jump there a second time.
   const skipScroll = useRef(false)
 
+  const client = useSession((s) => s.client)
   // An unknown slug shows the first page, as the desktop app does.
   const index = Math.max(0, pages.findIndex((p) => p.slug === params.slug))
   const page = pages[index]
   const anchor = search.get('h') ?? ''
   const assetPath = search.get('asset') ?? ''
+  const exampleSlug = assetPath === '' ? (search.get('example') ?? '') : ''
+  const overlayOpen = assetPath !== '' || exampleSlug !== ''
   // The guide in the current language (English where it has no translation);
   // a translation's headings take the English ids, so anchors still resolve.
   const lang = useLang()
@@ -131,6 +138,7 @@ function Viewer({ pages }: { pages: DocPage[] }) {
 
   const openAsset = (path: string) => {
     const next = new URLSearchParams(search)
+    next.delete('example')
     next.set('asset', path)
     setSearch(next)
   }
@@ -139,10 +147,22 @@ function Viewer({ pages }: { pages: DocPage[] }) {
     next.delete('asset')
     setSearch(next, { replace: true })
   }
+  const openExample = (slug: string) => {
+    const next = new URLSearchParams(search)
+    next.delete('asset')
+    next.set('example', slug)
+    setSearch(next)
+  }
+  const closeExample = () => {
+    const next = new URLSearchParams(search)
+    next.delete('example')
+    setSearch(next, { replace: true })
+  }
 
   useScreenActions({
     back: () => {
       if (assetPath !== '') closeAsset()
+      else if (exampleSlug !== '') closeExample()
       // Esc returns to the previous view; a page opened by its link has none.
       else if (((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0) navigate(-1)
     },
@@ -153,10 +173,10 @@ function Viewer({ pages }: { pages: DocPage[] }) {
 
   return (
     <div className="flex h-full min-h-0">
-      <Sidebar current={page} asset={assetPath} query={query} onQuery={setQuery} onAsset={openAsset} />
+      <Sidebar current={page} asset={assetPath} example={exampleSlug} query={query} onQuery={setQuery} onAsset={openAsset} onExample={openExample} />
       <div className="relative flex min-w-0 flex-1">
-        {/* The page stays mounted under a contract file so closing it returns to the same place. */}
-        <div className="flex min-w-0 flex-1" inert={assetPath !== ''}>
+        {/* The page stays mounted under a contract file or example so closing it returns to the same place. */}
+        <div className="flex min-w-0 flex-1" inert={overlayOpen}>
           <div ref={scroller} tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
             <article className="mx-auto w-full max-w-[860px] px-8 pb-16 pt-5">
               <div className="mb-4 flex items-center gap-2">
@@ -182,6 +202,16 @@ function Viewer({ pages }: { pages: DocPage[] }) {
         {assetPath !== '' && (
           <div className="absolute inset-0 z-10 flex animate-fade-in flex-col bg-bg">
             <AssetViewer asset={DOC_ASSETS.find((a) => a.path === assetPath)} path={assetPath} onClose={closeAsset} />
+          </div>
+        )}
+        {exampleSlug !== '' && (
+          <div className="absolute inset-0 z-10 flex animate-fade-in flex-col bg-bg">
+            <ExampleViewer
+              example={findExample(exampleSlug)}
+              slug={exampleSlug}
+              onClose={closeExample}
+              onOpenBuilder={client ? (slug) => navigate(newAgentPath(undefined, slug)) : undefined}
+            />
           </div>
         )}
       </div>

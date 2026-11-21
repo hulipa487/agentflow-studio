@@ -152,6 +152,27 @@ export function ModelEditor({
           <Field label={t('models.field.serverTools')}>
             <Input mono placeholder="web_search, google_search" {...text('serverTools')} />
           </Field>
+          <Field label="Stream">
+            <Select
+              value={form.stream}
+              onChange={(v) => setForm((f) => ({ ...f, stream: v }))}
+              options={['true', 'false']}
+              placeholder={t('models.providerDefault')}
+            />
+          </Field>
+          <Field label="Key source">
+            <Select
+              value={form.keySource}
+              onChange={(v) => setForm((f) => ({ ...f, keySource: v }))}
+              options={['engine', 'user']}
+              placeholder="engine (default)"
+            />
+          </Field>
+          {form.keySource === 'user' && (
+            <Field label="Credential service">
+              <Input mono placeholder="openai" {...text('credential')} />
+            </Field>
+          )}
         </div>
       </div>
     </Modal>

@@ -70,10 +70,8 @@ A `profiles/*.yaml` file is an agent config plus a `name` and a `spawn` flag: `s
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `vm.memory_limit` | string | — | Caps each Luau state’s total allocation (`b`/`kb`/`mb`/`gb`; empty = uncapped). Stamped onto every new session; over-allocation surfaces as a Luau out-of-memory error. With `limits.sessions_per_tenant` it bounds a tenant’s VM footprint |
-| `vm.instruction_budget` | string | — | **Deprecated — no effect.** The per-resume budget is fixed at 5,000,000. Warns when set |
+| `vm.memory_limit` | string | — | Soft per-state memory guard (`b`/`kb`/`mb`/`gb`/`MiB`/`GiB`; empty = uncapped) for the pure-Go Lua VM (`gopher-lua`). Caps oversized string and table allocations (`string.rep`, `table.concat`), surfacing as a Lua out-of-memory error |
 | `scheduler.workers` | int | 8 | Op-pool size. This is the only place it is set |
-| `reload.watch` | bool | — | **Deprecated — no effect.** The reload watcher always runs. Warns when set |
 | `persistence` | string | sqlite://./data/agentflow.db | Where the message journal, the token ledger and its per-call detail, and the engine’s key/value rows (file trees, session state, route state, shell handles) live. Scheduler timers are *not* here: the timer service is in memory, so a restart forgets every timer until its loop re-registers it |
 | `topology` | string | single | The deployment tier: `single` (one process) or `regional` (several instances in one region sharing one PostgreSQL). Unset means `single`. The tier decides which other settings are valid; boot refuses one it cannot honour. See [Topology](#topology) |
 | `zone` | string | "" | Availability-zone label inside the region (letters, digits and `. _ -`, at most 32 characters). Reported in metrics and `/admin/api/state`; it is a label, never a routing decision |
@@ -93,21 +91,20 @@ A `profiles/*.yaml` file is an agent config plus a `name` and a `spawn` flag: `s
 | `studio.trace_payloads` | bool | false | Include message, reply and result text in trace events. Metadata (op, model, duration, tokens, errors) is always kept |
 | `studio.chat_timeout` | duration | 120s | How long one playground turn may wait before it returns with partial replies and `timed_out` |
 | `identity.enabled` | bool | false | Mint a stable user UUID per inbound; rewrites `from` to `user:<uuid>`, enabling `session.push_user`. Turning it on re-scopes existing state — see the note below the table |
-| `identity.persistence` | string | <persistence dir>/identity.db | sqlite path for the identity registry |
+| `identity.persistence` | string | <persistence dir>/identity.db | SQLite path or PostgreSQL DSN for the identity registry (defaults to `runtime.persistence`) |
+| `identity.require_registration` | bool | true | Keep an unlinked handle in the shared service stratum (no personal scope, no quota identity) until it is linked to a profile. `false` auto-claims a profile on first contact |
+| `identity.unregistered` | string | allow | What happens to a sender with no profile: `allow` keeps serving them in the shared stratum; `reject` drops the inbound and asks them to register or link |
 | `credentials.enabled` | bool | false | Encrypted per-tenant credential store backing `auth={service=...}` |
-| `credentials.path` | string | <persistence dir>/credentials.db | sqlite path for the credential store |
+| `credentials.persistence` | string | <persistence dir>/credentials.db | SQLite path or PostgreSQL DSN for the credential store (defaults to `runtime.persistence`) |
 | `credentials.master_key_env` | string | CREDENTIALS\_MASTER\_KEY | Env var holding the master key (read at boot, never from the file) |
 | `credentials.engine_wide` | string | allow | Gates `credential.get()`, the op that returns a raw secret to Lua. `allow` (or empty) lets an agent read what its `credentials:` list names; `maintenance` restricts it to engine-fired turns (boot, scheduler, triggers), so a tenant turn never sees an engine-wide secret. The per-tenant path, `auth = {service = ...}` on `http.request` and `tools.http`, never returns the value |
 | `users.enabled` | bool | false | Serve the public `/v1/users` API on the gateway listener (requires `identity.enabled`) |
 | `users.registration` | string | open | `open` or `invite` (single-use codes from `POST /admin/api/users/invites`) |
-| `users.require_registration` | bool | true | Keep an unlinked handle in the shared service stratum (no personal scope, no quota identity) until it is linked to a profile. `false` auto-claims a profile on first contact |
-| `users.unregistered` | string | allow | What happens to a sender with no profile: `allow` keeps serving them in the shared stratum; `reject` drops the inbound and asks them to register or link |
 | `users.link_ttl` | duration | 10m | How long a channel-link code stays valid |
 | `users.push_same_tenant` | bool | false | Make `session.push_user` refuse targets other than the current turn's tenant. Set it for a multi-tenant chat product |
 | `users.jit_provisioning` | bool | true | Create a profile on a verified first OIDC login; `false` refuses unknown subjects until an operator provisions them |
 | `users.oidc.issuer` · `audience` · `jwks_url` | string | — | Identity provider verification (see *Identity provider* below) |
 | `users.oidc.subject_claim` · `email_claim` · `name_claim` | string | sub · email · name | Token claims that carry the identity and the provisioned profile's fields |
-| `cluster.persistence` | string | `persistence` | **Deprecated — warns when set.** Leases and the session inbox always live in `runtime.persistence` now. In a regional cell it is refused unless it names the same target |
 | `cluster.session_ttl` | duration | 30s | How long a session claim survives without renewal |
 | `cluster.poll_interval` | duration | 250ms | How often an instance looks for messages waiting for the sessions it owns — the added latency of a message that arrives on the wrong instance |
 | `region` | string | "" | Names the region this instance serves: a metric label `region`, a field in `/admin/api/state`, and part of the instance registry. A region is one independent cell, not a shard of a global deployment |
@@ -208,8 +205,6 @@ binary's own flag definitions, so it is the reference that is always current.
 | `-log-level` | `info` | `dev`, `debug`, `info`, `warn` or `error` |
 | `-log-format` | `text` | `text` or `json` |
 | `-log-file PATH` | | Also append logs to this file |
-| `-no-tui` | off | No terminal dashboard; plain logs on stderr |
-| `-no-console` | off | Serve the admin API without the web console |
 | `-force-single` | off | Start even if another instance looks live on the store (`single` only; after a crash) |
 
 Every command follows the same conventions:
@@ -229,7 +224,7 @@ Every command follows the same conventions:
   `http://127.0.0.1:8080`; the token is `-token` or `$ADMIN_TOKEN`.
 
 The worker pool size is `runtime.scheduler.workers` (there is no flag for it).
-Removed flags (`-configdir`, `-workers`, `-log-json`, `-no-webui`, `init -dir`,
+Removed flags (`-configdir`, `-workers`, `-log-json`, `-no-tui`, `-no-console`, `-no-webui`, `init -dir`,
 `user export -id`, `user keygen -out`, `migrate blobs -from`, `cred -format`)
 are refused with a message that names the replacement.
 
@@ -272,22 +267,17 @@ The engine ships **no user interface**. Instead it exposes a JSON-only profile A
 
 **Deployment note.** `POST /register` is rate limited per client address, so a frontend behind a reverse proxy must rate limit there too — every caller otherwise shares one address.
 
-### Web console
+### Admin API
 
-The admin server also hosts an embedded **web console** (on by default; `-no-console` disables the static files) at `http://<gateway.listen>/admin/` — a single-page UI for the operator, no build step or separate port. It has four tabs:
+The runtime itself ships no embedded browser UI or terminal dashboard — it exposes a headless JSON and SSE control plane under `/admin/api/` that **AgentFlow Studio** (and automation scripts) connect to.
 
-- **Dashboard** — instance info, live sessions, agents/channels, an API-key manager over the credential store (per-user create/revoke, write-only secrets), and a streaming log tail.
-- **Models** — list every named model (key masked to a last-4 fingerprint), edit/add/remove, and a *test* button that makes a 1-token call through the live manager and classifies the result (auth / not\_found / unreachable / …). Edits **hot-apply to the running process** immediately, then an explicit *Persist to config* writes them into the file (backup kept as `.bak`) and *Revert* reloads from the file. A drift badge shows whenever runtime and file disagree — on this instance: the comparison is between this process's model set and the file, so in a fleet each console sees its own drift. An edit here applies to **this instance** immediately; the others keep their current models until they restart, so the path to a fleet-wide change is *Persist to config* and a rolling restart.
-- **Config** — a raw YAML editor with boot-equivalent *Validate* (strict fields, env expansion, cross-references — errors name the line), an atomic *Save* that backs up first and refuses if the file changed on disk underneath you, and a masked structured view. Saving prompts a restart; the runtime never silently live-reloads topology.
-- **Metrics** — the counters as sparklines, sampled in-process (~2h at 5s) so no external TSDB is needed; `/metrics` stays the Prometheus integration point.
+**One port.** The admin plane shares `gateway.listen` with the channels: `/admin/api/*`, `/admin/sessions`, `/healthz`, `/readyz` and `/metrics`. Channel paths under `/admin/`, `/healthz`, `/readyz`, `/metrics`, `/health` and `/v1/users/` are refused.
 
-**One port.** The admin plane shares `gateway.listen` with the channels: `/admin/` (the console, `/admin/api/*`, `/admin/sessions`, `/admin/credentials`), `/healthz`, `/readyz` and `/metrics`. Channel paths under those are refused, and so are `/health` and `/v1/users/`.
+**Auth:** every admin API route (as well as `/metrics` and `/admin/sessions`) requires a bearer token — even from loopback. Set `ADMIN_TOKEN` (or name `runtime.admin.operators`) to pin it; otherwise a random per-boot token is generated and printed once to the log. A per-boot token is not a secret from anyone who can read that log, so while the token is minted the admin plane answers **only local clients**: a request from another machine, or one that carries `Forwarded`, `X-Forwarded-For` or `X-Real-IP` (so a reverse proxy on the same host does not count as local), gets `403`; `/healthz` and `/readyz` stay open for load balancers. A configured credential opens the admin plane to remote clients, guarded by the token alone, so put TLS in front of it. A regional cell must configure one: a per-boot token is unknown to the other instances. Secrets are write-only throughout: list endpoints return metadata and fingerprints, never values, and the config view masks sensitive keys while preserving `${VAR}` placeholders.
 
-**Auth:** every console API route (and `/metrics`, `/admin/sessions`, `/admin/credentials`) requires a bearer token — even from loopback. Set `ADMIN_TOKEN` (or name `runtime.admin.operators`) to pin it; otherwise a random per-boot token is generated and printed once to the log. A per-boot token is not a secret from anyone who can read that log, so while the token is minted the admin plane answers **only local clients**: a request from another machine, or one that carries `Forwarded`, `X-Forwarded-For` or `X-Real-IP` (so a reverse proxy on the same host does not count as local), gets `403`; `/healthz` and `/readyz` stay open for load balancers. A configured credential opens the admin plane to remote clients, guarded by the token alone, so put TLS in front of it. A regional cell must configure one: a per-boot token is unknown to the other instances. `-no-console` disables the static console files, *not* the admin or Studio APIs and not the authentication. The static SPA files are served open but are inert without the token. Secrets are write-only throughout: list endpoints return metadata and fingerprints, never values, and the config view masks sensitive keys while preserving `${VAR}` placeholders.
+**Local transport:** `runtime.admin.socket` adds a second, local-only admin listener — a unix domain socket on Unix or a named pipe on Windows — and `runtime.admin.tcp: false` takes the admin plane off the HTTP listener. The socket is owner-only (0600; the pipe DACL grants the owner, Administrators and SYSTEM), the bearer token is still required, and the Studio desktop app accepts `unix:///path` or `npipe://name` URLs.
 
-**Local transport:** `runtime.admin.socket` adds a second, local-only admin listener — a unix domain socket on Unix or a named pipe on Windows — and `runtime.admin.tcp: false` takes the admin plane off the HTTP listener. The socket is owner-only (0600; the pipe DACL grants the owner, Administrators and SYSTEM), the bearer token is still required, and the Studio desktop app accepts `unix:///path` or `npipe://name` URLs. The browser console is served on the HTTP listener, so keep TCP enabled if you use it. Documentation now lives in AgentFlow Studio and works over a local socket or pipe.
-
-**Admin API.** Everything the console does is a JSON route under `/admin/api/`, so an operator can script it. All of them require the same bearer token.
+**Routes.** Everything AgentFlow Studio does is backed by a JSON or SSE route under `/admin/api/`, so operators can also script it directly. All routes require the same bearer token.
 
 | Route | Does |
 | --- | --- |
@@ -375,10 +365,6 @@ Enter the instance URL (`http://127.0.0.1:8080`, the `gateway.listen` address) a
 
 **Limits.** The playground is instance-local: the synthetic channel is registered in one process, so in a fleet a thread whose session is owned by another instance will not capture replies here. Studio does not store chat history — the agent’s memory is the source of truth — and the trace rings are in memory, reset by a restart. Spawn-profile authoring, attachments, replay and evaluation are not part of the first version.
 
-### Terminal dashboard
-
-When stdout is a TTY the runtime also attaches a **Bubbletea terminal dashboard** in the alternate screen (`-no-tui` to disable). It is the console's Metrics tab in the terminal: the same counters, grouped by subsystem, with in-process sparklines and the live session counts in the header. It is a **read-only metrics display** — no operator actions, so nothing it shows can change the runtime; `q`/`esc` quits and restores the screen. The metrics pane flows into one to three columns by width and the log footer scales with the terminal (3–8 lines); on a terminal too short for both the pane is clipped with a visible marker rather than dropping rows silently, and below a minimum height it is dropped entirely so the frame always fits. Piped output (systemd, `| tee`) keeps the plain stderr logger instead.
-
 ### Logging
 
 Logs use five **additive** levels — selecting one prints it and everything above. Choose with `-log-level` (default `info`):
@@ -391,7 +377,7 @@ Logs use five **additive** levels — selecting one prints it and everything abo
 | `DEBUG` | Every interaction | LLM API request, memory put/get/query (redis round-trip, pgvector lookup), telegram update received, webhook/ghhook inbound, op dispatch, imap fetch / smtp send |
 | `DEV` | Temporary development logs | scratch instrumentation added while debugging — `llog.Dev(log, ...)`; never committed on purpose |
 
-The same records feed the TUI log pane and the web console's log tail (short tags `ERR/WRN/INF/DBG/DEV`).
+The same records feed AgentFlow Studio's live log tail (`/admin/api/logs`, short tags `ERR/WRN/INF/DBG/DEV`).
 
 ### `models` — named LLM providers
 
@@ -618,7 +604,7 @@ profiles:
       workdir: /srv/work
 ```
 
-**`provider: sandbox`** runs each command as a one-off [gVisor](https://gvisor.dev) job: the environment is the read-only root, the project is mounted read-write at `/workspace`, and what the command wrote into the project is stored when it ends. Nothing else survives a command, so there is nothing to keep track of and any instance can run the next one. `ignore` uses a small subset of `.gitignore`: `node_modules/` (a directory with that name anywhere), `*.pyc` (a name anywhere), `build/out` (a path from the project root); a trailing slash restricts a pattern to directories. Ignored paths are neither stored nor cleaned up — they stay on the instance as a best-effort cache.
+**`provider: sandbox`** runs each command as a one-off sandbox job using either [gVisor](https://gvisor.dev) (`provider: gvisor`, default on Linux) or [microsandbox](https://github.com/superradcompany/microsandbox) (`provider: microsandbox`, hardware-isolated microVM over KVM on Linux, Apple Silicon HVF on macOS, or WHP on Windows): the environment provides the root toolchain, the project is mounted read-write at `/workspace`, and what the command wrote into the project is stored when it ends. Nothing else survives a command, so there is nothing to keep track of and any instance can run the next one. `ignore` uses a small subset of `.gitignore`: `node_modules/` (a directory with that name anywhere), `*.pyc` (a name anywhere), `build/out` (a path from the project root); a trailing slash restricts a pattern to directories. Ignored paths are neither stored nor cleaned up — they stay on the instance as a best-effort cache.
 
 A project can customise its agent's profile with a `.agentflow/shell.yaml` file in its working tree. It may set `environment` (one the deployment declares), `env`, `workdir`, `timeout` and `ignore`. It has no field for an image, a network policy or a resource limit, and an unknown field is an error rather than a silent no-op.
 
@@ -641,7 +627,7 @@ environments:
 
 Set exactly one of:
 
-- **`image`** — an OCI image **pinned by digest**. A tag alone is refused: a tag can be moved to different content, and then two instances would run different toolchains under one name. The image is pulled the first time the environment is used on an instance (that first job waits for the download) and kept under `<runtime.sandbox.data_dir>/images/<digest>`, so changing the pin is all it takes to move to a new image. Only public images, or ones a registry serves to anonymous pulls, are supported. Layers must be gzip-compressed. The image's own `Env` is applied, with `env` here on top.
+- **`image`** — an OCI image **pinned by digest**. A tag alone is refused: a tag can be moved to different content, and then two instances would run different toolchains under one name. Under `gvisor`, the image is pulled on first use and unpacked under `<runtime.sandbox.data_dir>/images/<digest>` (public/anonymous-pull registries with gzip-compressed layers). Under `microsandbox`, `msb` pulls and caches the OCI image natively on first use. In both cases the image's own `Env` is applied, with `env` here on top.
 - **`rootfs`** — a directory on the host that already holds a root filesystem (for example an exported container, or a `debootstrap` tree). It needs a `/bin/sh`.
 
 Because jobs have no network, everything a command needs must already be in the environment: packages are part of the image, not something a command installs.
@@ -652,8 +638,10 @@ Every setting has a default; a deployment that declares an environment and a she
 
 | Key | Default | Meaning |
 |---|---|---|
-| `runsc` | `runsc` on `PATH` | The gVisor runtime binary. Keep the release's `gvisor-bin/` directory beside it |
-| `data_dir` | `<data dir>/sandbox` | Workspaces, unpacked images and runsc's own state. A cache: everything in it is rebuilt from the files store and the registry |
+| `provider` | `gvisor` | Sandbox runtime backend: `gvisor` (`runsc`, Linux) or `microsandbox` (`msb`, Linux KVM / macOS Apple Silicon / Windows WHP) |
+| `runsc` | `runsc` on `PATH` | The gVisor runtime binary when `provider: gvisor`. Keep the release's `gvisor-bin/` directory beside it |
+| `microsandbox` | `msb` on `PATH` | The microsandbox CLI binary when `provider: microsandbox` |
+| `data_dir` | `<data dir>/sandbox` | Workspaces, unpacked images and runtime state. A cache: everything in it is rebuilt from the files store and the registry |
 | `concurrency` | 4 | Jobs running at once on this instance |
 | `per_user` | 2 | How many of those one user may hold |
 | `queue_timeout` | 30s | How long a job waits for its turn before failing |
@@ -664,13 +652,13 @@ Every setting has a default; a deployment that declares an environment and a she
 | `tmp_limit` | 256MiB | Size of a job's `/tmp` and home directory |
 | `memory` | 1GiB | Memory limit for a whole sandbox. A job that exceeds it is killed and the call raises |
 | `cpus` | none | CPU limit in cores |
-| `pids` | 512 | Processes inside a sandbox |
+| `pids` | 512 | Processes inside a sandbox (`gvisor`) |
 | `write_back.max_files` | 10000 | Changed files one job may store |
 | `write_back.max_bytes` | 1GiB | Total size of the files one job may store |
 
-**Requirements.** gVisor runs on Linux only (x86_64 and ARM64, kernel 5.6 or newer). No root is needed: the sandbox runs in a user namespace, so unprivileged user namespaces must be enabled. On Windows, macOS, or a Linux host without `runsc`, the engine still starts and every shell call fails with one sentence saying what is missing.
+**Requirements.** **`gvisor`** runs on Linux only (x86_64 and ARM64, kernel 5.6 or newer, with unprivileged user namespaces; works inside cloud VMs/containers without `/dev/kvm`). **`microsandbox`** runs on Linux (`/dev/kvm`), macOS (Apple Silicon Hypervisor.framework), and Windows (WHP) via the `msb` CLI (out-of-process — AgentFlow remains pure Go `CGO_ENABLED=0`). When the configured runtime cannot run on the host, the engine still starts and every shell call fails with one sentence saying what is missing.
 
-**Memory and CPU limits** are enforced by the kernel through a systemd scope when the host has a systemd manager that will create one — the normal case for a service or a login session. Where it does not (a container without systemd, for example), jobs run without those two limits and should be bounded from outside; the process count, tmpfs sizes, time limit and output cap apply everywhere. `agentflow doctor` reports which case a host is in, whether `runsc` works, and whether each environment is usable.
+**Memory and CPU limits.** Under `gvisor`, limits are enforced by the kernel through a systemd scope when the host has a systemd manager (otherwise jobs run without those two limits, while PIDs, tmpfs sizes, time limit and output cap still apply). Under `microsandbox`, memory (`--memory`) and CPU (`--cpus`) limits are enforced directly by the microVM hypervisor. `agentflow doctor` reports the active provider, its version, whether limits are enforced, and whether each environment is usable.
 
 **One host, one data directory.** Two engines sharing a `data_dir` would clear each other's job state at start.
 
@@ -723,7 +711,7 @@ All HTTP channels (webhook, ghhook, bridge, telegram webhook/auto, qq webhook) m
 | `telegram` (`mode: auto`) | Probes `<public_url>/health` at startup: registers `setWebhook` when reachable, else `deleteWebhook` + long-poll. A `setWebhook` failure also clears the webhook before polling. Needs `gateway.public_url` |
 | `qq` (`mode: websocket`) | Default. Tencent's official QQ Bot API v2 (QQ Open Platform). The runtime connects out to the QQ gateway with the app access token (fetched from `app_id` + `secret`, refreshed before it expires), subscribes to the intents for its `scenes`, heartbeats, and resumes the session after a dropped connection; nothing needs to be reachable from the internet. A close for disallowed intents or a banned bot stops the channel with an error |
 | `qq` (`mode: webhook`) | The platform POSTs events to `path` (default `/webhook/qq/<name>/`); set `<public https url><path>` as the callback URL in the console (ports 80, 443, 8080 or 8443). Every request, the URL-validation handshake included, must carry a valid Ed25519 signature made with the key derived from `secret` (401/403 otherwise, checked before parsing) |
-| `openai` | Serves the OpenAI Chat Completions API at `<path>chat/completions` and the model list at `<path>models`. `model` names one of the exposed `agents`, each of which runs its own `loop:`; give an agent `loop: plugin:openai_passthrough` to forward the client's messages, tools and sampling parameters to its model unchanged. `auth` is `user_token` (per-user bearer, needs `runtime.identity.enabled`), `key` (a shared key from `keys`) or `none` (loopback listeners only). `journal` defaults to `metadata` for this type, so conversation text never enters the audit journal. See [the OpenAI-compatible API](openai-api.md) |
+| `openai` | Serves the OpenAI Chat Completions API at `<path>chat/completions` and the model list at `<path>models`. `model` names one of the exposed `agents`, each of which runs its own `loop:`; point an agent at `./examples/loops/openai_passthrough.lua` to forward the client's messages, tools and sampling parameters to its model unchanged. `auth` is `user_token` (per-user bearer, needs `runtime.identity.enabled`), `key` (a shared key from `keys`) or `none` (loopback listeners only). `journal` defaults to `metadata` for this type, so conversation text never enters the audit journal. See [the OpenAI-compatible API](openai-api.md) |
 
 Every HTTP channel `path` must end in `/` (a subtree mount). A UUID-style path segment is a recommended unguessable secret prefix. Two channels mounting the same path are a boot error, and so is an `openai` channel whose endpoints overlap another channel's subtree. Telegram's `token` and `secret_token`, ghhook's `secret`, qq's `secret`, bridge's `secret` and `token`, and an `openai` channel's `keys` are secrets (see the registry): env-interpolated on the single-file path, lazy references on the configdir path — and an unresolvable one skips the channel with a warning, never a boot failure.
 
@@ -733,7 +721,7 @@ Every HTTP channel `path` must end in `/` (a subtree mount). A UUID-style path s
 - **Sessions.** Each message's reply target, and its `payload.chat_id` for the router, is `c2c:<user_openid>`, `group:<group_openid>`, `guild:<channel_id>` or `dm:<guild_id>`, so a group or channel is one conversation and each private chat is its own. The sender is `user:qq:<openid>` (`member_openid` in groups, the author id in guilds); the payload also carries the scene, message id, event id, `union_openid` and the nickname when the platform sends them. QQ authenticates senders, so the identity layer treats them as verified and linkable.
 - **Replies.** Within the platform's passive-reply window (60 minutes for private chats, 5 for groups and guilds) a reply references the latest inbound message with `msg_id` and an increasing `msg_seq`, up to 4 replies per message in private chats and 5 in groups. After that, or when the platform answers that the window has closed, the reply goes out as a proactive message, which the platform rate-limits and a user can turn off. Long text is split into chunks of at most 1800 characters.
 - **Markdown.** With `markdown: true`, text replies in private chats and groups go out as markdown messages (`msg_type: 2`), still passive within the reply window; guild channels and DMs stay plain text. Markdown is a capability the platform grants per bot. If it refuses a markdown message, the same text is resent as plain text and markdown pauses for 10 minutes, so nothing is lost while the bot lacks it. A fenced code block cut by chunking is closed at the end of one chunk and reopened at the start of the next.
-- **Media.** Inbound attachments are downloaded under the channel's `media` policy; a voice message with no text uses the platform's speech-recognition text. Outbound, QQ fetches media by URL: an attachment needs a public `http(s)` `url` (uploaded as rich media in private chats and groups, sent as an image link in guilds). A blob-store attachment without a URL is reported as an error, not dropped.
+- **Media.** Inbound attachments are downloaded under the channel's `media` policy; a voice message with no text uses the platform's speech-recognition text. Outbound, QQ fetches media exclusively by public URL: the channel requires either `media.backend: s3` (short-lived SigV4 presigned GET URLs) or `media.temp_url.enabled: true` with `gateway.public_url` (HMAC-SHA256 temporary HTTP URLs), and is skipped with a boot warning when neither is configured. Blob-store handles and inline images (such as WebP/PNG outputs from models) are automatically transcoded into QQ-compatible formats (JPEG/PNG, capped at 10 MiB) and cached as derived variants before signing the URL (uploaded as rich media in private chats and groups, or sent as an image link in guilds).
 - **Duplicates.** The platform may deliver a message more than once (a webhook retry, a replay after resume); repeats of a message id within 30 minutes are dropped.
 - **Console setup.** Copy the AppID and AppSecret from the bot's page at q.qq.com. For webhook mode, enter the callback URL there and add the runtime's egress IP to the IP allowlist the console asks for; for websocket mode only the allowlist applies. While the bot is in sandbox, only the sandbox groups, guilds and members you configure in the console can reach it.
 
@@ -897,24 +885,32 @@ Two details worth knowing. A *zoned* address (`http://[fc00::1%25en0]/`) is refu
 media:
   backend: fs                 # fs (default) | s3
   dir: ./data/media           # fs root (default: beside the persistence db)
+  retention: 168h             # per-scope grant lifetime (default 7d; 0 = forever)
+  derived_ttl: 24h            # cached transcoded variant TTL (default 24h)
+  temp_url:                   # optional HMAC-SHA256 temporary HTTP endpoint (for fs + QQ)
+    enabled: false
+    path: /media/t/           # route prefix mounted on gateway.listen (must start & end with "/")
+    ttl: 10m                  # signed URL lifetime (default 10m)
+    secret: ${MEDIA_TEMP_URL_SECRET}  # optional on single-node (ephemeral per boot); required in fleets
   s3:                         # required when backend: s3 — works with AWS S3 and MinIO
     bucket: my-media
     region: us-east-1
     endpoint: ~               # set for MinIO/S3-compatible (path-style); empty = AWS (virtual-hosted)
+    public_endpoint: ~        # optional public base URL for presigned GETs when endpoint is internal
     prefix: agentflow         # object key prefix
     access_key: ${S3_ACCESS_KEY}
     secret_key: ${S3_SECRET_KEY}
 ```
 
-Selects where channel-ingested media bytes live. Objects are content-addressed (`media:<sha256>` handles) regardless of backend, so loops and the audit journal never change shape when you switch. The `s3` backend speaks plain SigV4 (no SDK): repeated writes of the same bytes are deduped by a HEAD before PUT, and the secret key never appears in any error. S3 credentials are secrets (see the registry): an unresolvable pair skips the store with a boot warning (channels then run with media disabled) instead of failing the boot. Only handles cross the Lua bridge — bytes stay in the store until a provider or channel resolves them.
+Selects the centralized media plane where bytes ingested from channels, LLM outputs (`reply.media`), MCP tools, and the Lua border live. Objects are content-addressed (`media:<sha256>` handles) regardless of backend, so loops and the audit journal never change shape when you switch; only handles cross the Lua bridge, and egress sinks (models and channels) materialize raw bytes or signed URLs with automatic image transcoding and derived-variant caching. Access is enforced per engine-stamped scope (`user:<uuid>` or `agent:<name>`) via grant records in the runtime store while preserving content deduplication, and deleting a user purges all of their grants. The `s3` backend speaks plain SigV4 (no SDK): repeated writes of the same bytes are deduped by a HEAD before PUT, and the secret key never appears in any error. When `temp_url.enabled: true` (requiring `gateway.public_url`), the runtime serves short-lived HMAC-SHA256 signed URLs under `temp_url.path` so URL-only channels such as QQ can work on local `fs` storage without S3.
 
 ### `files` — user-scoped file store
 
 ```
 files:
   backend: fs                 # fs (default) | s3 (AWS S3, MinIO, Cloudflare R2)
-  dir: ./data/files           # fs root (default: beside the persistence db)
-  s3:                         # same fields and resolution as media.s3
+  dir: ./data/files           # fs root (optional; omit to share media's blob store)
+  s3:                         # same fields and resolution as media.s3 (optional separate bucket)
     bucket: my-files
     region: auto
     endpoint: https://<accountid>.r2.cloudflarestorage.com
@@ -925,7 +921,7 @@ files:
   gc_grace: 24h               # blob GC grace window; 0 = GC disabled
 ```
 
-Backs the `files.*` Lua ops (cap `files`): user-scoped project trees with engine-native snapshot versioning, plus per-session scratch. A boot-time mark-sweep reclaims orphaned blobs (deleted files, superseded contents) past `gc_grace`: the live set is every handle referenced by tree records, commit trees (rollback stays possible), and scratch — dedupe is untouched, and the grace window (vs the put blob-then-metadata write order) makes sweeping safe without locking.
+Backs the `files.*` Lua ops (cap `files`): user-scoped project trees with engine-native snapshot versioning, plus per-session scratch. By default, when `files` sets no explicit `backend`, `dir`, or `s3` block, it shares `media`'s blob store and one unified hourly mark-sweep GC protects the union of `files_meta` references and active media grants past `gc_grace`; setting `files.backend`, `files.dir`, or `files.s3` keeps a dedicated separate blob store while still letting `media` read handles from it as a fallback.
 
 File bytes are content-addressed in the blob store exactly like media; snapshot metadata lives in the runtime store's `files_meta` table (plain sqlite, inspectable). S3-compatible endpoints need a real SigV4 key pair — a bearer token cannot speak S3. An unresolvable credential pair disables the store with a boot warning (the ops then fail honestly), never a boot failure.
 

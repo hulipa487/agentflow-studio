@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Bot, FlaskConical, Lock, Moon, PanelLeft, Plus, RotateCw, Search, Send, type LucideIcon } from 'lucide-react'
+import { Bot, FlaskConical, Keyboard, Lock, Moon, PanelLeft, Plus, RotateCw, Search, Send, type LucideIcon } from 'lucide-react'
 import { Kbd, cx } from '@/components/ui'
 import { ALT, NAV, digitShortcut } from '@/nav'
 import { useAppearance } from '@/state/appearance'
@@ -80,6 +80,7 @@ export function CommandPalette() {
       { title: t('shell.palette.refresh'), hint: t('shell.palette.refreshHint'), shortcut: `${ALT}+R`, icon: RotateCw, run: () => useUI.getState().actions.refresh?.() },
       { title: t('shell.toggleTheme'), hint: t('shell.palette.toggleThemeHint'), icon: Moon, run: () => useAppearance.getState().toggle() },
       { title: t('shell.toggleRail'), hint: t('shell.palette.toggleRailHint'), icon: PanelLeft, run: () => useUI.getState().toggleRail() },
+      { title: t('shell.palette.shortcuts'), hint: t('shell.palette.shortcutsHint'), shortcut: '?', icon: Keyboard, run: () => useUI.getState().setShortcuts(true) },
       { title: t('shell.palette.invite'), hint: t('shell.palette.inviteHint'), icon: Send, run: () => navigate('/users?invite=1') },
       { title: t('shell.palette.lock'), hint: t('shell.palette.lockHint'), icon: Lock, run: () => useSession.getState().lock() },
     )

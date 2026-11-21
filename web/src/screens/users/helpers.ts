@@ -1,10 +1,11 @@
 // Small pieces the Users and Tenancy screens share, ported from the desktop
 // Studio's internal/ui/users.go.
-import { useEffect, useRef, type RefObject } from 'react'
 import type { UserRow } from '@/api/types'
 import { t } from '@/i18n'
 import { humanCount, shortID } from '@/lib/format'
 import type { Tone } from '@/state/ui'
+
+export { useAlive } from '@/lib/hooks'
 
 export interface Notice {
   text: string
@@ -43,19 +44,4 @@ export function parseWhole(s: string): number | null {
   if (!/^[+-]?\d+$/.test(s)) return null
   const n = Number(s)
   return Number.isSafeInteger(n) ? n : null
-}
-
-/**
- * True while the component is mounted. Checked after an await, before touching
- * state: a request can outlive the view that started it.
- */
-export function useAlive(): RefObject<boolean> {
-  const alive = useRef(true)
-  useEffect(() => {
-    alive.current = true
-    return () => {
-      alive.current = false
-    }
-  }, [])
-  return alive
 }

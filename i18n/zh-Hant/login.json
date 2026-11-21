@@ -43,5 +43,7 @@
   "login.tokenRequired": "請填寫管理權杖。",
   "login.noAnswer": "20 秒內沒有回應。請檢查位址，並確認連接埠未被封鎖。",
   "login.timedOut": "連線至 {url} 逾時。",
-  "login.cancelled": "已取消連線。"
+  "login.cancelled": "已取消連線。",
+  "login.browseDocs": "文件與範例",
+  "login.backToConnect": "返回連線"
 }

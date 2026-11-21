@@ -180,6 +180,7 @@ interface BlockFrame {
 }
 
 const closers: Record<string, string> = { ')': '(', ']': '[', '}': '{' }
+const luauOps = new Set(['+=', '-=', '*=', '/=', '%=', '^=', '..=', '//=', '//'])
 
 function checkStructure(tokens: Token[]): Diagnostic[] {
   const diags: Diagnostic[] = []
@@ -203,6 +204,9 @@ function checkStructure(tokens: Token[]): Diagnostic[] {
   for (const t of tokens) {
     if (t.kind === 'eof') break
     if (t.kind === 'op') {
+      if (luauOps.has(t.lit)) {
+        report(t, 'syntax.luau-only', i18n('lua.diag.luauOperator', { op: quote(t.lit) }))
+      }
       switch (t.lit) {
         case '(':
         case '[':
@@ -228,6 +232,9 @@ function checkStructure(tokens: Token[]): Diagnostic[] {
     }
     if (t.kind !== 'keyword') continue
     switch (t.lit) {
+      case 'continue':
+        report(t, 'syntax.luau-only', i18n('lua.diag.luauContinue'))
+        break
       case 'function':
         blocks.push({ kind: 'function', tok: t })
         break
@@ -439,13 +446,33 @@ class Analyzer {
             }
             break
           }
-          case 'type':
-            this.typeLine = t.line
-            break
         }
         continue
       }
-      if (t.kind === 'name') i = this.handleName(i)
+      if (t.kind === 'name') {
+        const prev = i > 0 ? tokens[i - 1] : undefined
+        const atStmtStart =
+          prev === undefined ||
+          prev.line !== t.line ||
+          prev.lit === ';' ||
+          (prev.kind === 'keyword' && (prev.lit === 'then' || prev.lit === 'do' || prev.lit === 'else' || prev.lit === 'repeat'))
+        if (atStmtStart && t.lit === 'export' && tokens[i + 1]?.kind === 'name' && tokens[i + 1].lit === 'type' && tokens[i + 2]?.kind === 'name') {
+          this.diag(t, SeverityError, 'syntax.luau-only', i18n('lua.diag.luauTypes'))
+          this.typeLine = t.line
+          continue
+        }
+        if (
+          atStmtStart &&
+          t.lit === 'type' &&
+          tokens[i + 1]?.kind === 'name' &&
+          (is(tokens[i + 2], '=') || is(tokens[i + 2], '<'))
+        ) {
+          this.diag(t, SeverityError, 'syntax.luau-only', i18n('lua.diag.luauTypes'))
+          this.typeLine = t.line
+          continue
+        }
+        i = this.handleName(i)
+      }
     }
     this.finish()
   }
@@ -487,7 +514,7 @@ class Analyzer {
     return false
   }
 
-  private diag(t: Token, severity: SeverityLevel, code: string, message: string) {
+  private diag(t: Token, severity: SeverityLevel, code: string, message: string, capability?: string) {
     this.diags.push({
       line: t.line,
       col: t.col,
@@ -496,6 +523,7 @@ class Analyzer {
       severity,
       code,
       message,
+      ...(capability ? { capability } : {}),
     })
   }
 
@@ -526,7 +554,10 @@ class Analyzer {
         dotted = true
         j += 2
       }
-      if (is(tokens[j], '<')) j = this.skipAngles(j)
+      if (is(tokens[j], '<')) {
+        this.diag(tokens[j], SeverityError, 'syntax.luau-only', i18n('lua.diag.luauTypes'))
+        j = this.skipAngles(j)
+      }
       simple = !dotted && is(tokens[j], '(')
     }
 
@@ -553,6 +584,7 @@ class Analyzer {
     }
     if (is(tokens[j], '(')) j = this.parseParams(j, f)
     if (is(tokens[j], ':')) {
+      this.diag(tokens[j], SeverityError, 'syntax.luau-only', i18n('lua.diag.luauTypes'))
       // Return type: identifiers on this line are types, not globals.
       this.typeLine = tokens[j].line
       j++
@@ -598,6 +630,7 @@ class Analyzer {
         continue
       }
       if (t.lit === ':') {
+        this.diag(t, SeverityError, 'syntax.luau-only', i18n('lua.diag.luauTypes'))
         j = this.skipTypeUntil(j + 1, ',', ')') - 1
         continue
       }
@@ -676,6 +709,7 @@ class Analyzer {
       }
       if (t.lit === '=') break
       if (t.lit === ':') {
+        this.diag(t, SeverityError, 'syntax.luau-only', i18n('lua.diag.luauTypes'))
         j = this.skipTypeUntil(j + 1, ',', '=')
         expect = false
         continue
@@ -854,6 +888,7 @@ class Analyzer {
           SeverityWarning,
           'capability.missing',
           i18n('lua.diag.capabilityMissing', { path, capability: quote(entry.capability) }),
+          entry.capability,
         )
       }
     }

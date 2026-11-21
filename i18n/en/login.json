@@ -43,5 +43,7 @@
   "login.tokenRequired": "The admin token is required.",
   "login.noAnswer": "No answer within 20 seconds. Check the address and that nothing blocks the port.",
   "login.timedOut": "Timed out contacting {url}.",
-  "login.cancelled": "Connection cancelled."
+  "login.cancelled": "Connection cancelled.",
+  "login.browseDocs": "Documentation & Examples",
+  "login.backToConnect": "Back to connect"
 }

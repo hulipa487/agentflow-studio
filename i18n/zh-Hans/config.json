@@ -40,5 +40,6 @@
   "config.maskedHint": "运行时从磁盘文件解析出的内容，敏感键已脱敏。只读。",
   "config.maskedHintDirty": "运行时从磁盘文件解析出的内容，敏感键已脱敏。只读。不包含你未保存的编辑。",
   "config.whatMasked": "脱敏视图",
-  "config.noParse": "磁盘上的文件无法解析为 YAML，因此没有结构化视图。"
+  "config.noParse": "磁盘上的文件无法解析为 YAML，因此没有结构化视图。",
+  "config.fragment": "配置片段"
 }

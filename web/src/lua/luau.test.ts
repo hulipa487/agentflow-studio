@@ -139,16 +139,16 @@ describe('completion and hover by offset', () => {
     const stream = hoverAt('llm.stream', 5, opts)
     expect(stream?.markdown).toContain('Call `next_delta()` directly; a generic `for` fails across the bridge.')
     expect(hoverAt('user.list', 6, opts)?.markdown).toContain('*maintenance provenance only (system or scheduler turns)*')
-    expect(hoverAt('pairs(x)', 2, opts)?.markdown).toBe('**pairs**\n\nLuau standard library.')
+    expect(hoverAt('pairs(x)', 2, opts)?.markdown).toBe('**pairs**\n\nLua 5.1 standard library.')
   })
 })
 
 describe('catalog', () => {
   it('carries the whole prelude', () => {
-    expect(preludeEntries).toHaveLength(108)
-    expect(new Set(preludeEntries.map((e) => e.path)).size).toBe(108)
+    expect(preludeEntries).toHaveLength(107)
+    expect(new Set(preludeEntries.map((e) => e.path)).size).toBe(107)
     expect(children('').map((e) => e.path)).toEqual([
-      'af', 'agent', 'credential', 'fact_extractor_turn', 'files', 'http', 'json', 'llm', 'log', 'mail', 'memory',
+      'af', 'agent', 'credential', 'files', 'http', 'json', 'llm', 'log', 'mail', 'memory',
       'memory_recall_handler', 'memory_routing_table', 'memory_semantic_recall_handler', 'openai', 'os', 'runtime', 'scheduler',
       'session', 'shell', 'store', 'time', 'token_budget', 'tool', 'tools', 'user',
     ])
@@ -240,8 +240,8 @@ describe('editor sources', () => {
     expect(complete('local n = 12|')).toBeNull()
     expect(complete('local n = zzz|')).toBeNull()
     // Ctrl+Space always asks.
-    // 26 prelude globals, 31 stdlib names and loop itself.
-    expect(complete('function loop()\n  |\nend', true)?.options.length).toBe(58)
+    // 25 prelude globals, 26 stdlib names and loop itself.
+    expect(complete('function loop()\n  |\nend', true)?.options.length).toBe(52)
     expect(complete('-- wait for the next|\n', true)?.options.map((o) => o.label)).toEqual(['next'])
   })
 

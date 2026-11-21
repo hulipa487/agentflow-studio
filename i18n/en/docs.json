@@ -30,11 +30,14 @@
   "docs.page.gettingStarted": "Overview",
   "docs.page.architecture": "Architecture & deployment",
   "docs.page.multiRegion": "Multi-region",
-  "docs.page.loops": "Luau loops",
+  "docs.page.loops": "Lua loops",
   "docs.page.memory": "Memory",
   "docs.page.extending": "Extending",
   "docs.page.configuration": "Configuration",
   "docs.page.loopsReference": "Loop API reference",
   "docs.page.openaiApi": "OpenAI-compatible API",
-  "docs.englishOnly": "This guide has no translation yet; it is shown in English."
+  "docs.englishOnly": "This guide has no translation yet; it is shown in English.",
+  "docs.examples": "Examples",
+  "docs.openInBuilder": "Open in Builder",
+  "docs.exampleNotBundled": "This example loop is not bundled in this build."
 }

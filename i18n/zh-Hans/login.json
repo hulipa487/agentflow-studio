@@ -43,5 +43,7 @@
   "login.tokenRequired": "请填写管理令牌。",
   "login.noAnswer": "20 秒内没有响应。请检查地址，并确认端口未被阻挡。",
   "login.timedOut": "连接 {url} 超时。",
-  "login.cancelled": "已取消连接。"
+  "login.cancelled": "已取消连接。",
+  "login.browseDocs": "文档与示例",
+  "login.backToConnect": "返回连接"
 }

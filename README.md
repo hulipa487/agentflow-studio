@@ -166,9 +166,10 @@ The desktop app keeps that storage in the webview's profile: `$XDG_DATA_HOME/age
 
 | Path | What's there |
 |---|---|
-| `web/` | The app: `src/screens`, `src/api`, `src/lua` (the Luau analyzer and language server), `src/docs`, and the local proxy in `server/` |
+| `web/` | The app: `src/screens`, `src/api`, `src/lua` (the Lua analyzer and language server), `src/docs`, and the local proxy in `server/` |
 | `desktop/` | The desktop app: the web build in the system webview, a Go module of its own (proxy, save dialog, window, title bar) |
-| `docs/` | The Markdown guides, their translations, the users OpenAPI spec and the Luau type stubs |
+| `docs/` | The Markdown guides, their translations, the users OpenAPI spec and the Lua type stubs |
+| `examples/` | Runnable scenarios (QQ group chatbot with memory, Telegram RAG bot, GitHub PR code agents, chat/completions endpoint) and single-pattern Lua loops |
 | `i18n/` | The message catalogues in English, 简体中文 and 繁體中文 |
 
 ```bash

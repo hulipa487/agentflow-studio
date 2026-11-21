@@ -37,5 +37,7 @@
   "agents.liveSessionsMessage": "代理「{name}」有執行中的工作階段。要停止這些工作階段並刪除它嗎？",
   "agents.forceMessage": "{reason}\n\n要強制刪除嗎？",
   "agents.forceDelete": "強制刪除",
-  "agents.deleted": "已刪除 {name}"
+  "agents.deleted": "已刪除 {name}",
+  "agents.exampleLoopsTitle": "範例迴圈",
+  "agents.exampleLoopsHint": "內建自 examples/loops/，選擇一個即可在建構器中檢視並修改。"
 }

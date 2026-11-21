@@ -63,5 +63,8 @@
   "common.value": "值",
   "common.featureOffIdentity": "{message}\n\n请设置 runtime.identity.enabled: true（如需公开的用户 API，还要设置 runtime.users.enabled），然后重启 AgentFlow。",
   "common.featureOffTenancy": "{message}\n\n租户功能需要运行时存储（runtime.persistence）。",
-  "common.saveFailed": "保存失败：{message}"
+  "common.saveFailed": "保存失败：{message}",
+  "common.crashTitle": "渲染此页面时出错",
+  "common.crashGuidance": "当前连接仍然保持。可以重试此页面，或返回概览。",
+  "common.goOverview": "返回概览"
 }

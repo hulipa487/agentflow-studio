@@ -40,5 +40,6 @@
   "config.maskedHint": "What the runtime parsed from the file on disk, with sensitive keys masked. Read-only.",
   "config.maskedHintDirty": "What the runtime parsed from the file on disk, with sensitive keys masked. Read-only. Your unsaved edits are not in it.",
   "config.whatMasked": "masked view",
-  "config.noParse": "The file on disk does not parse as YAML, so there is no structured view of it."
+  "config.noParse": "The file on disk does not parse as YAML, so there is no structured view of it.",
+  "config.fragment": "Fragment"
 }

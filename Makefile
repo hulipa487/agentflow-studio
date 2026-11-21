@@ -11,25 +11,26 @@
 
 .DEFAULT_GOAL := desktop
 
-desktop:
+install:
 	cd web && npm ci
+
+desktop:
+	@test -d web/node_modules || (cd web && npm ci)
 	$(MAKE) -C desktop web build
 
 web:
-	cd web && npm ci && npm run build
+	@test -d web/node_modules || (cd web && npm ci)
+	cd web && npm run build
 
 test:
-	cd web && npm test
+	cd web && npm run check
 	$(MAKE) -C desktop test
 
-# The user API contract and the Luau editor stubs are versioned in the runtime
+# The user API contract and the loop editor stubs are versioned in the runtime
 # repo; keep these copies in step when they change. AGENTFLOW_DIR can point at
 # a checkout elsewhere.
 AGENTFLOW_DIR ?= ../agentflow
 docs-sync:
-	@test -f "$(AGENTFLOW_DIR)/api/openapi/users.yaml" || { echo "missing $(AGENTFLOW_DIR)/api/openapi/users.yaml"; exit 1; }
-	@test -f "$(AGENTFLOW_DIR)/api/luau/af.d.luau" || { echo "missing $(AGENTFLOW_DIR)/api/luau/af.d.luau"; exit 1; }
-	tr -d '\r' < "$(AGENTFLOW_DIR)/api/openapi/users.yaml" > docs/openapi/users.yaml
-	tr -d '\r' < "$(AGENTFLOW_DIR)/api/luau/af.d.luau" > docs/luau/af.d.luau
+	AGENTFLOW_DIR="$(AGENTFLOW_DIR)" node web/scripts/docs-sync.mjs
 
-.PHONY: desktop web test docs-sync
+.PHONY: install desktop web test docs-sync

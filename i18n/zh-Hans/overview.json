@@ -56,5 +56,8 @@
   "overview.colLastSeen": "最后在线",
   "overview.seenNow": "刚刚",
   "overview.seenAgo": "{duration}前",
-  "overview.epochDiffers": "{epoch}（不一致）"
+  "overview.epochDiffers": "{epoch}（不一致）",
+  "overview.onboarding": "还没有智能体——可先配置模型、创建一个智能体，并在演练场中测试。",
+  "overview.extraMetrics": "运行时指标",
+  "overview.extraMetricsSubtitle": "另有 {n} 个计数器序列"
 }

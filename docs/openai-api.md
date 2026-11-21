@@ -9,21 +9,22 @@ mounts on the same `gateway.listen` as every other channel.
 The endpoint is a **channel**, not a proxy. It authenticates, parses, correlates
 the reply and speaks SSE. It makes no decision about meaning: the route handler
 picks a session, and the agent's loop decides what the request is. With the
-built-in route and the `plugin:openai_passthrough` loop, each request gets its
-own one-turn session and is forwarded to the agent's model unchanged, so a
-client that is itself an agent — its own system prompt, its own tools, its own
-conversation — gets exactly a model.
+built-in route and the pass-through loop (`examples/loops/openai_passthrough.lua`),
+each request gets its own one-turn session and is forwarded to the agent's model
+unchanged, so a client that is itself an agent — its own system prompt, its own
+tools, its own conversation — gets exactly a model.
 
 ## Quick start
 
-An agent answers as its model when its loop is `plugin:openai_passthrough`. The
+An agent answers as its model when its loop forwards the request with
+`llm.forward()` (shipped as `examples/loops/openai_passthrough.lua`). The
 channel does not choose the loop for you: an agent listed under `agents` runs
 whatever its own `loop:` says.
 
 ```yaml
 agents:
   coder:
-    loop: plugin:openai_passthrough
+    loop: ./examples/loops/openai_passthrough.lua
     model: default
     capabilities: [llm.chat]      # llm.forward and openai.request are gated by it
 
@@ -213,7 +214,7 @@ capability.
 
 ## The pass-through loop
 
-`plugin:openai_passthrough` is four lines:
+`examples/loops/openai_passthrough.lua` is four lines:
 
 ```lua
 -- af-prelude-version: 1
@@ -266,7 +267,7 @@ function loop()
 end
 ```
 
-`examples/loops/openai_memory.lua` in the runtime repository is a complete
+`examples/loops/openai_memory.lua` in `agentflow-studio` is a complete
 version of this pattern.
 
 Options to `llm.forward`: `model` (another `models:` entry), `messages` (replace

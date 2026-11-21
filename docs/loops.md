@@ -4,7 +4,7 @@ A practical guide to writing AgentFlow session loops in Luau: the execution
 model, the whole Lua API, worked patterns, and the mistakes that are easy to
 make.
 
-Runnable versions of the patterns live in [`examples/loops/`](https://github.com/hulipa487/agentflow/tree/main/examples/loops).
+Runnable versions of the patterns live in [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops).
 
 The bundled Luau type definitions are at [luau/af.d.luau](luau/af.d.luau); open them from this page to inspect the API surface in an editor.
 
@@ -497,7 +497,7 @@ Timers deliver `Message{ type = "timer", payload = { timer_id = id } }` into the
 same session. They are in memory and session-scoped: a restart forgets them, and
 a hot reload restarts the loop **without** clearing timers, so re-registering
 blindly duplicates them. Cancel the remembered id first (see
-[`scheduled.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/scheduled.lua)).
+[`scheduled.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/scheduled.lua)).
 
 `scheduler.cron` is a subset: `*/N * * * *` and fixed forms like `30 9 * * *`;
 day-of-month, month and weekday must be `*`, and a `*/N` minute cannot be paired
@@ -538,7 +538,7 @@ provider reports them.
 **Streaming.** Call `next_delta` directly; a generic `for` is refused because the
 iterator yields across the bridge. The iterator closes itself at done; call
 `close()` after an early exit. It returns text deltas only — use `llm.chat` for
-usage and tool calls. See [`stream.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/stream.lua).
+usage and tool calls. See [`stream.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/stream.lua).
 
 **Embeddings.** `llm.embed` takes a single string, an array of strings, or a
 mixed array of strings and part tables (`{type="image", handle=..., url=...}`);
@@ -743,11 +743,11 @@ Everything crossing the bridge is JSON-encoded. Consequences:
 
 ## 7. Patterns
 
-Each pattern below has a runnable file in `examples/loops/`. For whole deployments that combine them — a QQ group chatbot with memory, a Telegram RAG bot, GitHub pull request code agents, a chat/completions endpoint — see the scenarios in [`examples/`](https://github.com/hulipa487/agentflow/tree/main/examples).
+Each pattern below has a runnable file in `examples/loops/`. For whole deployments that combine them — a QQ group chatbot with memory, a Telegram RAG bot, GitHub pull request code agents, a chat/completions endpoint — see the scenarios in [`examples/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples).
 
 ### 7.1 Request/response
 
-[`echo.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/echo.lua) — the smallest loop.
+[`echo.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/echo.lua) — the smallest loop.
 
 ```lua
 function loop()
@@ -760,7 +760,7 @@ end
 
 ### 7.2 Conversational agent with memory
 
-[`chat.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/chat.lua) recalls recent turns, builds the
+[`chat.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/chat.lua) recalls recent turns, builds the
 prompt, trims it to the history budget, replies, and records the turn.
 
 ```lua
@@ -791,12 +791,12 @@ provider accepts.
 
 ### 7.3 Streaming
 
-[`stream.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/stream.lua) — direct iterator, `close()` on an
+[`stream.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/stream.lua) — direct iterator, `close()` on an
 early exit. Remember: text deltas only; a generic `for` does not work.
 
 ### 7.4 Multi-round tool loop
 
-[`tool_loop.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/tool_loop.lua) — the full shape:
+[`tool_loop.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/tool_loop.lua) — the full shape:
 
 1. send the user turn with `tools = tools.list()`;
 2. if the reply has `tool_calls`, append the **assistant** turn (including its
@@ -816,20 +816,20 @@ the loop coroutine and may call any op; a raised error becomes
 
 ### 7.6 Timers and periodic work
 
-[`scheduled.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/scheduled.lua) registers timers
+[`scheduled.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/scheduled.lua) registers timers
 idempotently and distinguishes them by `payload.timer_id`. Timer turns have no
 channel; do not `session.send` from one.
 
 ### 7.7 Daemon agents
 
-[`daemon.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/daemon.lua) handles the synthetic `boot`
+[`daemon.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/daemon.lua) handles the synthetic `boot`
 message a `persistent: true` agent receives at startup, then serves user
 messages and its own timer ticks. A daemon is one session; in a fleet exactly
 one instance owns it.
 
 ### 7.8 Multi-agent delegation
 
-[`delegate.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/delegate.lua) spawns a child from a
+[`delegate.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/delegate.lua) spawns a child from a
 `profiles.agent` template and waits for a request/reply:
 
 ```lua
@@ -854,7 +854,7 @@ opted out with `inherit_user: false`.
 
 ### 7.9 Files and snapshots
 
-[`files.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/files.lua) writes a note, lists the project,
+[`files.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/files.lua) writes a note, lists the project,
 and commits a snapshot. Use `files.checkout` to restore a tree, or
 `shell.run("make", { project = "..." })` to run a command on the working tree.
 
@@ -1003,12 +1003,12 @@ local reply = llm.chat(messages, { model = info.model })
 ### From a terminal
 
 ```bash
-./agentflow run -config agentflow.yaml -log-level debug -no-tui
+./agentflow run -config agentflow.yaml -log-level debug
 ```
 
 `debug` logs every op dispatch, LLM request, memory operation and tool call.
-`log.info` from a loop appears in the same stream. The web console's log tail
-(SSE) is the same feed.
+`log.info` from a loop appears in the same stream. AgentFlow Studio's Logs
+view (`/admin/api/logs` SSE) is the same feed.
 
 ### Hot reload
 
@@ -1103,9 +1103,9 @@ copy.
 
 ### Support chunks
 
-Five builtins are evaluated into every session state **before** the loop:
-`token_budget`, `routing_table`, `recency`, `semantic`, `fact_extractor`. They
-define globals your loop may call:
+Four builtins are evaluated into every session state **before** the loop:
+`token_budget`, `routing_table`, `recency`, `semantic`. They define globals your
+loop may call:
 
 | Chunk | Global | Used by |
 |---|---|---|
@@ -1113,7 +1113,6 @@ define globals your loop may call:
 | `plugin:routing_table` | `memory_routing_table(record)` | `memory.write` |
 | `plugin:recency` | `memory_recall_handler(query, opts)` | `memory.recall` |
 | `plugin:semantic` | `memory_semantic_recall_handler(query, opts)` | `memory.recall` |
-| `plugin:fact_extractor` | `fact_extractor_turn(turn)` | your loop, after a turn |
 
 To replace one, put a same-named file in `plugins.dir` (e.g.
 `plugins/recency.lua`). It shadows the builtin for the whole deployment; the
@@ -1187,7 +1186,7 @@ different policy, but the engine-side validation is not optional.
   agents, memory, capabilities, triggers, MCP, channels.
 - [Lua plugin development](loops-reference.md) — the
   embedded docs' API tables and multimodal matrix.
-- [`examples/loops/`](https://github.com/hulipa487/agentflow/tree/main/examples/loops) — every runnable pattern above.
+- [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops) — every runnable pattern above.
 - [`agentflow.yaml`](https://github.com/hulipa487/agentflow/blob/main/agentflow.yaml) — the example deployment (the repo
   gitignores this file because it is the local instance config; the tracked
   example pieces live under `examples/`).

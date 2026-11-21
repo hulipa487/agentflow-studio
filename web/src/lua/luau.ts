@@ -20,6 +20,8 @@ export interface LuauDiagnostic {
   message: string
   /** A stable rule id, e.g. "field.unknown" or "capability.missing". */
   code?: string
+  /** Missing capability name when code === "capability.missing". */
+  capability?: string
 }
 
 export interface LuauOptions {
@@ -106,6 +108,7 @@ function toLuauDiagnostic(model: Model, d: Diagnostic): LuauDiagnostic {
     severity: severityNames[d.severity] ?? 'warning',
     message: d.message,
     code: d.code,
+    ...(d.capability ? { capability: d.capability } : {}),
   }
 }
 

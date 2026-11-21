@@ -71,11 +71,11 @@ describe('profile drafts', () => {
   it('lets a pool replace the scope and splits the write list', () => {
     const f = profileForm(null, ['main_db'])
     f.stores = [{ ...f.stores[1], scope: 'agent', pool: ' team ' }]
-    f.write = ['plugin:routing_table, plugin:fact_extractor']
+    f.write = ['plugin:routing_table, ./plugins/custom_tap.lua']
     const d = buildProfileDraft({ ...f, name: 'p' })
     expect(d.stores[0]).toMatchObject({ pool: 'team' })
     expect(d.stores[0].scope).toBeUndefined()
-    expect(d.write).toEqual(['plugin:routing_table', 'plugin:fact_extractor'])
+    expect(d.write).toEqual(['plugin:routing_table', './plugins/custom_tap.lua'])
     expect(() => buildProfileDraft({ ...f, stores: [{ ...f.stores[0], window: 'lots' }] })).toThrow('Store "facts": window must be a whole number')
   })
 

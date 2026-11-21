@@ -211,6 +211,15 @@ export function buildYAML(form: BuilderForm, detail: AgentDetail | null): string
   } else if (form.memory !== '') {
     write('memory', form.memory)
   }
+  // Preserve structured fields not yet exposed as dedicated form controls so
+  // editing the loop or metadata never silently strips them.
+  if (detail?.agent?.instructions_prompt) write('instructions', { prompt: detail.agent.instructions_prompt })
+  if (detail?.agent?.inherit_user !== undefined && detail.agent.inherit_user !== null) {
+    write('inherit_user', detail.agent.inherit_user)
+  }
+  if (detail?.agent?.budget && Object.keys(detail.agent.budget).length > 0) {
+    write('budget', detail.agent.budget)
+  }
   const extras = form.extras.trim()
   if (extras !== '') {
     let v: unknown

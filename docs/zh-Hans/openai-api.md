@@ -2,16 +2,16 @@
 
 AgentFlow 可以把一个智能体暴露为 OpenAI **chat completions** 端点。任何使用 Chat Completions API 的客户端 — 智能体框架、编程助手、聊天前端，或直接调用 SDK 的代码 — 只需要一个基础 URL 和一个 API 密钥。无需安装任何转换层，也不需要第二个端口：该渠道与其他所有渠道一样挂载在同一个 `gateway.listen` 上。
 
-这个端点是一个**渠道**，而不是代理。它负责认证、解析、关联回复，并使用 SSE 通信。它不对含义做任何判断：路由处理器选择会话，智能体的循环决定这个请求是什么。使用内置路由和 `plugin:openai_passthrough` 循环时，每个请求都获得自己的单轮会话，并被原样转发给智能体的模型，因此本身就是智能体的客户端 — 有自己的系统提示词、自己的工具、自己的对话 — 拿到的就是一个纯粹的模型。
+这个端点是一个**渠道**，而不是代理。它负责认证、解析、关联回复，并使用 SSE 通信。它不对含义做任何判断：路由处理器选择会话，智能体的循环决定这个请求是什么。使用内置路由和透传循环（`examples/loops/openai_passthrough.lua`）时，每个请求都获得自己的单轮会话，并被原样转发给智能体的模型，因此本身就是智能体的客户端 — 有自己的系统提示词、自己的工具、自己的对话 — 拿到的就是一个纯粹的模型。
 
 ## 快速开始
 
-当智能体的循环是 `plugin:openai_passthrough` 时，它就以其模型的身份作答。渠道不会替你选择循环：列在 `agents` 下的智能体运行的是它自己的 `loop:` 所指定的循环。
+当智能体的循环使用 `llm.forward()` 转发请求时（示例位于 `examples/loops/openai_passthrough.lua`），它就以其模型的身份作答。渠道不会替你选择循环：列在 `agents` 下的智能体运行的是它自己的 `loop:` 所指定的循环。
 
 ```yaml
 agents:
   coder:
-    loop: plugin:openai_passthrough
+    loop: ./examples/loops/openai_passthrough.lua
     model: default
     capabilities: [llm.chat]      # llm.forward 和 openai.request 受它控制
 
@@ -149,7 +149,7 @@ gateway:
 
 ## 透传循环
 
-`plugin:openai_passthrough` 只有四行：
+`examples/loops/openai_passthrough.lua` 只有四行：
 
 ```lua
 -- af-prelude-version: 1
@@ -192,7 +192,7 @@ function loop()
 end
 ```
 
-运行时仓库中的 `examples/loops/openai_memory.lua` 是这种模式的完整版本。
+`agentflow-studio` 仓库中的 `examples/loops/openai_memory.lua` 是这种模式的完整版本。
 
 `llm.forward` 的选项：`model`（另一个 `models:` 条目）、`messages`（替换客户端的消息）、`prepend` / `append`（在其前后添加轮次）、`tools`（在客户端的工具之外添加定义）、`params`（覆盖采样参数：`temperature`、`max_tokens`、`top_p`、`stop`、`seed`、`response_format`、`parallel_tool_calls`、`tool_choice`、`thinking`）以及 `max_tokens_cap`（限制客户端的 `max_tokens`）。
 

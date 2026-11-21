@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { startCompletion } from '@codemirror/autocomplete'
-import { ChevronDown, ChevronRight, List } from 'lucide-react'
-import { Chip, CopyButton, Dot, IconButton, cx, toneText, type Tone } from '@/components/ui'
+import { ChevronDown, ChevronRight, List, Plus } from 'lucide-react'
+import { Button, Chip, CopyButton, Dot, IconButton, cx, toneText, type Tone } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
 import { t } from '@/i18n'
 import type { LuauDiagnostic, Severity } from '@/lua'
@@ -24,6 +24,8 @@ export function LoopTab({
   checking,
   failure,
   active,
+  onInsertDirective,
+  onEnableCapability,
 }: {
   source: string
   onChange: (text: string) => void
@@ -35,6 +37,8 @@ export function LoopTab({
   failure: string
   /** Whether this tab is the visible one. */
   active: boolean
+  onInsertDirective?: () => void
+  onEnableCapability?: (capability: string) => void
 }) {
   const view = useRef<EditorView | null>(null)
   const [open, setOpen] = useState(true)
@@ -102,17 +106,29 @@ export function LoopTab({
               <ul className="max-h-40 overflow-y-auto pb-1.5">
                 {issues.map((d, i) => (
                   <li key={`${d.from}:${d.to}:${d.code ?? ''}:${i}`}>
-                    <button
-                      type="button"
-                      onClick={() => jump(d)}
-                      title={t('builder.jumpToLine')}
-                      className="flex w-full items-baseline gap-2 px-3 py-1 text-left text-xs hover:bg-hover focus-visible:bg-hover"
-                    >
-                      <Dot tone={SEVERITY_TONE[d.severity]} className="translate-y-[-1px] self-center" />
-                      <span className="w-12 shrink-0 font-mono text-xs text-faint">L{d.line}</span>
-                      <span className="min-w-0 flex-1 break-words text-text">{d.message}</span>
-                      {d.code && <Chip>{d.code}</Chip>}
-                    </button>
+                    <div className="flex w-full items-center gap-2 px-3 py-1 hover:bg-hover">
+                      <button
+                        type="button"
+                        onClick={() => jump(d)}
+                        title={t('builder.jumpToLine')}
+                        className="flex min-w-0 flex-1 items-baseline gap-2 text-left text-xs focus-visible:outline-none"
+                      >
+                        <Dot tone={SEVERITY_TONE[d.severity]} className="translate-y-[-1px] self-center" />
+                        <span className="w-12 shrink-0 font-mono text-xs text-faint">L{d.line}</span>
+                        <span className="min-w-0 flex-1 break-words text-text">{d.message}</span>
+                        {d.code && <Chip>{d.code}</Chip>}
+                      </button>
+                      {d.code === 'prelude.missing-directive' && onInsertDirective && (
+                        <Button size="sm" icon={Plus} onClick={onInsertDirective}>
+                          {t('builder.insertDirective')}
+                        </Button>
+                      )}
+                      {d.code === 'capability.missing' && d.capability && onEnableCapability && (
+                        <Button size="sm" icon={Plus} onClick={() => onEnableCapability(d.capability!)}>
+                          {t('builder.enableCapability', { cap: d.capability })}
+                        </Button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

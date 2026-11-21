@@ -37,5 +37,7 @@
   "agents.liveSessionsMessage": "智能体“{name}”有运行中的会话。要停止这些会话并删除它吗？",
   "agents.forceMessage": "{reason}\n\n要强制删除吗？",
   "agents.forceDelete": "强制删除",
-  "agents.deleted": "已删除 {name}"
+  "agents.deleted": "已删除 {name}",
+  "agents.exampleLoopsTitle": "示例循环",
+  "agents.exampleLoopsHint": "内置自 examples/loops/，选择一个即可在构建器中查看并修改。"
 }

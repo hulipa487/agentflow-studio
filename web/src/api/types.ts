@@ -24,6 +24,9 @@ export interface Catalog {
   default_capabilities: string[] | null
   safety_profiles: string[] | null
   memory_profiles: string[] | null
+  shell_profiles?: string[] | null
+  environments?: string[] | null
+  packages?: string[] | null
   prompt_keys: string[] | null
   prelude_version: number
   templates: Template[] | null
@@ -56,6 +59,8 @@ export interface AgentJSON {
   persistent: boolean
   credentials: string[] | null
   inherit_user?: boolean | null
+  instructions_prompt?: string
+  budget?: Record<string, unknown> | null
   extras?: Record<string, unknown> | null
 }
 
@@ -110,11 +115,22 @@ export interface TraceEvent {
   safety?: unknown
 }
 
+export interface MediaPart {
+  type: string
+  text?: string
+  mime?: string
+  data?: string
+  url?: string
+  handle?: string
+  name?: string
+  size?: number
+}
+
 export interface Reply {
   text: string
   status: string
-  /** Media the agent sent with the reply; the playground only counts them. */
-  attachments?: unknown[]
+  /** Media attachments sent with the reply (typically handle-only descriptors). */
+  attachments?: MediaPart[]
 }
 
 export interface ChatResult {
@@ -161,6 +177,7 @@ export interface ChatRequest {
   agent: string
   thread: string
   text: string
+  attachments?: MediaPart[]
   act_as_user?: string
 }
 
@@ -272,8 +289,11 @@ export interface Model {
   timeout: string
   retry: number
   max_tokens: number
+  stream?: boolean | null
   thinking: string
   server_tools: string[] | null
+  key_source?: string
+  credential?: string
   has_key: boolean
   key_fingerprint: string
   in_runtime: boolean
@@ -290,8 +310,11 @@ export interface ModelDraft {
   timeout: string
   retry: number
   max_tokens: number
+  stream?: boolean | null
   thinking: string
   server_tools: string[]
+  key_source?: string
+  credential?: string
 }
 
 export interface ModelTest {
@@ -513,7 +536,6 @@ export interface StateAgent {
   model: string
   loop: string
   persistent: boolean
-  singleton: boolean
 }
 
 export interface StateChannel {
@@ -576,10 +598,13 @@ export interface Metrics {
   latest: Record<string, number> | null
 }
 
-/** The raw config text. ok is false (with error) for a config-directory instance. */
+/** The raw config text (single file or selected config-directory fragment). */
 export interface ConfigFile {
   ok: boolean
   error: string
+  mode?: string
+  file?: string
+  files?: string[]
   path: string
   raw: string
   mtime: number

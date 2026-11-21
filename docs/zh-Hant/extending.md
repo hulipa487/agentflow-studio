@@ -191,7 +191,6 @@ expect_contains: ["help"]
 | 記憶設定檔 `recall: plugin:recency` | `memory_recall_handler(query, opts)` | prelude 的 `memory.recall` |
 | 記憶設定檔 `recall: plugin:semantic` | `memory_semantic_recall_handler(query, opts)` | prelude 的 `memory.recall` |
 | 支援程式碼區塊 `plugin:token_budget` | `token_budget(messages, budget)` | 迴圈，在需要修剪提示詞時 |
-| 支援程式碼區塊 `plugin:fact_extractor` | `fact_extractor_turn(turn)` | 迴圈，在一輪結束後 |
 | 迴圈外掛 `plugin:per_chat` | `loop()` | 沒有——它*本身*就是迴圈，不是輔助函式 |
 
 > **本節過去的內容**：先前列出了 26 個掛鉤——`gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等——附有種類、簽章與預設值，並聲稱由核心分派。實際上並不存在分派器，所以定義這些名稱的外掛會默默地永遠不被呼叫。其中兩個指向內建項目（`shell.before_exec` 的 `plugin:exec_policy`、`shell.teardown` 的 `plugin:ttl`），它們會載入每個工作階段狀態，卻沒有任何東西呼叫；兩者現已移除。**Shell 指令只受 `shell.exec` 能力控管——沒有指令原則過濾器。** 迴圈當機時會重新啟動，檔案變更時會熱重新載入，這正是 `session.resume` 與 `core.on_reload` 想要達成的；需要在這兩種情況之間保留狀態的迴圈，請使用 `session.state.*`。

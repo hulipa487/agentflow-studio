@@ -1,11 +1,11 @@
 ## Lua 外掛程式開發
 
-AgentFlow 外掛程式就是一般的 [Luau](https://luau-lang.org/) 指令碼。YAML 決定哪個代理執行哪個外掛程式；外掛程式決定行為。本文件中的長篇指南（迴圈）涵蓋執行模型、完整 API、可執行的範例模式與常見陷阱清單；本節是參考摘要。
+AgentFlow 外掛程式是標準的 Lua 5.1 指令碼，由內建純 Go 虛擬機器（`gopher-lua`，附帶可暫停的 `pcall`/`xpcall`、`utf8`、`bit32` 與 `table.unpack`/`pack` 輔助函式）執行。YAML 決定哪個代理執行哪個外掛程式；外掛程式決定行為。本文件中的長篇指南（迴圈）涵蓋執行模型、完整 API、可執行的範例模式與常見陷阱清單；本節是參考摘要。
 
 外掛程式有三種：
 
 - **迴圈外掛程式**：定義一個全域 `loop()` 函式，在工作階段的整個生命週期內持有其協程。標準寫法是 `while true do local msg = session.inbox() ... end`。
-- **支援程式碼區塊**：在迴圈外掛程式*之前*載入到每個工作階段狀態中。支援程式碼區塊定義迴圈會讀取的全域變數與輔助函式。`plugin:token_budget`、`plugin:routing_table`、`plugin:recency`、`plugin:semantic`、`plugin:fact_extractor` 等內建項目都是支援程式碼區塊。
+- **支援程式碼區塊**：在迴圈外掛程式*之前*載入到每個工作階段狀態中。支援程式碼區塊定義迴圈會讀取的全域變數與輔助函式。`plugin:token_budget`、`plugin:routing_table`、`plugin:recency` 及 `plugin:semantic` 等內建項目都是支援程式碼區塊。
 - **遮蔽（shadow）**：放在 `plugins/` 中、與某個內建項目同名的使用者外掛程式。它會在載入時於整個執行個體範圍內取代該內建項目。
 
 ### 非同步橋接
@@ -282,7 +282,7 @@ shell.write(id, path, content)
 shell.destroy(id)
 ```
 
-**沙箱 shell 這種東西並不存在。** `shell.run` 是在一個 [gVisor](https://gvisor.dev) 沙箱中執行的一個命令，沙箱為該命令啟動、執行完即銷毀。沙箱會得到兩樣東西：一個宣告的**環境**作為唯讀根檔案系統，以及檔案儲存區中的一個**專案**，以讀寫方式掛載在 `/workspace`，命令就從那裡開始執行。`/tmp` 和家目錄以記憶體為後端，用完即捨棄。沒有網路。命令結束時，引擎會比較專案目錄與它當初放進去的內容，並把差異寫回專案的工作樹，也就是 `files.*` 讀寫的同一棵樹。何時 `files.commit` 由迴圈決定。
+**沙箱 shell 這種東西並不存在。** `shell.run` 是在一個一次性沙箱（[gVisor](https://gvisor.dev) `runsc` 或 [microsandbox](https://github.com/superradcompany/microsandbox) `msb`）中執行的一個命令，沙箱為該命令啟動、執行完即銷毀。沙箱會得到兩樣東西：一個宣告的**環境**作為工具鏈根目錄，以及檔案儲存區中的一個**專案**，以讀寫方式掛載在 `/workspace`，命令就從那裡開始執行。`/workspace` 以外的暫時狀態在結束後即捨棄。沒有網路。命令結束時，引擎會比較專案目錄與它當初放進去的內容，並把差異寫回專案的工作樹，也就是 `files.*` 讀寫的同一棵樹。何時 `files.commit` 由迴圈決定。
 
 所以迴圈要遵守的規則很簡短：
 

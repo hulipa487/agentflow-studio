@@ -3,7 +3,8 @@
 // them.
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { FileCode } from 'lucide-react'
+import { Code2, FileCode } from 'lucide-react'
+import { bundledExamples } from '@/docs/examples'
 import { DOC_ASSETS, DOC_SECTIONS, docHeadingIDs, docPages, docTitle, readDoc, searchDocs, type DocPage } from '@/docs/library'
 import { SearchBox, cx } from '@/components/ui'
 import { t, useLang } from '@/i18n'
@@ -29,18 +30,24 @@ function Marked({ text, query }: { text: string; query: string }) {
 export function Sidebar({
   current,
   asset,
+  example,
   query,
   onQuery,
   onAsset,
+  onExample,
 }: {
   current: DocPage
   /** The contract file being viewed, if any. */
   asset: string
+  /** The bundled example loop slug being viewed, if any. */
+  example: string
   query: string
   onQuery: (q: string) => void
   onAsset: (path: string) => void
+  onExample: (slug: string) => void
 }) {
   const pages = docPages()
+  const examples = bundledExamples()
   const searching = query.trim() !== ''
   // Search reads the guides in the current language.
   const lang = useLang()
@@ -61,6 +68,8 @@ export function Sidebar({
     return keys.map((key) => ({ key, pages: pages.filter((p) => p.sectionKey === key) })).filter((s) => s.pages.length > 0)
   }, [pages])
 
+  const noOverlay = asset === '' && example === ''
+
   return (
     <aside className="flex w-[264px] shrink-0 flex-col border-r border-line bg-surface" aria-label={t('docs.title')}>
       <div className="shrink-0 border-b border-line px-3 pb-3 pt-3">
@@ -76,7 +85,7 @@ export function Sidebar({
               <Link
                 key={r.page.slug}
                 to={docPath(r.page.slug, r.anchor)}
-                className={cx(ITEM, 'flex-col !items-start gap-0.5 py-1.5', r.page.slug === current.slug && asset === '' ? ACTIVE : IDLE)}
+                className={cx(ITEM, 'flex-col !items-start gap-0.5 py-1.5', r.page.slug === current.slug && noOverlay ? ACTIVE : IDLE)}
               >
                 <span className="w-full truncate text-text">
                   <Marked text={docTitle(r.page)} query={query} />
@@ -95,7 +104,7 @@ export function Sidebar({
               <div key={s.key}>
                 <div className={CAPTION}>{t(s.key)}</div>
                 {s.pages.map((p) => {
-                  const active = p.slug === current.slug && asset === ''
+                  const active = p.slug === current.slug && noOverlay
                   return (
                     <Link key={p.slug} to={docPath(p.slug)} aria-current={active ? 'page' : undefined} className={cx(ITEM, 'relative', active ? ACTIVE : IDLE)}>
                       {active && <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-accent" />}
@@ -112,6 +121,23 @@ export function Sidebar({
                 <span className="min-w-0 flex-1 truncate">{t(a.titleKey)}</span>
               </button>
             ))}
+            {examples.length > 0 && (
+              <>
+                <div className={CAPTION}>{t('docs.examples')}</div>
+                {examples.map((ex) => (
+                  <button
+                    key={ex.slug}
+                    type="button"
+                    onClick={() => onExample(ex.slug)}
+                    title={ex.summary || ex.file}
+                    className={cx(ITEM, example === ex.slug ? ACTIVE : IDLE)}
+                  >
+                    <Code2 className="size-[15px] shrink-0" strokeWidth={1.9} />
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs">{ex.file}</span>
+                  </button>
+                ))}
+              </>
+            )}
           </>
         )}
       </nav>

@@ -1,6 +1,6 @@
 // The Playground's data model and the pure rules ported from the desktop
 // app's playground.go: trace filters, row tones, cost and detail lines.
-import type { TraceEvent } from '@/api/types'
+import type { MediaPart, TraceEvent } from '@/api/types'
 import type { Tone } from '@/components/ui'
 import { t, type Params } from '@/i18n'
 
@@ -44,6 +44,8 @@ export interface Message {
   fromTrace?: boolean
   /** A delivery status other than "delivered", or a note about parts not shown. */
   note?: string
+  /** Media attachments returned with an agent reply. */
+  attachments?: MediaPart[]
 }
 
 let lastMessageID = 0

@@ -2,7 +2,8 @@
 // A failure points at the field to fix, and nothing is saved until a
 // connection has actually worked.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Eye, EyeOff, Moon, Sun, Trash2, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowRight, BookOpen, Eye, EyeOff, Moon, Sun, Trash2, X } from 'lucide-react'
 import { ApiError, errorMessage, normalizeURL, probeProxy, transportOf, type Transport } from '@/api/client'
 import { describeURL } from '@/api/describe'
 import { Banner, BrandBanner, Button, Checkbox, Chip, Field, IconButton, Input, Segmented, Spinner, cx } from '@/components/ui'
@@ -24,6 +25,7 @@ const EXAMPLES: Record<Transport, string> = {
 type Msg = { key: string; params?: Params } | { text: string } | { described: true }
 
 export default function Login() {
+  const navigate = useNavigate()
   const profiles = useConnections((s) => s.profiles)
   const active = useConnections((s) => s.active)
   const connect = useSession((s) => s.connect)
@@ -66,6 +68,17 @@ export default function Login() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault()
+        navigate('/docs')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navigate])
 
   useEffect(() => {
     // Start in the field that still needs typing.
@@ -339,8 +352,12 @@ export default function Login() {
           )}
         </form>
 
-        <div className="mt-4 flex items-center gap-2 text-xs text-faint">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-faint">
           <span>{t('login.version', { version: APP_VERSION })}</span>
+          <button type="button" onClick={() => navigate('/docs')} className="inline-flex items-center gap-1.5 rounded px-1.5 py-1 font-medium text-muted hover:bg-hover hover:text-text">
+            <BookOpen className="size-3.5" />
+            {t('login.browseDocs')}
+          </button>
           <button type="button" onClick={toggleTheme} className="inline-flex items-center gap-1.5 rounded px-1.5 py-1 font-medium text-muted hover:bg-hover hover:text-text">
             {mode === 'light' ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
             {mode === 'light' ? t('login.darkMode') : t('login.lightMode')}

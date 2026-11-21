@@ -237,7 +237,7 @@ profiles:
       recall: plugin:recency
 ```
 
-`scope: agent` 讓群組中的每個人共用同一份紀錄。agentflow 儲存庫中的 `examples/qq-group-chat` 情境是完整版本。
+`scope: agent` 讓群組中的每個人共用同一份紀錄。`agentflow-studio` 儲存庫中的 `examples/qq-group-chat` 情境是完整版本。
 
 ### 以 SQLite 建立知識庫，不需額外伺服器
 

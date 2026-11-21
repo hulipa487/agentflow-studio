@@ -39,7 +39,7 @@
 │  llm:    anthropic · openai · openai-responses · gemini · rerank (base_url)   │
 │  memory: sqlite · redis · postgres · volatile · pgvector · qdrant · redisvector│
 │  tools:  builtin:* · tools.http (declarative) · MCP (stdio | Streamable HTTP) │
-│  shell:  gVisor jobs · ssh   mail: imap + smtp   files: fs | s3   net: netguard│
+│  shell:  sandbox (gVisor · microsandbox) · ssh   mail: imap+smtp   files: fs│
 └───────────┬──────────────────────────────────────────────────────────────────┘
             │ session.send / session.push / session.push_user
             ▼
@@ -202,5 +202,5 @@ files: { backend: s3, s3: { bucket: agentflow-files, region: eu-west-1 } }
 - **比较配置纪元。** `/admin/api/state` 报告 `config_epoch`，即按原样写入的配置片段的短哈希，并标出纪元不一致的运行中实例。两个实例不一致，说明其中一个运行着不同的部署；轮换密钥不会改变它（它哈希的是写入的内容，而不是解析后的内容）。
 - **在控制台中编辑配置只会影响一个实例。** 模型标签页会热应用到提供该控制台的进程；重载监视器覆盖循环、指令和提示词文件，不包括模型注册表。请持久化到配置文件，然后滚动更新集群。
 - **租约和收件箱位于运行时存储中。** 它们必须共用一个目标：租约在一处而收件箱在另一处，会把会话路由给一个永远看不到其消息的所有者。正因如此，`runtime.cluster.persistence` 已被弃用。
-- **每个实例都需要沙箱才能运行 shell 作业。** 作业在拥有该会话的实例上运行，所以每个实例都需要 `runsc` 和非特权用户命名空间，并在第一次使用某个环境时拉取它的镜像。项目和后台作业记录都在共享存储中；实例上的工作区目录只是它们的缓存。
+- **每个实例都需要沙箱才能运行 shell 作业。** 作业在拥有该会话的实例上运行，所以每个实例都需要所配置的沙箱运行时（`gvisor` 需要 `runsc` 和非特权用户命名空间；`microsandbox` 需要 `msb` 与虚拟化权限）及其环境镜像。项目和后台作业记录都在共享存储中；实例上的工作区目录只是它们的缓存。
 - **每个项目每个实例同时只运行一个作业，而不是每个单元一个。** 当同一用户的两个会话落在不同实例上时，两个实例可能同时在同一个项目上运行命令。双方不会互相覆盖：两边都改动过的路径保留先存储的版本，后完成的作业会将其报告为冲突。

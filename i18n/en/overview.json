@@ -56,5 +56,8 @@
   "overview.colLastSeen": "Last seen",
   "overview.seenNow": "now",
   "overview.seenAgo": "{duration} ago",
-  "overview.epochDiffers": "{epoch} (differs)"
+  "overview.epochDiffers": "{epoch} (differs)",
+  "overview.onboarding": "No agents yet — get started by configuring a model, creating an agent, and testing it in Playground.",
+  "overview.extraMetrics": "Runtime metrics",
+  "overview.extraMetricsSubtitle": "{n, plural, one {# additional counter series} other {# additional counter series}}"
 }

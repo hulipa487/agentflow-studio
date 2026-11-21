@@ -2,7 +2,7 @@
 
 这是一份用 Luau 编写 AgentFlow 会话循环的实用指南：执行模型、完整的 Lua API、实际可用的模式，以及容易犯的错误。
 
-这些模式的可运行版本位于 [`examples/loops/`](https://github.com/hulipa487/agentflow/tree/main/examples/loops)。
+这些模式的可运行版本位于 [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops)。
 
 内置的 Luau 类型定义位于 [luau/af.d.luau](luau/af.d.luau)；可以从本页打开，在编辑器中查看 API 全貌。
 
@@ -398,7 +398,7 @@ scheduler.cron(expr) -> { id }
 scheduler.cancel(id)
 ```
 
-定时器会把 `Message{ type = "timer", payload = { timer_id = id } }` 投递到同一个会话。它们保存在内存中，范围限于会话：重启会让它们丢失，而热重载会重启循环但**不会**清除定时器，所以不加判断地重新注册会产生重复。先取消记住的 ID（见 [`scheduled.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/scheduled.lua)）。
+定时器会把 `Message{ type = "timer", payload = { timer_id = id } }` 投递到同一个会话。它们保存在内存中，范围限于会话：重启会让它们丢失，而热重载会重启循环但**不会**清除定时器，所以不加判断地重新注册会产生重复。先取消记住的 ID（见 [`scheduled.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/scheduled.lua)）。
 
 `scheduler.cron` 只支持一个子集：`*/N * * * *` 和 `30 9 * * *` 这样的固定形式；日、月和星期几必须是 `*`，并且 `*/N` 形式的分钟不能与固定的小时搭配。更复杂的计划请使用 `every`/`after`（或引擎触发器）。
 
@@ -430,7 +430,7 @@ llm.rerank(query, documents, opts?) -> { results = [ { index, score } ] }
 
 `usage` 为 `{ input, output, cached, cache_write, reasoning }`，取决于提供商报告了哪些项。
 
-**流式输出。** 直接调用 `next_delta`；泛型 `for` 会被拒绝，因为迭代器会跨越桥接层让出执行。迭代器在完成时自行关闭；提前退出后要调用 `close()`。它只返回文本增量——用量和工具调用请用 `llm.chat` 获取。见 [`stream.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/stream.lua)。
+**流式输出。** 直接调用 `next_delta`；泛型 `for` 会被拒绝，因为迭代器会跨越桥接层让出执行。迭代器在完成时自行关闭；提前退出后要调用 `close()`。它只返回文本增量——用量和工具调用请用 `llm.chat` 获取。见 [`stream.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/stream.lua)。
 
 **嵌入。** `llm.embed` 接受单个字符串、字符串数组，或字符串与部件表（`{type="image", handle=..., url=...}`）混合的数组；`merged = true` 会把所有内容合并为一个向量（Jina 内容组）。`llm.rerank` 返回指向 `documents` 的从 0 开始的索引。
 
@@ -594,11 +594,11 @@ json.decode(text) -> value
 
 ## 7. 模式
 
-下面每个模式在 `examples/loops/` 中都有一个可运行的文件。要看把它们组合起来的完整部署——带记忆的 QQ 群聊机器人、Telegram RAG 机器人、GitHub 拉取请求代码智能体、chat/completions 端点——请参阅 [`examples/`](https://github.com/hulipa487/agentflow/tree/main/examples) 中的场景。
+下面每个模式在 `examples/loops/` 中都有一个可运行的文件。要看把它们组合起来的完整部署——带记忆的 QQ 群聊机器人、Telegram RAG 机器人、GitHub 拉取请求代码智能体、chat/completions 端点——请参阅 [`examples/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples) 中的场景。
 
 ### 7.1 请求/响应
 
-[`echo.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/echo.lua)——最小的循环。
+[`echo.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/echo.lua)——最小的循环。
 
 ```lua
 function loop()
@@ -611,7 +611,7 @@ end
 
 ### 7.2 带记忆的对话智能体
 
-[`chat.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/chat.lua) 召回最近的轮次，构建提示词，按历史预算裁剪，回复，然后记录本轮次。
+[`chat.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/chat.lua) 召回最近的轮次，构建提示词，按历史预算裁剪，回复，然后记录本轮次。
 
 ```lua
 local info = agent.info()
@@ -637,11 +637,11 @@ memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text }
 
 ### 7.3 流式输出
 
-[`stream.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/stream.lua)——直接使用迭代器，提前退出时调用 `close()`。记住：只有文本增量；泛型 `for` 不起作用。
+[`stream.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/stream.lua)——直接使用迭代器，提前退出时调用 `close()`。记住：只有文本增量；泛型 `for` 不起作用。
 
 ### 7.4 多轮工具循环
 
-[`tool_loop.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/tool_loop.lua)——完整结构：
+[`tool_loop.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/tool_loop.lua)——完整结构：
 
 1. 发送用户轮次，并带上 `tools = tools.list()`；
 2. 如果回复包含 `tool_calls`，追加该**助手**轮次（包括其工具调用和思考块）；
@@ -657,15 +657,15 @@ memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text }
 
 ### 7.6 定时器与周期性工作
 
-[`scheduled.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/scheduled.lua) 以幂等方式注册定时器，并通过 `payload.timer_id` 区分它们。定时器轮次没有渠道；不要在其中调用 `session.send`。
+[`scheduled.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/scheduled.lua) 以幂等方式注册定时器，并通过 `payload.timer_id` 区分它们。定时器轮次没有渠道；不要在其中调用 `session.send`。
 
 ### 7.7 常驻智能体
 
-[`daemon.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/daemon.lua) 处理 `persistent: true` 智能体在启动时收到的合成 `boot` 消息，然后处理用户消息和它自己的定时器触发。常驻智能体是一个会话；在集群中恰好由一个实例持有它。
+[`daemon.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/daemon.lua) 处理 `persistent: true` 智能体在启动时收到的合成 `boot` 消息，然后处理用户消息和它自己的定时器触发。常驻智能体是一个会话；在集群中恰好由一个实例持有它。
 
 ### 7.8 多智能体委派
 
-[`delegate.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/delegate.lua) 从一个 `profiles.agent` 模板派生子智能体，并等待请求/回复：
+[`delegate.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/delegate.lua) 从一个 `profiles.agent` 模板派生子智能体，并等待请求/回复：
 
 ```lua
 local child = agent.spawn("researcher")
@@ -687,7 +687,7 @@ end
 
 ### 7.9 文件与快照
 
-[`files.lua`](https://github.com/hulipa487/agentflow/blob/main/examples/loops/files.lua) 写入一条笔记，列出项目，并提交一个快照。用 `files.checkout` 恢复目录树，或用 `shell.run("make", { project = "..." })` 在工作树上执行命令。
+[`files.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/files.lua) 写入一条笔记，列出项目，并提交一个快照。用 `files.checkout` 恢复目录树，或用 `shell.run("make", { project = "..." })` 在工作树上执行命令。
 
 ### 7.10 使用存储凭据的 HTTP 请求
 
@@ -809,10 +809,10 @@ local reply = llm.chat(messages, { model = info.model })
 ### 在终端中
 
 ```bash
-./agentflow run -config agentflow.yaml -log-level debug -no-tui
+./agentflow run -config agentflow.yaml -log-level debug
 ```
 
-`debug` 会记录每一次 op 调度、LLM 请求、记忆操作和工具调用。循环中的 `log.info` 也出现在同一个日志流中。Web 控制台的日志尾随（SSE）就是同一份输出。
+`debug` 会记录每一次 op 调度、LLM 请求、记忆操作和工具调用。循环中的 `log.info` 也出现在同一个日志流中。AgentFlow Studio 的日志视图（`/admin/api/logs` SSE）就是同一份输出。
 
 ### 热重载
 
@@ -882,7 +882,7 @@ local reply = llm.chat(messages, { model = info.model })
 
 ### 辅助代码块
 
-五个内置代码块会在循环**之前**加载进每个会话状态：`token_budget`、`routing_table`、`recency`、`semantic`、`fact_extractor`。它们定义了你的循环可以调用的全局变量：
+四个内置代码块会在循环**之前**加载进每个会话状态：`token_budget`、`routing_table`、`recency`、`semantic`。它们定义了你的循环可以调用的全局变量：
 
 | 代码块 | 全局变量 | 使用方 |
 |---|---|---|
@@ -890,7 +890,6 @@ local reply = llm.chat(messages, { model = info.model })
 | `plugin:routing_table` | `memory_routing_table(record)` | `memory.write` |
 | `plugin:recency` | `memory_recall_handler(query, opts)` | `memory.recall` |
 | `plugin:semantic` | `memory_semantic_recall_handler(query, opts)` | `memory.recall` |
-| `plugin:fact_extractor` | `fact_extractor_turn(turn)` | 你的循环，在一个轮次之后 |
 
 要替换其中一个，在 `plugins.dir` 中放一个同名文件（例如 `plugins/recency.lua`）。它会在整个部署范围内覆盖该内置代码块；覆盖文件受到监视，并在每个会话启动时加载，因此编辑后无需重启进程即可生效。覆盖文件同样受版本约束。
 
@@ -938,5 +937,5 @@ end
 
 - [完整配置参考](configuration.md)——智能体、记忆、能力、触发器、MCP、渠道。
 - [Lua 插件开发](loops-reference.md)——内置文档的 API 表和多模态矩阵。
-- [`examples/loops/`](https://github.com/hulipa487/agentflow/tree/main/examples/loops)——上面所有可运行的模式。
+- [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops)——上面所有可运行的模式。
 - [`agentflow.yaml`](https://github.com/hulipa487/agentflow/blob/main/agentflow.yaml)——示例部署（仓库在 gitignore 中忽略了该文件，因为它是本地实例的配置；纳入版本管理的示例片段位于 `examples/` 下）。

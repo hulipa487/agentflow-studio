@@ -39,7 +39,7 @@
 │  llm:    anthropic · openai · openai-responses · gemini · rerank (base_url)   │
 │  memory: sqlite · redis · postgres · volatile · pgvector · qdrant · redisvector│
 │  tools:  builtin:* · tools.http (declarative) · MCP (stdio | Streamable HTTP) │
-│  shell:  gVisor jobs · ssh   mail: imap + smtp   files: fs | s3   net: netguard│
+│  shell:  sandbox (gVisor · microsandbox) · ssh   mail: imap+smtp   files: fs│
 └───────────┬──────────────────────────────────────────────────────────────────┘
             │ session.send / session.push / session.push_user
             ▼
@@ -202,5 +202,5 @@ files: { backend: s3, s3: { bucket: agentflow-files, region: eu-west-1 } }
 - **比較組態紀元。** `/admin/api/state` 會回報 `config_epoch`，也就是組態片段原始寫法的短雜湊，並標出紀元不同的執行中執行個體。兩個執行個體不一致，表示其中一個執行的是不同的部署；輪替密鑰不會改變它（它雜湊的是寫下的內容，而不是解析後的內容）。
 - **在主控台編輯組態只會影響一個執行個體。** 模型分頁會把變更熱套用到提供該主控台的行程；重新載入監看器涵蓋迴圈、指令與提示詞檔案，但不涵蓋模型登錄。請先永久儲存到組態檔，再滾動更新叢集。
 - **租約與收件匣放在執行環境儲存區。** 它們必須共用同一個目標：租約在一處、收件匣在另一處，會把工作階段路由給一個永遠看不到其訊息的擁有者。`runtime.cluster.persistence` 正是因此被淘汰。
-- **每個執行個體都需要沙箱才能執行 shell 工作。** 工作在擁有該工作階段的執行個體上執行，所以每一個都需要 `runsc` 與非特權使用者命名空間，並在第一次使用某個環境時拉取其映像。專案與背景工作記錄存放在共用儲存區；執行個體上的工作區目錄只是它們的快取。
+- **每個執行個體都需要沙箱才能執行 shell 工作。** 工作在擁有該工作階段的執行個體上執行，所以每一個都需要所設定的沙箱執行環境（`gvisor` 需要 `runsc` 與非特權使用者命名空間；`microsandbox` 需要 `msb` 與虛擬化存取權限）及其環境映像。專案與背景工作記錄存放在共用儲存區；執行個體上的工作區目錄只是它們的快取。
 - **每個專案在每個執行個體上一次只執行一個工作，而不是在每個單元上。** 當同一位使用者的兩個工作階段落在不同執行個體上時，兩個執行個體可以同時對同一個專案執行命令。兩者不會互相覆寫：雙方都改過的路徑會保留先儲存的版本，較晚的工作則把它回報為衝突。

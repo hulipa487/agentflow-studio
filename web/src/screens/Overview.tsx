@@ -96,6 +96,17 @@ export default function Overview() {
       <AsyncView loading={loading} error={error} hasData={!!data} retry={() => reload()} loadingText={t('overview.loading')}>
         {st && (
           <div className="flex flex-col gap-3">
+            {agents.length === 0 && (
+              <Banner tone="accent">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>{t('overview.onboarding')}</span>
+                  <Button size="sm" onClick={() => navigate('/models')}>{t('nav.models')}</Button>
+                  <Button size="sm" variant="primary" onClick={() => navigate('/new-agent')}>{t('agents.newAgent')}</Button>
+                  <Button size="sm" onClick={() => navigate('/channels')}>{t('nav.channels')}</Button>
+                </span>
+              </Banner>
+            )}
+
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               <StatTile
                 label={t('overview.liveSessions')}
@@ -193,6 +204,33 @@ export default function Overview() {
                 </Section>
               </div>
             </div>
+
+            {data.metrics && (() => {
+              const primary = new Set(COUNTERS.map((c) => c.name))
+              const extraNames = Object.keys(data.metrics.series ?? {})
+                .filter((name) => !primary.has(name))
+                .sort()
+              if (extraNames.length === 0) return null
+              return (
+                <Section title={t('overview.extraMetrics')} subtitle={t('overview.extraMetricsSubtitle', { n: extraNames.length })}>
+                  <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-3 xl:grid-cols-4">
+                    {extraNames.map((name) => {
+                      const vals = (data.metrics!.series?.[name] ?? []).map((p) => p.v)
+                      const delta = vals.length > 1 ? t('overview.counterDelta', { delta: humanCount(vals[vals.length - 1] - vals[0]) }) : undefined
+                      return (
+                        <StatTile
+                          key={name}
+                          label={name.replace(/^agentflow_/, '').replace(/_/g, ' ')}
+                          value={humanCount(data.metrics!.latest?.[name] ?? 0)}
+                          sub={delta}
+                          spark={vals}
+                        />
+                      )
+                    })}
+                  </div>
+                </Section>
+              )
+            })()}
 
             <Section
               title={t('overview.instances')}

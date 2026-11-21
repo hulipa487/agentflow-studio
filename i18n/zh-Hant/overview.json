@@ -56,5 +56,8 @@
   "overview.colLastSeen": "最後上線",
   "overview.seenNow": "剛剛",
   "overview.seenAgo": "{duration}前",
-  "overview.epochDiffers": "{epoch}（不一致）"
+  "overview.epochDiffers": "{epoch}（不一致）",
+  "overview.onboarding": "尚無代理——可先設定模型、建立一個代理，並在遊樂場中測試。",
+  "overview.extraMetrics": "執行環境指標",
+  "overview.extraMetricsSubtitle": "另有 {n} 個計數器序列"
 }

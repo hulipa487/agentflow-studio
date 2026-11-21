@@ -60,13 +60,30 @@ export interface ModelForm {
   timeout: string
   retry: string
   maxTokens: string
+  stream: string
   thinking: string
   serverTools: string
+  keySource: string
+  credential: string
 }
 
 export function formFor(existing: Model | null): ModelForm {
   if (!existing) {
-    return { name: '', provider: 'openai', model: '', apiKey: '', baseURL: '', timeout: '', retry: '', maxTokens: '', thinking: '', serverTools: '' }
+    return {
+      name: '',
+      provider: 'openai',
+      model: '',
+      apiKey: '',
+      baseURL: '',
+      timeout: '',
+      retry: '',
+      maxTokens: '',
+      stream: '',
+      thinking: '',
+      serverTools: '',
+      keySource: '',
+      credential: '',
+    }
   }
   return {
     name: existing.name,
@@ -78,8 +95,11 @@ export function formFor(existing: Model | null): ModelForm {
     timeout: existing.timeout ?? '',
     retry: existing.retry > 0 ? String(existing.retry) : '',
     maxTokens: existing.max_tokens > 0 ? String(existing.max_tokens) : '',
+    stream: existing.stream === true ? 'true' : existing.stream === false ? 'false' : '',
     thinking: existing.thinking ?? '',
     serverTools: (existing.server_tools ?? []).join(', '),
+    keySource: existing.key_source ?? '',
+    credential: existing.credential ?? '',
   }
 }
 
@@ -105,6 +125,9 @@ export function buildDraft(f: ModelForm): DraftResult {
   if (retry === null) return { error: t('models.error.retry') }
   const maxTokens = count(f.maxTokens)
   if (maxTokens === null) return { error: t('models.error.maxTokens') }
+  const stream = f.stream === 'true' ? true : f.stream === 'false' ? false : undefined
+  const keySource = f.keySource.trim()
+  const credential = f.credential.trim()
   return {
     name,
     draft: {
@@ -115,8 +138,11 @@ export function buildDraft(f: ModelForm): DraftResult {
       timeout: f.timeout.trim(),
       retry,
       max_tokens: maxTokens,
+      ...(stream !== undefined ? { stream } : {}),
       thinking: f.thinking,
       server_tools: splitList(f.serverTools),
+      ...(keySource ? { key_source: keySource } : {}),
+      ...(credential ? { credential } : {}),
     },
   }
 }

@@ -4,21 +4,17 @@
 // answer from an earlier turn, thread or agent is never applied.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, type Client } from '@/api/client'
-import type { ChatEvent, Reply, Thread, TraceEvent } from '@/api/types'
+import type { ChatEvent, MediaPart, Reply, Thread, TraceEvent } from '@/api/types'
 import { t } from '@/i18n'
 import { newThreadID, shortID } from '@/lib/format'
 import { toastError } from '@/state/ui'
 import { READY, appendEvent, joinReply, messageID, transcriptFromTrace, type Message, type Status } from './model'
 
-// The typed Reply names only text and status; the runtime also sends any
-// attachments, which a text transcript cannot show.
-type WireReply = Reply & { attachments?: unknown[] | null }
+type WireReply = Reply & { attachments?: MediaPart[] | null }
 
 function replyNote(r: WireReply): string {
   const notes: string[] = []
   if (r.status && r.status !== 'delivered') notes.push(r.status)
-  const n = r.attachments?.length ?? 0
-  if (n > 0) notes.push(t('playground.attachmentsNotShown', { n }))
   return notes.join(' · ')
 }
 
@@ -41,8 +37,8 @@ export interface ChatSession {
   refreshTrace: () => Promise<void>
   loadThreads: () => void
   stop: () => Promise<void>
-  /** Starts a turn; false when one is already running or the text is blank. */
-  send: (text: string, actAs?: string) => boolean
+  /** Starts a turn; false when one is already running or both text and attachments are blank. */
+  send: (text: string, actAs?: string, attachments?: MediaPart[]) => boolean
   /** True while a turn is in flight, readable before the next render. */
   busy: () => boolean
 }
@@ -205,9 +201,10 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
     }
   }, [client])
 
-  const send = (text: string, actAs = ''): boolean => {
+  const send = (text: string, actAs = '', attachments?: MediaPart[]): boolean => {
     const { agent: a, thread: th } = session.current
-    if (inFlight.current || a === '' || text.trim() === '') return false
+    const atts = attachments && attachments.length > 0 ? attachments : undefined
+    if (inFlight.current || a === '' || (text.trim() === '' && !atts)) return false
     inFlight.current = true
     setSending(true)
     setStatus({ key: 'playground.statusRunning', tone: 'accent' })
@@ -215,7 +212,7 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
     setEvents(null)
 
     const now = new Date()
-    const asked: Message = { id: messageID(), role: 'you', text, at: now }
+    const asked: Message = { id: messageID(), role: 'you', text, at: now, attachments: atts }
     const pending = messageID()
     setMessages((m) => [...m, asked, { id: pending, role: 'agent', text: '', at: now, pending: true }])
 
@@ -270,6 +267,7 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
           if (ev.reply) {
             const reply: WireReply = ev.reply
             const note = replyNote(reply)
+            const atts = reply.attachments?.length ? reply.attachments : undefined
             setMessages((m) =>
               m.map((x) =>
                 x.id === pending
@@ -277,6 +275,7 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
                       ...x,
                       text: joinReply(x.text, reply.text ?? ''),
                       note: note || x.note,
+                      attachments: atts ? [...(x.attachments ?? []), ...atts] : x.attachments,
                     }
                   : x,
               ),
@@ -344,6 +343,7 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
           agent: a,
           thread: th,
           text,
+          ...(atts ? { attachments: atts } : {}),
           ...(acting ? { act_as_user: acting } : {}),
         },
         onEvent,

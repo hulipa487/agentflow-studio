@@ -65,10 +65,12 @@ interface UIState {
   dialog: Dialog | null
   paletteOpen: boolean
   newAgentOpen: boolean
+  shortcutsOpen: boolean
   railCollapsed: boolean
   actions: ScreenActions
   setPalette: (open: boolean) => void
   setNewAgent: (open: boolean) => void
+  setShortcuts: (open: boolean) => void
   toggleRail: () => void
   dismissToast: (id: number) => void
   closeDialog: () => void
@@ -83,6 +85,7 @@ export const useUI = create<UIState>((set) => ({
   dialog: null,
   paletteOpen: false,
   newAgentOpen: false,
+  shortcutsOpen: false,
   railCollapsed: (() => {
     try {
       return localStorage.getItem(RAIL_KEY) === '1'
@@ -93,6 +96,7 @@ export const useUI = create<UIState>((set) => ({
   actions: {},
   setPalette: (paletteOpen) => set({ paletteOpen }),
   setNewAgent: (newAgentOpen) => set({ newAgentOpen }),
+  setShortcuts: (shortcutsOpen) => set({ shortcutsOpen }),
   toggleRail: () =>
     set((s) => {
       try {

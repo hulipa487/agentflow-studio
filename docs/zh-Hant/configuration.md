@@ -67,10 +67,8 @@ YAML 定義的是*拓撲*：有哪些東西、彼此如何連接。行為寫在 
 
 | 鍵 | 型別 | 預設值 | 說明 |
 | --- | --- | --- | --- |
-| `vm.memory_limit` | string | — | 限制每個 Luau 狀態的總配置量（`b`/`kb`/`mb`/`gb`；留空表示不設上限）。會套用到每個新的工作階段；超額配置會以 Luau 記憶體不足錯誤呈現。搭配 `limits.sessions_per_tenant`，可限制一個租戶的 VM 占用量 |
-| `vm.instruction_budget` | string | — | **已淘汰，沒有作用。** 每次恢復執行的預算固定為 5,000,000。設定時會發出警告 |
+| `vm.memory_limit` | string | — | 純 Go Lua VM（`gopher-lua`）的每狀態軟記憶體上限（`b`/`kb`/`mb`/`gb`/`MiB`/`GiB`；留空表示不設上限）。限制超大字串與資料表配置（`string.rep`、`table.concat`），超限時以 Lua 記憶體不足錯誤呈現 |
 | `scheduler.workers` | int | 8 | 操作池大小。這是唯一設定它的地方 |
-| `reload.watch` | bool | — | **已淘汰，沒有作用。** 重新載入監看器一律執行。設定時會發出警告 |
 | `persistence` | string | sqlite://./data/agentflow.db | 訊息日誌、Token 帳本及其逐次呼叫明細，以及引擎的鍵值資料列（檔案樹、工作階段狀態、路由狀態、shell 控制代碼）存放的位置。排程器的計時器*不*在這裡：計時器服務位於記憶體中，因此重新啟動後所有計時器都會遺失，直到其迴圈重新註冊 |
 | `topology` | string | single | 部署層級：`single`（單一行程）或 `regional`（同一區域內多個執行個體共用一個 PostgreSQL）。未設定即為 `single`。層級決定了其他哪些設定有效；無法滿足的設定會在啟動時被拒絕。見[拓撲](#topology) |
 | `zone` | string | "" | 區域內的可用區標籤（字母、數字與 `. _ -`，最多 32 個字元）。會出現在指標與 `/admin/api/state` 中；它只是標籤，從不影響路由決策 |
@@ -90,21 +88,20 @@ YAML 定義的是*拓撲*：有哪些東西、彼此如何連接。行為寫在 
 | `studio.trace_payloads` | bool | false | 在追蹤事件中包含訊息、回覆與結果文字。中繼資料（操作、模型、耗時、Token、錯誤）一律保留 |
 | `studio.chat_timeout` | duration | 120s | 一個遊樂場輪次最多可等待多久，逾時則帶著部分回覆與 `timed_out` 返回 |
 | `identity.enabled` | bool | false | 為每則傳入訊息產生穩定的使用者 UUID；將 `from` 改寫為 `user:<uuid>`，以啟用 `session.push_user`。開啟它會重新劃分既有狀態的範圍，見表格下方的說明 |
-| `identity.persistence` | string | <persistence dir>/identity.db | 身分登錄表的 sqlite 路徑 |
+| `identity.persistence` | string | <persistence dir>/identity.db | 身分登錄表的 SQLite 路徑或 PostgreSQL DSN（預設沿用 `runtime.persistence`） |
+| `identity.require_registration` | bool | true | 讓未連結的帳號停留在共用服務層（沒有個人範圍、沒有配額身分），直到它連結到使用者資料為止。`false` 會在首次接觸時自動認領一份使用者資料 |
+| `identity.unregistered` | string | allow | 沒有使用者資料的傳送者如何處理：`allow` 繼續在共用層為其服務；`reject` 捨棄傳入訊息，並請對方註冊或連結 |
 | `credentials.enabled` | bool | false | 加密的每租戶憑證儲存區，支撐 `auth={service=...}` |
-| `credentials.path` | string | <persistence dir>/credentials.db | 憑證儲存區的 sqlite 路徑 |
+| `credentials.persistence` | string | <persistence dir>/credentials.db | 憑證儲存區的 SQLite 路徑或 PostgreSQL DSN（預設沿用 `runtime.persistence`） |
 | `credentials.master_key_env` | string | CREDENTIALS\_MASTER\_KEY | 存放主金鑰的環境變數（於啟動時讀取，絕不從檔案讀取） |
 | `credentials.engine_wide` | string | allow | 控管 `credential.get()`，也就是把原始密鑰回傳給 Lua 的操作。`allow`（或留空）讓代理讀取其 `credentials:` 清單中列出的項目；`maintenance` 將其限制於引擎觸發的輪次（啟動、排程器、觸發器），使租戶的輪次永遠看不到引擎全域的密鑰。每租戶路徑，也就是 `http.request` 與 `tools.http` 上的 `auth = {service = ...}`，從不回傳該值 |
 | `users.enabled` | bool | false | 在閘道監聽器上提供公開的 `/v1/users` API（需要 `identity.enabled`） |
 | `users.registration` | string | open | `open` 或 `invite`（來自 `POST /admin/api/users/invites` 的一次性邀請碼） |
-| `users.require_registration` | bool | true | 讓未連結的帳號停留在共用服務層（沒有個人範圍、沒有配額身分），直到它連結到使用者資料為止。`false` 會在首次接觸時自動認領一份使用者資料 |
-| `users.unregistered` | string | allow | 沒有使用者資料的傳送者如何處理：`allow` 繼續在共用層為其服務；`reject` 捨棄傳入訊息，並請對方註冊或連結 |
 | `users.link_ttl` | duration | 10m | 頻道連結碼的有效時間 |
 | `users.push_same_tenant` | bool | false | 讓 `session.push_user` 拒絕當前輪次租戶以外的目標。適用於多租戶聊天產品 |
 | `users.jit_provisioning` | bool | true | 在首次通過驗證的 OIDC 登入時建立使用者資料；`false` 會拒絕未知的主體，直到操作人員為其開通 |
 | `users.oidc.issuer` · `audience` · `jwks_url` | string | — | 身分識別提供者驗證（見下文的*身分識別提供者*） |
 | `users.oidc.subject_claim` · `email_claim` · `name_claim` | string | sub · email · name | 攜帶身分以及開通之使用者資料欄位的權杖宣告 |
-| `cluster.persistence` | string | `persistence` | **已淘汰，設定時會發出警告。** 租約與工作階段收件匣現在一律存放在 `runtime.persistence`。在區域單元中，除非它指向同一目標，否則會被拒絕 |
 | `cluster.session_ttl` | duration | 30s | 工作階段的認領在未續約的情況下能維持多久 |
 | `cluster.poll_interval` | duration | 250ms | 執行個體多久查看一次是否有訊息在等待它所擁有的工作階段，也就是訊息落在錯誤執行個體時增加的延遲 |
 | `region` | string | "" | 此執行個體所服務的區域名稱：指標標籤 `region`、`/admin/api/state` 中的一個欄位，也是執行個體登錄表的一部分。一個區域是一個獨立單元，而非全球部署的分片 |
@@ -181,8 +178,6 @@ Redis 是一個橫跨整個區域的叢集（locality 為 `region`）；`volatil
 | `-log-level` | `info` | `dev`、`debug`、`info`、`warn` 或 `error` |
 | `-log-format` | `text` | `text` 或 `json` |
 | `-log-file PATH` | | 同時將日誌附加到此檔案 |
-| `-no-tui` | 關閉 | 不顯示終端機儀表板；在 stderr 輸出純文字日誌 |
-| `-no-console` | 關閉 | 提供管理 API，但不提供網頁主控台 |
 | `-force-single` | 關閉 | 即使儲存區上似乎有另一個執行個體存活也照樣啟動（僅限 `single`；用於當機後） |
 
 所有命令都遵循相同的慣例：
@@ -202,7 +197,7 @@ Redis 是一個橫跨整個區域的叢集（locality 為 `region`）；`volatil
   `http://127.0.0.1:8080` 尋找管理 API；權杖則是 `-token` 或 `$ADMIN_TOKEN`。
 
 工作者池的大小是 `runtime.scheduler.workers`（沒有對應的旗標）。
-已移除的旗標（`-configdir`、`-workers`、`-log-json`、`-no-webui`、`init -dir`、
+已移除的旗標（`-configdir`、`-workers`、`-log-json`、`-no-tui`、`-no-console`、`-no-webui`、`init -dir`、
 `user export -id`、`user keygen -out`、`migrate blobs -from`、`cred -format`）
 會被拒絕，並附上指出替代方式的訊息。
 
@@ -245,22 +240,17 @@ agentflow migrate blobs ./data/media -kind media -config agentflow.yaml
 
 **部署注意事項。** `POST /register` 會依用戶端位址限制速率，因此位於反向代理伺服器之後的前端也必須在那裡限制速率，否則所有呼叫者都會共用同一個位址。
 
-### 網頁主控台
+### 管理 API
 
-管理伺服器也在 `http://<gateway.listen>/admin/` 提供內嵌的**網頁主控台**（預設開啟；`-no-console` 會停用靜態檔案）：一個給操作人員用的單頁介面，不需要建置步驟，也不需要另外的連接埠。它有四個分頁：
+執行環境本身不內嵌瀏覽器介面或終端機儀表板——它在 `/admin/api/` 下提供無頭的 JSON 與 SSE 控制平面，供 **AgentFlow Studio**（以及自動化指令碼）連線。
 
-- **Dashboard**：執行個體資訊、執行中的工作階段、代理／頻道、建立在憑證儲存區之上的 API 金鑰管理器（依使用者建立／撤銷，密鑰僅可寫入），以及串流日誌尾端。
-- **Models**：列出每個具名模型（金鑰遮罩為末四碼指紋），可編輯／新增／移除，並有一個 *test* 按鈕，會透過執行中的管理器發出一次 1 Token 的呼叫並將結果分類（auth / not\_found / unreachable / …）。編輯會立即**熱套用到執行中的行程**，接著明確的 *Persist to config* 會把它們寫入檔案（保留 `.bak` 備份），*Revert* 則從檔案重新載入。只要執行環境與檔案不一致，就會顯示偏差標記，但僅限於此執行個體：比較的是這個行程的模型集合與檔案，因此在叢集中每個主控台看到的都是自己的偏差。在這裡的編輯會立即套用到**此執行個體**；其他執行個體會維持目前的模型直到重新啟動，因此要在整個叢集生效，做法是 *Persist to config* 再滾動重新啟動。
-- **Config**：原始 YAML 編輯器，附有與啟動等效的 *Validate*（嚴格欄位、環境變數展開、交叉參照，錯誤會指出行號）、會先備份且在檔案於磁碟上被他人修改時拒絕寫入的原子性 *Save*，以及遮罩後的結構化檢視。儲存後會提示重新啟動；執行環境從不默默地即時重新載入拓撲。
-- **Metrics**：以走勢圖呈現計數器，在行程內取樣（約 2 小時，每 5 秒一次），因此不需要外部 TSDB；`/metrics` 仍是 Prometheus 的整合點。
+**單一連接埠。** 管理平面與頻道共用 `gateway.listen`：`/admin/api/*`、`/admin/sessions`、`/healthz`、`/readyz` 與 `/metrics`。位於 `/admin/`、`/healthz`、`/readyz`、`/metrics`、`/health` 與 `/v1/users/` 之下的頻道路徑都會被拒絕。
 
-**單一連接埠。** 管理平面與頻道共用 `gateway.listen`：`/admin/`（主控台、`/admin/api/*`、`/admin/sessions`、`/admin/credentials`）、`/healthz`、`/readyz` 與 `/metrics`。位於這些路徑之下的頻道路徑會被拒絕，`/health` 與 `/v1/users/` 也一樣。
+**認證：** 每個管理 API 路由（以及 `/metrics` 與 `/admin/sessions`）都需要 Bearer 權杖，即使來自回送位址也一樣。設定 `ADMIN_TOKEN`（或指定 `runtime.admin.operators`）即可固定它；否則每次啟動會產生一個隨機權杖，並在日誌中印出一次。對於任何能讀取該日誌的人來說，每次啟動產生的權杖都不算秘密，因此在使用這種權杖時，管理平面**只回應本機用戶端**：來自其他機器的請求，或帶有 `Forwarded`、`X-Forwarded-For` 或 `X-Real-IP` 的請求（因此同一主機上的反向代理伺服器不算本機），都會得到 `403`；`/healthz` 與 `/readyz` 仍對負載平衡器開放。設定好的憑證會讓管理平面對遠端用戶端開放，僅以權杖保護，因此請在前面加上 TLS。區域單元必須設定一個：每次啟動產生的權杖其他執行個體並不知道。密鑰從頭到尾都僅可寫入：清單端點只回傳中繼資料與指紋，絕不回傳值，組態檢視也會遮罩敏感鍵，同時保留 `${VAR}` 預留位置。
 
-**認證：** 每個主控台 API 路由（以及 `/metrics`、`/admin/sessions`、`/admin/credentials`）都需要 Bearer 權杖，即使來自回送位址也一樣。設定 `ADMIN_TOKEN`（或指定 `runtime.admin.operators`）即可固定它；否則每次啟動會產生一個隨機權杖，並在日誌中印出一次。對於任何能讀取該日誌的人來說，每次啟動產生的權杖都不算秘密，因此在使用這種權杖時，管理平面**只回應本機用戶端**：來自其他機器的請求，或帶有 `Forwarded`、`X-Forwarded-For` 或 `X-Real-IP` 的請求（因此同一主機上的反向代理伺服器不算本機），都會得到 `403`；`/healthz` 與 `/readyz` 仍對負載平衡器開放。設定好的憑證會讓管理平面對遠端用戶端開放，僅以權杖保護，因此請在前面加上 TLS。區域單元必須設定一個：每次啟動產生的權杖其他執行個體並不知道。`-no-console` 只停用靜態主控台檔案，*不會*停用管理或 Studio API，也不會停用認證。靜態 SPA 檔案是公開提供的，但沒有權杖就不起作用。密鑰從頭到尾都僅可寫入：清單端點只回傳中繼資料與指紋，絕不回傳值，組態檢視也會遮罩敏感鍵，同時保留 `${VAR}` 預留位置。
+**本機傳輸方式：** `runtime.admin.socket` 會新增第二個僅限本機的管理監聽器（在 Unix 上是 Unix 網域通訊端，在 Windows 上是具名管道），而 `runtime.admin.tcp: false` 會把管理平面從 HTTP 監聽器上移除。通訊端僅限擁有者存取（0600；管道的 DACL 授予擁有者、Administrators 與 SYSTEM），仍然需要 Bearer 權杖，而 Studio 桌面應用程式接受 `unix:///path` 或 `npipe://name` 網址。
 
-**本機傳輸方式：** `runtime.admin.socket` 會新增第二個僅限本機的管理監聽器（在 Unix 上是 Unix 網域通訊端，在 Windows 上是具名管道），而 `runtime.admin.tcp: false` 會把管理平面從 HTTP 監聽器上移除。通訊端僅限擁有者存取（0600；管道的 DACL 授予擁有者、Administrators 與 SYSTEM），仍然需要 Bearer 權杖，而 Studio 桌面應用程式接受 `unix:///path` 或 `npipe://name` 網址。瀏覽器主控台是在 HTTP 監聽器上提供的，因此若要使用它，請保持 TCP 啟用。文件現在位於 AgentFlow Studio 中，透過本機通訊端或管道也能使用。
-
-**管理 API。** 主控台所做的一切都是 `/admin/api/` 之下的 JSON 路由，因此操作人員可以用指令碼操作。它們全都需要同一個 Bearer 權杖。
+**路由。** AgentFlow Studio 所做的一切都由 `/admin/api/` 之下的 JSON 或 SSE 路由支撐，因此操作人員也可以直接以指令碼呼叫。它們全都需要同一個 Bearer 權杖。
 
 | 路由 | 作用 |
 | --- | --- |
@@ -348,10 +338,6 @@ make build        # or: CGO_ENABLED=1 CC="zig cc" CXX="zig c++" go build -o agen
 
 **限制。** 遊樂場僅限執行個體本機：合成頻道只註冊在一個行程中，因此在叢集中，若某個對話的工作階段由另一個執行個體擁有，這裡就擷取不到回覆。Studio 不儲存聊天記錄（代理的記憶才是唯一可信來源），而追蹤環位於記憶體中，重新啟動後就會重設。衍生設定檔的撰寫、附件、重播與評估不在第一版的範圍內。
 
-### 終端機儀表板
-
-當 stdout 是 TTY 時，執行環境也會在替代畫面中附加一個 **Bubbletea 終端機儀表板**（以 `-no-tui` 停用）。它就是終端機版的主控台 Metrics 分頁：同樣的計數器，依子系統分組，附有行程內的走勢圖，並在標題列顯示執行中的工作階段數。它是**唯讀的指標顯示**：沒有任何操作人員動作，因此它顯示的內容不會改變執行環境；按 `q`/`esc` 即可結束並還原畫面。指標窗格會依寬度排成一到三欄，日誌頁尾則隨終端機大小縮放（3–8 行）；若終端機高度不足以同時容納兩者，窗格會被裁切並顯示可見的標記，而不是默默地丟掉資料列；低於最小高度時則會整個移除窗格，讓畫面始終放得下。以管線輸出時（systemd、`| tee`），則維持使用純文字的 stderr 日誌記錄器。
-
 ### 日誌
 
 日誌使用五個**累加**等級：選擇其中一個，就會印出該等級及其以上的所有等級。以 `-log-level` 選擇（預設 `info`）：
@@ -364,7 +350,7 @@ make build        # or: CGO_ENABLED=1 CC="zig cc" CXX="zig c++" go build -o agen
 | `DEBUG` | 每一次互動 | LLM API 請求、記憶 put/get/query（redis 往返、pgvector 查詢）、收到 telegram 更新、webhook/ghhook 傳入、操作分派、imap 擷取／smtp 傳送 |
 | `DEV` | 暫時性的開發日誌 | 偵錯時加入的臨時檢測程式碼：`llog.Dev(log, ...)`；絕不刻意提交 |
 
-同樣的記錄也會送往 TUI 日誌窗格與網頁主控台的日誌尾端（簡短標籤 `ERR/WRN/INF/DBG/DEV`）。
+同樣的記錄也會送往 AgentFlow Studio 的即時日誌檢視（`/admin/api/logs`，簡短標籤 `ERR/WRN/INF/DBG/DEV`）。
 
 ### `models`：具名的 LLM 供應商
 
@@ -591,7 +577,7 @@ profiles:
       workdir: /srv/work
 ```
 
-**`provider: sandbox`** 會把每個命令當作一次性的 [gVisor](https://gvisor.dev) 工作執行：環境是唯讀的根目錄，專案以可讀寫方式掛載於 `/workspace`，命令寫入專案的內容會在結束時儲存。命令結束後其他東西都不會留存，因此沒有需要追蹤的狀態，任何執行個體都能執行下一個命令。`ignore` 使用 `.gitignore` 的一小部分語法：`node_modules/`（任何位置的同名目錄）、`*.pyc`（任何位置的名稱）、`build/out`（從專案根目錄起算的路徑）；結尾的斜線會將樣式限定為目錄。被忽略的路徑既不儲存也不清理：它們會留在執行個體上，作為盡力而為的快取。
+**`provider: sandbox`** 會把每個命令當作一次性的沙箱工作執行，可選 [gVisor](https://gvisor.dev)（`provider: gvisor`，預設，Linux）或 [microsandbox](https://github.com/superradcompany/microsandbox)（`provider: microsandbox`，透過 KVM / macOS Apple Silicon HVF / Windows WHP 提供的硬體隔離微型虛擬機器）：環境提供工具鏈根目錄，專案以可讀寫方式掛載於 `/workspace`，命令寫入專案的內容會在結束時儲存。命令結束後其他東西都不會留存，因此沒有需要追蹤的狀態，任何執行個體都能執行下一個命令。`ignore` 使用 `.gitignore` 的一小部分語法：`node_modules/`（任何位置的同名目錄）、`*.pyc`（任何位置的名稱）、`build/out`（從專案根目錄起算的路徑）；結尾的斜線會將樣式限定為目錄。被忽略的路徑既不儲存也不清理：它們會留在執行個體上，作為盡力而為的快取。
 
 專案可以在其工作樹中放一個 `.agentflow/shell.yaml` 檔案，自訂其代理的設定檔。它可以設定 `environment`（部署所宣告的其中之一）、`env`、`workdir`、`timeout` 與 `ignore`。它沒有映像檔、網路原則或資源限制的欄位，未知的欄位會是錯誤，而不是默默不起作用。
 
@@ -614,7 +600,7 @@ environments:
 
 以下兩者必須恰好設定一個：
 
-- **`image`**：**以摘要值固定**的 OCI 映像檔。只有標籤會被拒絕：標籤可能被移到不同的內容上，這樣兩個執行個體就會以同一名稱執行不同的工具鏈。映像檔會在某個執行個體首次使用該環境時拉取（第一個工作會等待下載），並保存在 `<runtime.sandbox.data_dir>/images/<digest>` 之下，因此只要變更固定的摘要值就能換到新的映像檔。只支援公開映像檔，或登錄伺服器允許匿名拉取的映像檔。圖層必須以 gzip 壓縮。會套用映像檔本身的 `Env`，再以這裡的 `env` 覆蓋。
+- **`image`**：**以摘要值固定**的 OCI 映像檔。只有標籤會被拒絕：標籤可能被移到不同的內容上，這樣兩個執行個體就會以同一名稱執行不同的工具鏈。在 `gvisor` 下，映像檔會在首次使用時拉取並解包到 `<runtime.sandbox.data_dir>/images/<digest>`（公開／匿名拉取、gzip 壓縮圖層）。在 `microsandbox` 下，`msb` 會於首次使用時直接原生拉取並快取 OCI 映像檔。兩者都會套用映像檔本身的 `Env`，再以這裡的 `env` 覆蓋。
 - **`rootfs`**：主機上已存有根檔案系統的目錄（例如匯出的容器，或 `debootstrap` 樹）。它需要有 `/bin/sh`。
 
 由於工作沒有網路，命令所需的一切都必須已經在環境中：套件是映像檔的一部分，而不是由命令安裝的。
@@ -625,8 +611,10 @@ environments:
 
 | 鍵 | 預設值 | 意義 |
 |---|---|---|
-| `runsc` | `PATH` 上的 `runsc` | gVisor 執行環境的二進位檔。請將發行版的 `gvisor-bin/` 目錄放在它旁邊 |
-| `data_dir` | `<data dir>/sandbox` | 工作區、解開的映像檔以及 runsc 自身的狀態。這是快取：其中的一切都能從檔案儲存區與登錄伺服器重建 |
+| `provider` | `gvisor` | 沙箱執行環境後端：`gvisor`（`runsc`，Linux）或 `microsandbox`（`msb`，Linux KVM / macOS Apple Silicon / Windows WHP） |
+| `runsc` | `PATH` 上的 `runsc` | `provider: gvisor` 時的 gVisor 執行環境二進位檔。請將發行版的 `gvisor-bin/` 目錄放在它旁邊 |
+| `microsandbox` | `PATH` 上的 `msb` | `provider: microsandbox` 時的 microsandbox CLI 二進位檔 |
+| `data_dir` | `<data dir>/sandbox` | 工作區、解開的映像檔以及執行環境自身狀態。這是快取：其中的一切都能從檔案儲存區與登錄伺服器重建 |
 | `concurrency` | 4 | 此執行個體上同時執行的工作數 |
 | `per_user` | 2 | 其中單一使用者最多可占用幾個 |
 | `queue_timeout` | 30s | 工作在失敗之前等待輪到它的時間 |
@@ -637,13 +625,13 @@ environments:
 | `tmp_limit` | 256MiB | 工作的 `/tmp` 與主目錄大小 |
 | `memory` | 1GiB | 整個沙箱的記憶體上限。超出的工作會被終止，呼叫會擲回錯誤 |
 | `cpus` | 無 | 以核心數表示的 CPU 上限 |
-| `pids` | 512 | 沙箱內的行程數 |
+| `pids` | 512 | 沙箱內的行程數（`gvisor`） |
 | `write_back.max_files` | 10000 | 單一工作可儲存的變更檔案數 |
 | `write_back.max_bytes` | 1GiB | 單一工作可儲存的檔案總大小 |
 
-**需求。** gVisor 只能在 Linux 上執行（x86_64 與 ARM64，核心 5.6 或更新版本）。不需要 root：沙箱在使用者命名空間中執行，因此必須啟用非特權使用者命名空間。在 Windows、macOS，或沒有 `runsc` 的 Linux 主機上，引擎仍會啟動，而每個 shell 呼叫都會失敗，並以一句話說明缺少什麼。
+**需求。** **`gvisor`** 只能在 Linux 上執行（x86_64 與 ARM64，核心 5.6 或更新版本，需啟用非特權使用者命名空間；無需 `/dev/kvm`，可在一般雲端 VM 與容器中運作）。**`microsandbox`** 透過外部 `msb` CLI（跨行程執行，AgentFlow 維持純 Go `CGO_ENABLED=0`）支援 Linux（`/dev/kvm`）、macOS（Apple Silicon Hypervisor.framework）與 Windows（WHP）。當所設定的執行環境無法在主機上運作時，引擎仍會啟動，而每個 shell 呼叫都會失敗並說明缺少什麼。
 
-**記憶體與 CPU 上限**由核心透過 systemd scope 強制執行，前提是主機上有願意建立 scope 的 systemd 管理員，這是服務或登入工作階段的一般情況。若沒有（例如沒有 systemd 的容器），工作會在沒有這兩項上限的情況下執行，應從外部加以限制；行程數、tmpfs 大小、時間上限與輸出上限則在任何地方都適用。`agentflow doctor` 會回報主機屬於哪種情況、`runsc` 是否可用，以及每個環境是否可用。
+**記憶體與 CPU 上限。** 在 `gvisor` 下，當主機上有 systemd 管理員時由核心透過 systemd scope 強制執行（否則工作會在沒有這兩項上限的情況下執行，行程數、tmpfs、時間與輸出上限仍適用）。在 `microsandbox` 下，記憶體（`--memory`）與 CPU（`--cpus`）上限由微型虛擬機器管理程式直接強制執行。`agentflow doctor` 會回報目前後端、版本、上限是否強制執行，以及每個環境是否可用。
 
 **一台主機，一個資料目錄。** 兩個共用同一 `data_dir` 的引擎會在啟動時清除彼此的工作狀態。
 
@@ -696,7 +684,7 @@ profiles:
 | `telegram`（`mode: auto`） | 啟動時探測 `<public_url>/health`：可連線時註冊 `setWebhook`，否則 `deleteWebhook` 並改用長輪詢。`setWebhook` 失敗時也會先清除 webhook 再開始輪詢。需要 `gateway.public_url` |
 | `qq`（`mode: websocket`） | 預設。騰訊官方的 QQ Bot API v2（QQ 開放平台）。執行環境以應用程式存取權杖（由 `app_id` + `secret` 取得，並在到期前更新）主動連線到 QQ 閘道，訂閱其 `scenes` 對應的 intents、傳送心跳，並在連線中斷後恢復工作階段；不需要任何可從網際網路存取的位址。若因 intents 不被允許或機器人遭封鎖而關閉連線，頻道會帶著錯誤停止 |
 | `qq`（`mode: webhook`） | 平台將事件 POST 到 `path`（預設 `/webhook/qq/<name>/`）；請在主控台中將 `<public https url><path>` 設為回呼網址（連接埠 80、443、8080 或 8443）。每個請求（包括網址驗證交握）都必須帶有以 `secret` 衍生之金鑰所做的有效 Ed25519 簽章（否則回傳 401/403，在解析之前檢查） |
-| `openai` | 在 `<path>chat/completions` 提供 OpenAI Chat Completions API，並在 `<path>models` 提供模型清單。`model` 指向公開的 `agents` 之一，每個代理執行自己的 `loop:`；若要把用戶端的訊息、工具與取樣參數原封不動轉送給模型，請為代理設定 `loop: plugin:openai_passthrough`。`auth` 為 `user_token`（每位使用者的 Bearer，需要 `runtime.identity.enabled`）、`key`（來自 `keys` 的共用金鑰）或 `none`（僅限回送位址監聽器）。此類型的 `journal` 預設為 `metadata`，因此對話文字永遠不會進入稽核記錄。見[相容 OpenAI 的 API](openai-api.md) |
+| `openai` | 在 `<path>chat/completions` 提供 OpenAI Chat Completions API，並在 `<path>models` 提供模型清單。`model` 指向公開的 `agents` 之一，每個代理執行自己的 `loop:`；若要把用戶端的訊息、工具與取樣參數原封不動轉送給模型，請將代理指向 `./examples/loops/openai_passthrough.lua`。`auth` 為 `user_token`（每位使用者的 Bearer，需要 `runtime.identity.enabled`）、`key`（來自 `keys` 的共用金鑰）或 `none`（僅限回送位址監聽器）。此類型的 `journal` 預設為 `metadata`，因此對話文字永遠不會進入稽核記錄。見[相容 OpenAI 的 API](openai-api.md) |
 
 每個 HTTP 頻道的 `path` 都必須以 `/` 結尾（子樹掛載）。建議使用類似 UUID 的路徑區段，作為難以猜測的秘密前綴。兩個頻道掛載同一路徑是啟動錯誤，端點與其他頻道子樹重疊的 `openai` 頻道也一樣。Telegram 的 `token` 與 `secret_token`、ghhook 的 `secret`、qq 的 `secret`、bridge 的 `secret` 與 `token`，以及 `openai` 頻道的 `keys` 都是密鑰（見登錄表）：在單一檔案路徑上以環境變數插值，在 configdir 路徑上則是延遲參照；無法解析的密鑰會略過該頻道並發出警告，絕不會導致啟動失敗。
 
@@ -706,7 +694,7 @@ profiles:
 - **工作階段。** 每則訊息的回覆目標，以及供路由器使用的 `payload.chat_id`，是 `c2c:<user_openid>`、`group:<group_openid>`、`guild:<channel_id>` 或 `dm:<guild_id>`，因此一個群聊或子頻道是一段對話，每個私聊則各自是一段對話。傳送者是 `user:qq:<openid>`（在群聊中為 `member_openid`，在 QQ 頻道中為作者 ID）；只要平台有提供，酬載也會帶有場景、訊息 ID、事件 ID、`union_openid` 與暱稱。QQ 會驗證傳送者，因此身分層會將其視為已驗證且可連結。
 - **回覆。** 在平台的被動回覆視窗內（私聊 60 分鐘，群聊與 QQ 頻道 5 分鐘），回覆會以 `msg_id` 與遞增的 `msg_seq` 引用最新的傳入訊息，每則訊息在私聊中最多 4 則回覆，在群聊中最多 5 則。超過之後，或平台回應視窗已關閉時，回覆會改以主動訊息送出，而主動訊息會受到平台的速率限制，使用者也可以將其關閉。長文字會切成每段最多 1800 個字元。
 - **Markdown。** 設定 `markdown: true` 後，私聊與群聊中的文字回覆會以 markdown 訊息（`msg_type: 2`）送出，在回覆視窗內仍屬被動回覆；QQ 頻道的子頻道與私訊則維持純文字。Markdown 是平台依機器人授予的能力。若平台拒絕某則 markdown 訊息，同樣的文字會以純文字重新送出，且 markdown 暫停 10 分鐘，因此在機器人缺少此能力時不會遺失任何內容。被切段打斷的程式碼區塊，會在一段的結尾關閉，並在下一段的開頭重新開啟。
-- **媒體。** 傳入的附件會依頻道的 `media` 原則下載；沒有文字的語音訊息會使用平台的語音辨識文字。對外傳送時，QQ 是透過網址擷取媒體：附件需要一個公開的 `http(s)` `url`（在私聊與群聊中以富媒體上傳，在 QQ 頻道中以圖片連結送出）。沒有網址的 blob 儲存區附件會被回報為錯誤，而不是被捨棄。
+- **媒體。** 傳入的附件會依頻道的 `media` 原則下載；沒有文字的語音訊息會使用平台的語音辨識文字。對外傳送時，QQ 僅透過公開網址擷取媒體：此頻道要求設定 `media.backend: s3`（短期 SigV4 預簽章 GET 網址）或 `media.temp_url.enabled: true` 搭配 `gateway.public_url`（HMAC-SHA256 臨時 HTTP 網址），兩者皆未設定時啟動階段會發出警告並略過該頻道。blob 儲存區控制代碼與內嵌圖片（例如模型輸出的 WebP/PNG）在簽署網址前會自動轉檔為 QQ 相容格式（JPEG/PNG，上限 10 MiB）並快取為衍生變體（在私聊與群聊中以富媒體上傳，在 QQ 頻道中以圖片連結送出）。
 - **重複訊息。** 平台可能會多次傳遞同一則訊息（webhook 重試、恢復連線後的重播）；30 分鐘內重複出現的訊息 ID 會被捨棄。
 - **主控台設定。** 從 q.qq.com 上機器人的頁面複製 AppID 與 AppSecret。使用 webhook 模式時，在該處輸入回呼網址，並將執行環境的對外 IP 加入主控台要求的 IP 允許清單；使用 websocket 模式時只需設定允許清單。機器人處於沙箱階段時，只有你在主控台中設定的沙箱群聊、QQ 頻道與成員能與它互動。
 
@@ -870,24 +858,32 @@ net:
 media:
   backend: fs                 # fs（預設）| s3
   dir: ./data/media           # fs 根目錄（預設：persistence 資料庫旁）
+  retention: 168h             # 依作用域的授權保留時間（預設 7 天；0 = 永久）
+  derived_ttl: 24h            # 轉檔衍生變體快取 TTL（預設 24 小時）
+  temp_url:                   # 選填的 HMAC-SHA256 臨時 HTTP 端點（適用於 fs + QQ）
+    enabled: false
+    path: /media/t/           # 掛載於 gateway.listen 的路由前綴（必須以 "/" 開頭與結尾）
+    ttl: 10m                  # 簽章網址有效期限（預設 10 分鐘）
+    secret: ${MEDIA_TEMP_URL_SECRET}  # 單節點選填（每次啟動隨機產生）；多執行個體叢集必填
   s3:                         # backend: s3 時必填；適用於 AWS S3 與 MinIO
     bucket: my-media
     region: us-east-1
     endpoint: ~               # MinIO／相容 S3 時設定（路徑樣式）；留空 = AWS（虛擬主機樣式）
+    public_endpoint: ~        # 選填：當 endpoint 為內網位址時，供預簽章 GET 連結使用的公開基底 URL
     prefix: agentflow         # 物件鍵前綴
     access_key: ${S3_ACCESS_KEY}
     secret_key: ${S3_SECRET_KEY}
 ```
 
-選擇頻道接收之媒體位元組的存放位置。無論後端為何，物件都以內容定址（`media:<sha256>` 控制代碼），因此切換時迴圈與稽核記錄的格式都不會改變。`s3` 後端使用純 SigV4（不依賴 SDK）：相同位元組的重複寫入會在 PUT 之前以 HEAD 去重，而密鑰永遠不會出現在任何錯誤中。S3 憑證是密鑰（見登錄表）：無法解析的金鑰組會略過該儲存區並在啟動時發出警告（頻道隨後在媒體停用的情況下執行），而不會導致啟動失敗。只有控制代碼會跨越 Lua 橋接；位元組會留在儲存區中，直到供應商或頻道解析它們。
+選擇統一的媒體儲存平面，集中存放來自頻道、LLM 輸出（`reply.media`）、MCP 工具與 Lua 邊界的媒體位元組。無論後端為何，物件都以內容定址（`media:<sha256>` 控制代碼），因此切換時迴圈與稽核記錄的格式都不會改變；只有控制代碼會跨越 Lua 橋接，傳出端（模型與頻道）會依需求具現化為位元組或簽章網址，並自動進行圖片轉檔與衍生變體快取。存取權限透過執行環境儲存區中的授權紀錄，依引擎蓋章的作用域（`user:<uuid>` 或 `agent:<name>`）強制隔離，同時保留內容去重；刪除使用者時會一併清除其所有授權。`s3` 後端使用純 SigV4（不依賴 SDK）：相同位元組的重複寫入會在 PUT 之前以 HEAD 去重，而密鑰永遠不會出現在任何錯誤中。啟用 `temp_url.enabled: true`（需設定 `gateway.public_url`）後，執行環境會在 `temp_url.path` 下提供短期 HMAC-SHA256 簽章網址，讓 QQ 等僅支援網址的頻道在本機 `fs` 儲存區下不需 S3 也能運作。
 
 ### `files`：使用者範圍的檔案儲存區
 
 ```
 files:
   backend: fs                 # fs（預設）| s3（AWS S3、MinIO、Cloudflare R2）
-  dir: ./data/files           # fs 根目錄（預設：persistence 資料庫旁）
-  s3:                         # 欄位與解析方式同 media.s3
+  dir: ./data/files           # fs 根目錄（選填；省略時與 media 共用 blob 儲存區）
+  s3:                         # 欄位與解析方式同 media.s3（選填獨立儲存貯體）
     bucket: my-files
     region: auto
     endpoint: https://<accountid>.r2.cloudflarestorage.com
@@ -898,7 +894,7 @@ files:
   gc_grace: 24h               # blob GC 寬限期；0 = 停用 GC
 ```
 
-支撐 `files.*` Lua 操作（能力 `files`）：使用者範圍的專案樹，具備引擎原生的快照版本控制，另加每個工作階段的暫存區。啟動時的標記清除會回收超過 `gc_grace` 的孤立 blob（已刪除的檔案、被取代的內容）：存活集合是樹記錄、提交樹（因此仍可回溯）與暫存區所參照的每個控制代碼；去重不受影響，而寬限期（相對於先寫 blob、再寫中繼資料的寫入順序）讓清除不需鎖定也能安全進行。
+支撐 `files.*` Lua 操作（能力 `files`）：使用者範圍的專案樹，具備引擎原生的快照版本控制，另加每個工作階段的暫存區。預設情況下，當 `files` 未明確設定 `backend`、`dir` 或 `s3` 區塊時，會與 `media` 共用同一個 blob 儲存區，並由一次統一的每小時標記清除 GC 保護 `files_meta` 參照與有效媒體授權的聯集（超過 `gc_grace` 後才回收）；若明確設定了 `files.backend`、`files.dir` 或 `files.s3`，則維持獨立的 blob 儲存區，同時仍允許 `media` 將其作為控制代碼讀取備援來源。
 
 檔案位元組與媒體一樣，在 blob 儲存區中以內容定址；快照中繼資料存放在執行環境儲存區的 `files_meta` 資料表中（一般的 sqlite，可直接檢視）。相容 S3 的端點需要真正的 SigV4 金鑰組，Bearer 權杖無法使用 S3 協定。無法解析的憑證組會停用該儲存區並在啟動時發出警告（隨後各操作會誠實地失敗），絕不會導致啟動失敗。
 

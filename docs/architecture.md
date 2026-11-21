@@ -39,7 +39,7 @@ A request moves down through a short stack. A channel driver turns platform byte
 │  llm:    anthropic · openai · openai-responses · gemini · rerank (base_url)   │
 │  memory: sqlite · redis · postgres · volatile · pgvector · qdrant · redisvector│
 │  tools:  builtin:* · tools.http (declarative) · MCP (stdio | Streamable HTTP) │
-│  shell:  gVisor jobs · ssh   mail: imap + smtp   files: fs | s3   net: netguard│
+│  shell:  sandbox (gVisor · microsandbox) · ssh   mail: imap+smtp   files: fs│
 └───────────┬──────────────────────────────────────────────────────────────────┘
             │ session.send / session.push / session.push_user
             ▼
@@ -284,8 +284,9 @@ validator refuses a log-plane directory there. Retention stays per plane:
   session to an owner that never sees its messages. `runtime.cluster.persistence`
   is deprecated for that reason.
 - **Every instance needs the sandbox to run shell jobs.** A job runs on the
-  instance that owns the session, so each one needs `runsc` and unprivileged
-  user namespaces, and pulls an environment's image the first time it uses it.
+  instance that owns the session, so each one needs the configured sandbox
+  runtime (`runsc` and unprivileged user namespaces for `gvisor`, or `msb` with
+  hypervisor access for `microsandbox`) and its environment images.
   Projects and background-job records are in the shared stores; the workspace
   directory on an instance is only a cache of them.
 - **One job per project per instance, not per cell.** Two instances can run

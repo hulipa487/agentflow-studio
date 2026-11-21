@@ -291,7 +291,7 @@ profiles:
 ```
 
 `scope: agent` lets everyone in the group share one history. The
-`examples/qq-group-chat` scenario in the agentflow repository is a complete
+`examples/qq-group-chat` scenario in `agentflow-studio` is a complete
 version.
 
 ### Knowledge base on SQLite, no extra server

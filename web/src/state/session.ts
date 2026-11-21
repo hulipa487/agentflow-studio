@@ -54,6 +54,8 @@ interface SessionState {
   /** Returns to the welcome screen keeping every saved profile. */
   disconnect: () => void
   reloadCatalog: () => Promise<void>
+  /** Probes /admin/api/state immediately and updates online/runtime state. */
+  ping: () => Promise<boolean>
 }
 
 /** How long a connection attempt may take, as on the welcome screen. */
@@ -61,6 +63,7 @@ export const CONNECT_TIMEOUT_MS = 20000
 
 let heartbeat: ReturnType<typeof setInterval> | null = null
 let restoreCtl: AbortController | null = null
+let pingInFlight: Promise<boolean> | null = null
 
 function stopHeartbeat() {
   if (heartbeat) clearInterval(heartbeat)
@@ -69,25 +72,9 @@ function stopHeartbeat() {
 
 function startHeartbeat() {
   stopHeartbeat()
-  const beat = async () => {
-    const { client, online } = useSession.getState()
-    if (!client) return
-    const ctl = new AbortController()
-    const timer = setTimeout(() => ctl.abort(), 8000)
-    try {
-      const runtime = await client.state(ctl.signal)
-      if (useSession.getState().client !== client) return
-      useSession.setState({ online: true, runtime })
-      if (!online) toast(t('connection.reachableAgain'), 'success')
-    } catch (err) {
-      if (useSession.getState().client !== client) return
-      useSession.setState({ online: false })
-      if (online) toast(t('connection.unreachable', { message: errorMessage(err) }), 'danger')
-    } finally {
-      clearTimeout(timer)
-    }
-  }
-  heartbeat = setInterval(beat, 15000)
+  heartbeat = setInterval(() => {
+    void useSession.getState().ping()
+  }, 15000)
 }
 
 export const useSession = create<SessionState>((set, get) => ({
@@ -108,7 +95,13 @@ export const useSession = create<SessionState>((set, get) => ({
     onStep?.(t('connection.tokenAccepted'))
     const catalog = await client.catalog(signal).catch((err: unknown) => {
       if (signal?.aborted) throw err
-      // The address and token were right; say which half failed.
+      // If the Studio builder/playground API is disabled (503), still allow
+      // connecting so the operator can use Overview, Models, Config, Users,
+      // Tenancy, Credentials, Usage, and Logs.
+      if (err instanceof ApiError && err.status === 503) {
+        toast(t('connection.studioUnavailable', { message: err.message }), 'warning')
+        return EMPTY_CATALOG
+      }
       const text = t('connection.studioUnavailable', { message: errorMessage(err) })
       throw err instanceof ApiError ? new ApiError(err.status, text, err.network) : new Error(text)
     })
@@ -183,6 +176,34 @@ export const useSession = create<SessionState>((set, get) => ({
     } catch {
       /* the next builder open retries */
     }
+  },
+
+  ping: async () => {
+    const { client, online } = get()
+    if (!client) return false
+    if (pingInFlight) return pingInFlight
+    let run: Promise<boolean> | null = null
+    run = (async () => {
+      const ctl = new AbortController()
+      const timer = setTimeout(() => ctl.abort(), 8000)
+      try {
+        const runtime = await client.state(ctl.signal)
+        if (get().client !== client) return false
+        set({ online: true, runtime })
+        if (!online) toast(t('connection.reachableAgain'), 'success')
+        return true
+      } catch (err) {
+        if (get().client !== client) return false
+        set({ online: false })
+        if (online) toast(t('connection.unreachable', { message: errorMessage(err) }), 'danger')
+        return false
+      } finally {
+        clearTimeout(timer)
+        if (pingInFlight === run) pingInFlight = null
+      }
+    })()
+    pingInFlight = run
+    return run
   },
 }))
 

@@ -12,8 +12,9 @@ import type { AgentDetail, ApplyResult, Template } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, CopyButton, Dot, IconButton, Spinner, SplitButton, Tabs, cx, toneText, type TabDef } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
 import { Split } from '@/components/ui/Split'
+import { findExample, type ExampleLoop } from '@/docs/examples'
 import { t, useLang } from '@/i18n'
-import { SKIP_GUARD, useAsync, useDebounced, useScreenActions, useStored, useUnsavedGuard } from '@/lib/hooks'
+import { SKIP_GUARD, useAlive, useAsync, useDebounced, useScreenActions, useStored, useUnsavedGuard } from '@/lib/hooks'
 import { analyze, luauSupport, type LuauDiagnostic, type LuauOptions } from '@/lua'
 import { MOD } from '@/nav'
 import { useCatalog, useClient, useSession } from '@/state/session'
@@ -47,6 +48,7 @@ interface Instance {
   route: string
   name: string
   template: string
+  example: string
 }
 
 export default function Builder() {
@@ -55,15 +57,16 @@ export default function Builder() {
   const navigate = useNavigate()
   const creating = useLocation().pathname === '/new-agent'
   const template = creating ? (search.get('template') ?? '') : ''
-  const route = creating ? 'new?' + template : 'edit:' + param
+  const example = creating && template === '' ? (search.get('example') ?? '') : ''
+  const route = creating ? `new?t=${template}&e=${example}` : 'edit:' + param
 
   // The first apply of a new agent moves the URL to /agents/<name>. That is
   // this builder's own navigation, so it must not reopen (and reload) the view.
   const adopted = useRef<string | null>(null)
-  const [inst, setInst] = useState<Instance>({ id: 0, route, name: creating ? '' : param, template })
+  const [inst, setInst] = useState<Instance>({ id: 0, route, name: creating ? '' : param, template, example })
   if (inst.route !== route) {
     if (adopted.current === route) setInst({ ...inst, route })
-    else setInst({ id: inst.id + 1, route, name: creating ? '' : param, template })
+    else setInst({ id: inst.id + 1, route, name: creating ? '' : param, template, example })
   }
   useEffect(() => {
     if (adopted.current === route) adopted.current = null
@@ -78,9 +81,9 @@ export default function Builder() {
     [navigate],
   )
   // Reopens the view from the runtime's copy (refresh), discarding local state.
-  const reopen = useCallback((name: string) => setInst((prev) => ({ ...prev, id: prev.id + 1, name, template: '' })), [])
+  const reopen = useCallback((name: string) => setInst((prev) => ({ ...prev, id: prev.id + 1, name, template: '', example: '' })), [])
 
-  if (inst.name === '') return <NewAgent key={inst.id} template={inst.template} onAdopt={adopt} onReopen={reopen} />
+  if (inst.name === '') return <NewAgent key={inst.id} template={inst.template} example={inst.example} onAdopt={adopt} onReopen={reopen} />
   return <LoadedAgent key={inst.id} name={inst.name} onAdopt={adopt} onReopen={reopen} />
 }
 
@@ -89,19 +92,32 @@ interface Handoff {
   onReopen: (name: string) => void
 }
 
-function NewAgent({ template, onAdopt, onReopen }: Handoff & { template: string }) {
+function NewAgent({ template, example, onAdopt, onReopen }: Handoff & { template: string; example: string }) {
   const catalog = useCatalog()
   // Resolved once: a later catalog reload must not reseed a form in progress.
   const [seed] = useState<Template | null>(() => (catalog.templates ?? []).find((tpl) => tpl.name === template) ?? null)
+  const [exampleSeed] = useState<ExampleLoop | null>(() => (!seed && example !== '' ? (findExample(example) ?? null) : null))
   const missing = template !== '' && !seed ? template : ''
-  return <BuilderView initialName="" initialDetail={null} template={seed} missingTemplate={missing} onAdopt={onAdopt} onReopen={onReopen} />
+  const missingExample = template === '' && example !== '' && !exampleSeed ? example : ''
+  return (
+    <BuilderView
+      initialName=""
+      initialDetail={null}
+      template={seed}
+      example={exampleSeed}
+      missingTemplate={missing}
+      missingExample={missingExample}
+      onAdopt={onAdopt}
+      onReopen={onReopen}
+    />
+  )
 }
 
 function LoadedAgent({ name, onAdopt, onReopen }: Handoff & { name: string }) {
   const client = useClient()
   const { data, error, loading, reload } = useAsync((signal) => client.agent(name, signal), [client, name])
   if (!data) return <LoadState name={name} loading={loading} error={error} retry={() => reload()} />
-  return <BuilderView initialName={name} initialDetail={data} template={null} missingTemplate="" onAdopt={onAdopt} onReopen={onReopen} />
+  return <BuilderView initialName={name} initialDetail={data} template={null} example={null} missingTemplate="" missingExample="" onAdopt={onAdopt} onReopen={onReopen} />
 }
 
 /** Loading, failed, or the studio API switched off: the builder before it has a definition. */
@@ -142,14 +158,18 @@ function BuilderView({
   initialName,
   initialDetail,
   template,
+  example,
   missingTemplate,
+  missingExample,
   onAdopt,
   onReopen,
 }: Handoff & {
   initialName: string
   initialDetail: AgentDetail | null
   template: Template | null
+  example: ExampleLoop | null
   missingTemplate: string
+  missingExample: string
 }) {
   const client = useClient()
   const catalog = useCatalog()
@@ -161,8 +181,12 @@ function BuilderView({
   const [detail, setDetail] = useState(initialDetail)
   const [mtime, setMtime] = useState(initialDetail?.files?.mtime ?? 0)
 
-  const [form, setForm] = useState<BuilderForm>(() => initialForm(initialName, initialDetail, template, catalog))
-  const [loop, setLoop] = useState(() => lf(initialDetail ? initialDetail.loop : template?.loop))
+  const [form, setForm] = useState<BuilderForm>(() => {
+    const f = initialForm(initialName, initialDetail, template, catalog)
+    if (example && f.name === '') f.name = example.slug
+    return f
+  })
+  const [loop, setLoop] = useState(() => lf(initialDetail ? initialDetail.loop : (template?.loop ?? example?.source)))
   const [instructions, setInstructions] = useState(() => lf(initialDetail?.instructions))
   // The YAML pane starts from the runtime's own rendering of the definition
   // and is only replaced by "Rebuild from form" or by typing in it.
@@ -184,25 +208,25 @@ function BuilderView({
   const [dockChoice, setDock] = useStored<Dock>('agentflow-studio:builder.dock', '')
   const dock: Dock = dockChoice === 'run' || dockChoice === 'docs' ? dockChoice : ''
   const runPanel = useRef<RunPanelHandle>(null)
-  const [notice, setNotice] = useState<Notice | null>(() =>
-    missingTemplate ? { text: t('builder.missingTemplate', { name: missingTemplate }), tone: 'warning' } : null,
-  )
+  const [notice, setNotice] = useState<Notice | null>(() => {
+    if (missingTemplate) return { text: t('builder.missingTemplate', { name: missingTemplate }), tone: 'warning' }
+    if (missingExample) return { text: t('builder.missingExample', { name: missingExample }), tone: 'warning' }
+    return null
+  })
   // The verb shown on the Apply button while a request is in flight.
   const [busy, setBusy] = useState('')
   const [deleting, setDeleting] = useState(false)
-  const [tab, setTab] = useState<TabID>('config')
-  const [visited, setVisited] = useState<Record<TabID, boolean>>({ config: true, loop: false, instructions: false, yaml: false })
+  const [tab, setTab] = useState<TabID>(() => (example ? 'loop' : 'config'))
+  const [visited, setVisited] = useState<Record<TabID, boolean>>(() => ({ config: true, loop: !!example, instructions: false, yaml: false }))
 
-  const alive = useRef(true)
+  const alive = useAlive()
   const inFlight = useRef(false)
   const request = useRef<AbortController | null>(null)
   // Counts edits, so an apply that finishes after further typing does not
   // declare the newer text applied.
   const edits = useRef(0)
   useEffect(() => {
-    alive.current = true
     return () => {
-      alive.current = false
       request.current?.abort()
     }
   }, [])
@@ -483,6 +507,21 @@ function BuilderView({
     setVisited((v) => (v[next] ? v : { ...v, [next]: true }))
   }
 
+  const insertDirective = () => {
+    const directive = `-- af-prelude-version: ${preludeVersion}`
+    if (loop.split('\n').some((l) => l.trim().startsWith('-- af-prelude-version:'))) return
+    editLoop(loop === '' ? `${directive}\n` : `${directive}\n${loop}`)
+  }
+
+  const enableCapability = (cap: string) => {
+    const base = effectiveCapabilities(form.capabilities, catalog)
+    if (base.includes(cap)) return
+    const nextSet = new Set([...base, cap])
+    const next = capLabels.filter((l) => nextSet.has(l))
+    if (!next.includes(cap)) next.push(cap)
+    patch({ capabilities: next })
+  }
+
   // ---- render -----------------------------------------------------------------
 
   const locked = busy !== '' || deleting
@@ -606,6 +645,8 @@ function BuilderView({
             checking={linted !== loop}
             failure={support.failure || analysis.failure}
             active={tab === 'loop'}
+            onInsertDirective={insertDirective}
+            onEnableCapability={enableCapability}
           />
         </div>
       )}

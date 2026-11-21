@@ -159,33 +159,31 @@ export const preludeEntries: readonly ApiEntry[] = [
   { path: "memory_routing_table", signature: "memory_routing_table(record) -> record", summary: "Rewrite a memory record before it is stored. Used by memory.write.", kind: 'function', insert: "memory_routing_table(${1:record})" },
   { path: "memory_recall_handler", signature: "memory_recall_handler(query, opts) -> hits", summary: "Recall hook for recency-based memory. Used by memory.recall.", kind: 'function', insert: "memory_recall_handler(${1:query}, ${2:opts})" },
   { path: "memory_semantic_recall_handler", signature: "memory_semantic_recall_handler(query, opts) -> hits", summary: "Recall hook for semantic memory. Used by memory.recall.", kind: 'function', insert: "memory_semantic_recall_handler(${1:query}, ${2:opts})" },
-  { path: "fact_extractor_turn", signature: "fact_extractor_turn(turn) -> facts", summary: "Extract facts after a turn. Called by loops that enable fact extraction.", kind: 'function', insert: "fact_extractor_turn(${1:turn})" },
 ]
 
 /**
- * The Luau/Lua names a loop may use without declaring them. The analyzer does
- * not validate their fields (the surface is large); it only avoids reporting
- * them as unknown globals.
+ * The pure-Go Lua 5.1 (gopher-lua + utf8 + bit32) globals a loop may use
+ * without declaring them. The analyzer does not validate their fields (the
+ * surface is large); it only avoids reporting them as unknown globals.
  */
 export const stdlibGlobals: ReadonlySet<string> = new Set([
-  'print', 'type', 'typeof', 'tostring', 'tonumber',
+  'print', 'type', 'tostring', 'tonumber',
   'pairs', 'ipairs', 'next', 'select', 'assert',
   'error', 'pcall', 'xpcall', 'setmetatable',
   'getmetatable', 'rawget', 'rawset', 'rawequal',
-  'rawlen', 'unpack', 'collectgarbage',
+  'unpack',
   'string', 'table', 'math', 'utf8', 'bit32',
-  'coroutine', 'buffer', 'vector', '_G',
-  '_VERSION',
+  'coroutine', '_G', '_VERSION',
 ])
 
 /** Standard library names that are tables rather than functions. */
 export const stdlibModules: ReadonlySet<string> = new Set([
-  'string', 'table', 'math', 'utf8', 'bit32', 'coroutine', 'buffer', 'vector',
+  'string', 'table', 'math', 'utf8', 'bit32', 'coroutine',
 ])
 
 /**
- * Libraries the sandbox omits; a targeted message beats "unknown global". The
- * values are message keys (lua.unavailable.*), translated when reported.
+ * Libraries and globals the sandbox omits; a targeted message beats "unknown global".
+ * The values are message keys (lua.unavailable.*), translated when reported.
  */
 export const unavailableGlobals: ReadonlyMap<string, string> = new Map([
   ['io', 'lua.unavailable.io'],
@@ -194,8 +192,12 @@ export const unavailableGlobals: ReadonlyMap<string, string> = new Map([
   ['dofile', 'lua.unavailable.dofile'],
   ['loadfile', 'lua.unavailable.loadfile'],
   ['load', 'lua.unavailable.load'],
+  ['loadstring', 'lua.unavailable.load'],
   ['package', 'lua.unavailable.package'],
-  ['os', 'lua.unavailable.os'],
+  ['collectgarbage', 'lua.unavailable.collectgarbage'],
+  ['setfenv', 'lua.unavailable.env'],
+  ['getfenv', 'lua.unavailable.env'],
+  ['module', 'lua.unavailable.module'],
 ])
 
 const apiIndex = new Map<string, ApiEntry>()

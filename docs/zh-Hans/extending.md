@@ -191,7 +191,6 @@ expect_contains: ["help"]
 | 记忆方案 `recall: plugin:recency` | `memory_recall_handler(query, opts)` | prelude 的 `memory.recall` |
 | 记忆方案 `recall: plugin:semantic` | `memory_semantic_recall_handler(query, opts)` | prelude 的 `memory.recall` |
 | 辅助代码块 `plugin:token_budget` | `token_budget(messages, budget)` | 循环，在需要裁剪提示词时 |
-| 辅助代码块 `plugin:fact_extractor` | `fact_extractor_turn(turn)` | 循环，在一个轮次之后 |
 | 循环插件 `plugin:per_chat` | `loop()` | 无——它本身*就是*一个循环，而不是辅助函数 |
 
 > **本节过去的说法**：它曾列出 26 个钩子——`gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等——附带类型、签名和默认值，并声称由核心调度它们。实际上并不存在调度器，所以定义了这些名称之一的插件会悄无声息地永远不被调用。其中两个指向内置实现（`shell.before_exec` 对应的 `plugin:exec_policy`，`shell.teardown` 对应的 `plugin:ttl`），它们被加载进每个会话状态，却没有任何代码调用；两者现已移除。**shell 命令仅由 `shell.exec` 能力把关——不存在命令策略过滤器。** 循环在崩溃时会重启，在文件变更时会热重载，这正是 `session.resume` 和 `core.on_reload` 想要实现的；需要在这两种情况之间保留状态的循环，请使用 `session.state.*`。

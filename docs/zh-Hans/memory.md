@@ -237,7 +237,7 @@ profiles:
       recall: plugin:recency
 ```
 
-`scope: agent` 让群里的每个人共享同一份历史。agentflow 仓库中的 `examples/qq-group-chat` 场景是一个完整的版本。
+`scope: agent` 让群里的每个人共享同一份历史。`agentflow-studio` 仓库中的 `examples/qq-group-chat` 场景是一个完整的版本。
 
 ### 基于 SQLite 的知识库，无需额外服务器
 

@@ -63,5 +63,8 @@
   "common.value": "值",
   "common.featureOffIdentity": "{message}\n\n請設定 runtime.identity.enabled: true（若需要公開的使用者 API，另需設定 runtime.users.enabled），然後重新啟動 AgentFlow。",
   "common.featureOffTenancy": "{message}\n\n租戶功能需要執行環境的儲存區（runtime.persistence）。",
-  "common.saveFailed": "儲存失敗：{message}"
+  "common.saveFailed": "儲存失敗：{message}",
+  "common.crashTitle": "繪製此畫面時發生錯誤",
+  "common.crashGuidance": "目前的連線仍然維持。可以重試此畫面，或返回總覽。",
+  "common.goOverview": "前往總覽"
 }
