@@ -26,7 +26,7 @@
   "docs.sectionBuild": "构建",
   "docs.sectionReference": "参考",
   "docs.assetUserApi": "用户 API（OpenAPI）",
-  "docs.assetLuauTypes": "Luau 类型定义",
+  "docs.assetLuauTypes": "Lua 类型定义",
   "docs.page.gettingStarted": "概述",
   "docs.page.architecture": "架构与部署",
   "docs.page.multiRegion": "多区域部署",

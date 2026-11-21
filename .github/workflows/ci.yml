@@ -61,7 +61,31 @@ jobs:
           npm run build
       - name: Sync embedded desktop assets
         run: node web/scripts/desktop-assets.mjs sync
-      - name: Vet, test & build desktop
+      - name: Vet desktop
+        working-directory: desktop
+        shell: bash
+        run: |
+          TAGS="desktop,production"
+          export CGO_ENABLED=1
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            TAGS="$TAGS,webkit2_41"
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            export CGO_ENABLED=0
+          fi
+          go vet -tags "$TAGS" ./...
+      - name: Test desktop
+        working-directory: desktop
+        shell: bash
+        run: |
+          TAGS="desktop,production"
+          export CGO_ENABLED=1
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            TAGS="$TAGS,webkit2_41"
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            export CGO_ENABLED=0
+          fi
+          go test -tags "$TAGS" ./...
+      - name: Build desktop
         working-directory: desktop
         shell: bash
         run: |
@@ -74,8 +98,6 @@ jobs:
             export CGO_ENABLED=0
             BIN="agentflow-studio.exe"
           fi
-          go vet -tags "$TAGS" ./...
-          go test -tags "$TAGS" ./...
           if [ "$RUNNER_OS" = "Windows" ]; then
             go build -tags "$TAGS" -trimpath -ldflags "-s -w -H windowsgui" -o "$BIN" .
           else

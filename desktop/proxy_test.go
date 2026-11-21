@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -57,7 +58,14 @@ func TestProxyForwardsToTCPAndUnixTargets(t *testing.T) {
 	targets := []string{tcp.URL, strings.TrimPrefix(tcp.URL, "http://")}
 
 	if runtime.GOOS != "windows" {
-		sock := filepath.Join(t.TempDir(), "admin.sock")
+		// Use /tmp directly so the socket path stays under macOS's 104-byte
+		// sun_path limit (t.TempDir() under /var/folders/... exceeds it).
+		dir, err := os.MkdirTemp("/tmp", "af-proxy-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(dir) })
+		sock := filepath.Join(dir, "a.sock")
 		ln, err := net.Listen("unix", sock)
 		if err != nil {
 			t.Fatal(err)

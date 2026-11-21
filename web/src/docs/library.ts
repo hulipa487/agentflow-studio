@@ -12,7 +12,7 @@ import { currentLang, t, type Lang } from '@/i18n'
 
 const pages = import.meta.glob('../../../docs/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const translations = import.meta.glob('../../../docs/zh-{Hans,Hant}/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const assets = import.meta.glob('../../../docs/**/*.{yaml,yml,luau,json}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const assets = import.meta.glob('../../../docs/**/*.{yaml,yml,lua,json}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
 /** The glob keys' prefix: this file's path to the shared docs directory. */
 const ROOT = '../../../docs/'
@@ -83,7 +83,7 @@ export const DOC_SECTIONS = ['docs.sectionStartHere', 'docs.sectionBuild', 'docs
 /** The contract files that ship beside the guides. */
 export const DOC_ASSETS: DocAsset[] = [
   { path: 'openapi/users.yaml', titleKey: 'docs.assetUserApi', language: 'yaml' },
-  { path: 'luau/af.d.luau', titleKey: 'docs.assetLuauTypes', language: 'lua' },
+  { path: 'lua/af.d.lua', titleKey: 'docs.assetLuauTypes', language: 'lua' },
 ]
 
 const available = MANIFEST.filter((p) => typeof pages[ROOT + p.file] === 'string' && pages[ROOT + p.file] !== '')

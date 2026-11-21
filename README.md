@@ -183,7 +183,7 @@ make docs-sync   # refresh the OpenAPI spec and Luau stubs from the runtime repo
 
 **The guides are translated too.** `docs/zh-Hans/` and `docs/zh-Hant/` hold a translation of every guide under the same file name; the app shows a guide in the current language and falls back to English where a translation is missing. A translation keeps the English headings one for one, its code blocks (only prose comments are translated), its link targets and its table shapes, and each translated heading takes the English heading's anchor, so `configuration.md#memory` resolves in every language. `web/src/docs/translations.test.ts` fails when a translation is missing or breaks that structure. Change an English guide, then its two translations, in the same commit.
 
-**The docs are bundled at build time.** A new page needs a manifest entry in `web/src/docs/library.ts`, and a test fails if it is missing. `docs/openapi/users.yaml` and `docs/luau/af.d.luau` are copies of files versioned with the runtime; `make docs-sync` expects that checkout next to this one, or at `AGENTFLOW_DIR`.
+**The docs are bundled at build time.** A new page needs a manifest entry in `web/src/docs/library.ts`, and a test fails if it is missing. `docs/openapi/users.yaml` and `docs/lua/af.d.lua` are copies of files versioned with the runtime; `make docs-sync` expects that checkout next to this one, or at `AGENTFLOW_DIR`.
 
 **The Fyne desktop app** that came before the Wails one is at the git tag `fyne-desktop-final`.
 

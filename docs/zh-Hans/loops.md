@@ -4,7 +4,7 @@
 
 这些模式的可运行版本位于 [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops)。
 
-内置的 Luau 类型定义位于 [luau/af.d.luau](luau/af.d.luau)；可以从本页打开，在编辑器中查看 API 全貌。
+内置的 Lua 类型定义位于 [lua/af.d.lua](lua/af.d.lua)；可以从本页打开，在编辑器中查看 API 全貌。
 
 ## 目录
 

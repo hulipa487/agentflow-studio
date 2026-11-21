@@ -6,7 +6,7 @@ make.
 
 Runnable versions of the patterns live in [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops).
 
-The bundled Luau type definitions are at [luau/af.d.luau](luau/af.d.luau); open them from this page to inspect the API surface in an editor.
+The bundled Lua type definitions are at [lua/af.d.lua](lua/af.d.lua); open them from this page to inspect the API surface in an editor.
 
 ## Contents
 

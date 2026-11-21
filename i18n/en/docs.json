@@ -26,7 +26,7 @@
   "docs.sectionBuild": "Build",
   "docs.sectionReference": "Reference",
   "docs.assetUserApi": "User API (OpenAPI)",
-  "docs.assetLuauTypes": "Luau type definitions",
+  "docs.assetLuauTypes": "Lua type definitions",
   "docs.page.gettingStarted": "Overview",
   "docs.page.architecture": "Architecture & deployment",
   "docs.page.multiRegion": "Multi-region",
