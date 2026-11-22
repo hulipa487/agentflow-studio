@@ -61,7 +61,7 @@ Section "WebView2 Runtime Check" SecWebView2
   ${If} $0 == ""
     DetailPrint "Installing Microsoft Edge WebView2 Runtime..."
     InitPluginsDir
-    nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing https://go.microsoft.com/fwlink/p/?LinkId=2124703 -OutFile ''$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe''"'
+    nsExec::ExecToLog `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing https://go.microsoft.com/fwlink/p/?LinkId=2124703 -OutFile '$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe'"`
     Pop $1
     ${If} $1 == 0
       nsExec::ExecToLog '"$PLUGINSDIR\MicrosoftEdgeWebview2Setup.exe" /silent /install'

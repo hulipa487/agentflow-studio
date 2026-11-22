@@ -42,12 +42,15 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
-            $nsis = "C:\Program Files (x86)\NSIS\makensis.exe"
-            if (Test-Path $nsis) {
-              "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            } else {
+            $nsisDir = "C:\Program Files (x86)\NSIS"
+            if (-not (Test-Path (Join-Path $nsisDir "makensis.exe"))) {
               choco install nsis -y
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
+            if (-not (Test-Path (Join-Path $nsisDir "makensis.exe"))) {
+              throw "makensis.exe not found in $nsisDir after installing NSIS"
+            }
+            $nsisDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
       - name: Build binaries & NSIS installers
         shell: pwsh
