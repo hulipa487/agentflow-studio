@@ -579,6 +579,44 @@ export class Client {
     // tenant is sent even when empty: "" means the every-member grant.
     return this.json('DELETE', `/admin/api/pools/${enc(pool)}/grants?agent=${enc(agent)}&tenant=${enc(tenant)}`)
   }
+
+  // ---- shared & built-in Lua plugins ---------------------------------------
+
+  plugins(signal?: AbortSignal): Promise<T.PluginsList> {
+    return this.json('GET', '/admin/api/studio/plugins', undefined, signal)
+  }
+
+  async validatePlugin(req: T.PluginValidateRequest): Promise<string[]> {
+    const r = await this.json<T.PluginValidateResult>('POST', '/admin/api/studio/plugins/validate', req)
+    return r.errors ?? []
+  }
+
+  saveBuiltinPlugin(name: string, source: string, mtime?: T.Mtime): Promise<T.PluginsList> {
+    return this.json('PUT', `/admin/api/studio/plugins/builtins/${enc(name)}`, { source, mtime: mtime ?? ('0' as T.Mtime) })
+  }
+
+  resetBuiltinPlugin(name: string, mtime?: T.Mtime): Promise<T.PluginsList> {
+    return this.json('DELETE', `/admin/api/studio/plugins/builtins/${enc(name)}${query({ mtime })}`)
+  }
+
+  createLuaPackage(name: string, file?: string, source?: string): Promise<T.PluginsList> {
+    return this.json('POST', '/admin/api/studio/plugins/packages', { name, file, source })
+  }
+
+  deleteLuaPackage(name: string): Promise<T.PluginsList> {
+    return this.json('DELETE', `/admin/api/studio/plugins/packages/${enc(name)}`)
+  }
+
+  savePackageFile(pkg: string, file: string, source: string, mtime?: T.Mtime): Promise<T.PluginsList> {
+    return this.json('PUT', `/admin/api/studio/plugins/packages/${enc(pkg)}/files/${enc(file)}`, {
+      source,
+      mtime: mtime ?? ('0' as T.Mtime),
+    })
+  }
+
+  deletePackageFile(pkg: string, file: string, mtime?: T.Mtime): Promise<T.PluginsList> {
+    return this.json('DELETE', `/admin/api/studio/plugins/packages/${enc(pkg)}/files/${enc(file)}${query({ mtime })}`)
+  }
 }
 
 /**

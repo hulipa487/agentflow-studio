@@ -23,6 +23,7 @@ import { NewAgentDialog } from '@/screens/NewAgentDialog'
 // bundle.
 const Builder = lazy(() => import('@/screens/Builder'))
 const Playground = lazy(() => import('@/screens/Playground'))
+const Plugins = lazy(() => import('@/screens/Plugins'))
 const Channels = lazy(() => import('@/screens/Channels'))
 const Models = lazy(() => import('@/screens/Models'))
 const Memory = lazy(() => import('@/screens/Memory'))
@@ -157,6 +158,7 @@ export default function App() {
               <Route path="/new-agent" element={<Builder />} />
               <Route path="/agents/:name" element={<Builder />} />
               <Route path="/playground" element={<Playground />} />
+              <Route path="/plugins" element={<Plugins />} />
               <Route path="/channels" element={<Channels />} />
               <Route path="/models" element={<Models />} />
               <Route path="/memory" element={<Memory />} />

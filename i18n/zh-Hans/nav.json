@@ -11,6 +11,8 @@
   "nav.agentsHint": "已配置的智能体：创建、编辑、应用和删除",
   "nav.playground": "演练场",
   "nav.playgroundHint": "与智能体对话，实时查看追踪",
+  "nav.plugins": "插件",
+  "nav.pluginsHint": "共享 Lua 代码包与内置运行时覆写",
   "nav.channels": "渠道",
   "nav.channelsHint": "Webhook、Telegram、GitHub 和桥接渠道",
   "nav.models": "模型",

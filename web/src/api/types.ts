@@ -781,6 +781,58 @@ export interface PoolDraft {
   retention_days: number
 }
 
+// ---- shared & built-in Lua plugins -----------------------------------------
+
+export interface BuiltinPlugin {
+  name: string
+  kind: 'support' | 'route'
+  summary: string
+  shadowed: boolean
+  path?: string
+  mtime?: Mtime
+  source: string
+  builtin_source: string
+}
+
+export interface PackageFile {
+  name: string
+  path: string
+  mtime?: Mtime
+  source: string
+}
+
+export interface LuaPackage {
+  name: string
+  dir: string
+  managed: boolean
+  files: PackageFile[] | null
+}
+
+export interface PluginsList {
+  ok: boolean
+  mode: string
+  editable: boolean
+  config_path?: string
+  plugin_dir?: string
+  plugin_dir_configured: boolean
+  prelude_version: number
+  builtins: BuiltinPlugin[] | null
+  packages: LuaPackage[] | null
+  note?: string
+}
+
+export interface PluginValidateRequest {
+  kind: 'builtin' | 'package'
+  name: string
+  file?: string
+  source: string
+}
+
+export interface PluginValidateResult {
+  ok: boolean
+  errors: string[] | null
+}
+
 /** The runtime's billing rule: input + output. */
 export function billable(t: Pick<UsageTotals, 'input' | 'output'>): number {
   return (t.input || 0) + (t.output || 0)

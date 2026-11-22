@@ -11,6 +11,8 @@
   "nav.agentsHint": "已設定的代理：建立、編輯、套用與刪除",
   "nav.playground": "遊樂場",
   "nav.playgroundHint": "與代理對話，即時查看追蹤",
+  "nav.plugins": "外掛程式",
+  "nav.pluginsHint": "共用 Lua 套件與內建執行環境覆寫",
   "nav.channels": "頻道",
   "nav.channelsHint": "Webhook、Telegram、GitHub 與橋接頻道",
   "nav.models": "模型",

@@ -177,4 +177,22 @@ end
 `
     expect(hasCode(analyze(src, { preludeVersion: 1 }), 'global.unknown')).toBe(true)
   })
+
+  it('skips entry-point loop() checks when requireLoop is false', () => {
+    const chunk = `-- af-prelude-version: 1
+local M = {}
+function M.greet()
+  return "ok"
+end
+return M
+`
+    expect(codes(analyze(chunk, { preludeVersion: 1 }))).toContain('entry.missing-loop')
+    expect(analyze(chunk, { preludeVersion: 1, requireLoop: false })).toEqual([])
+
+    const missingDir = 'local x = 1\n'
+    expect(codes(analyze(missingDir, { preludeVersion: 1, requireLoop: false }))).toEqual(['prelude.missing-directive'])
+
+    const badSyntax = '-- af-prelude-version: 1\nlocal x = (\n'
+    expect(codes(analyze(badSyntax, { preludeVersion: 1, requireLoop: false }))).toContain('syntax.unclosed-bracket')
+  })
 })

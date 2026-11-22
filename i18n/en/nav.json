@@ -11,6 +11,8 @@
   "nav.agentsHint": "Configured agents; create, edit, apply and delete",
   "nav.playground": "Playground",
   "nav.playgroundHint": "Chat with an agent and watch the live trace",
+  "nav.plugins": "Plugins",
+  "nav.pluginsHint": "Shared Lua packages and built-in runtime overrides",
   "nav.channels": "Channels",
   "nav.channelsHint": "Webhook, Telegram, GitHub and bridge channels",
   "nav.models": "Models",

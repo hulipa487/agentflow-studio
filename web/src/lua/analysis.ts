@@ -34,6 +34,11 @@ export interface AnalysisContext {
    * do not check"; an empty list means no capabilities.
    */
   capabilities?: readonly string[] | null
+  /**
+   * Whether the chunk must define a global `loop()` function. True by default;
+   * false for support chunks and shared Lua packages.
+   */
+  requireLoop?: boolean
 }
 
 export type LocalKind = 'local' | 'param' | 'loop' | 'self' | 'function'
@@ -85,7 +90,9 @@ export function analyzeSource(src: string, ctx: AnalysisContext): AnalysisResult
   })
   a.run()
   diags.push(...a.diags)
-  diags.push(...a.entryPointDiagnostics())
+  if (ctx.requireLoop !== false) {
+    diags.push(...a.entryPointDiagnostics())
+  }
 
   diags = dedupeDiagnostics(diags)
   // Array.prototype.sort is stable, as the Go original requires.

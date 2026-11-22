@@ -380,7 +380,11 @@ export function luauSupport(opts: LuauOptions): Extension {
   const key = contextKey(ctx)
   let ext = built.get(key)
   if (!ext) {
-    ext = luauExtension({ preludeVersion: ctx.preludeVersion, capabilities: ctx.capabilities ? [...ctx.capabilities] : null })
+    ext = luauExtension({
+      preludeVersion: ctx.preludeVersion,
+      capabilities: ctx.capabilities ? [...ctx.capabilities] : null,
+      requireLoop: ctx.requireLoop,
+    })
     if (built.size >= 32) built.clear()
     built.set(key, ext)
   }

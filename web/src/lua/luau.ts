@@ -35,6 +35,11 @@ export interface LuauOptions {
    * line between a nil and an empty list.
    */
   capabilities: string[] | null
+  /**
+   * Whether the chunk must define a global `loop()` function. True by default;
+   * false for support chunks and shared Lua packages.
+   */
+  requireLoop?: boolean
 }
 
 const severityNames: Record<SeverityLevel, Severity> = { 1: 'error', 2: 'warning', 3: 'info', 4: 'hint' }
@@ -47,12 +52,13 @@ export function contextFor(opts: LuauOptions): AnalysisContext {
   return {
     preludeVersion: opts.preludeVersion > 0 ? opts.preludeVersion : 1,
     capabilities: opts.capabilities ?? null,
+    requireLoop: opts.requireLoop ?? true,
   }
 }
 
 /** A cache key for a context; unknown capabilities and an empty list differ. */
 export function contextKey(ctx: AnalysisContext): string {
-  return `${ctx.preludeVersion}|${ctx.capabilities ? 'caps:' + ctx.capabilities.join('\u0000') : 'unknown'}`
+  return `${ctx.preludeVersion}|${ctx.capabilities ? 'caps:' + ctx.capabilities.join('\u0000') : 'unknown'}|loop:${ctx.requireLoop !== false ? 1 : 0}`
 }
 
 // The linter, the completion source, the hover source and the builder's own
