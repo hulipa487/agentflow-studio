@@ -5,7 +5,7 @@
 import type { AgentDetail, AgentJSON, Catalog, Template } from '@/api/types'
 import { t } from '@/i18n'
 import { splitList } from '@/lib/format'
-import type { LuauDiagnostic } from '@/lua'
+import type { LuaDiagnostic } from '@/lua'
 import type { Tone } from '@/state/ui'
 
 export const AGENT_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/
@@ -261,7 +261,7 @@ export function nameError(name: string): string {
 }
 
 /** The loop editor's status line: errors lead, warnings follow, anything else is clean. */
-export function loopStatus(diagnostics: LuauDiagnostic[], checking: boolean, failure: string): Notice {
+export function loopStatus(diagnostics: LuaDiagnostic[], checking: boolean, failure: string): Notice {
   if (failure) return { text: t('lua.status.failed', { error: failure }), tone: 'danger' }
   if (checking) return { text: t('lua.status.checking'), tone: 'neutral' }
   const errors = diagnostics.filter((d) => d.severity === 'error').length

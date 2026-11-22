@@ -9,6 +9,7 @@ import { describeURL } from '@/api/describe'
 import { Banner, BrandBanner, Button, Checkbox, Chip, Field, IconButton, Input, Segmented, Spinner, cx } from '@/components/ui'
 import { APP_VERSION } from '@/components/shell/Shell'
 import { t, useLang, type Params } from '@/i18n'
+import { useDesktopShell, useSecretsStatus } from '@/lib/desktop'
 import { useAppearance, useResolvedMode } from '@/state/appearance'
 import { tokenFor, useConnections } from '@/state/connections'
 import { useSession } from '@/state/session'
@@ -32,6 +33,8 @@ export default function Login() {
   const mode = useResolvedMode()
   const toggleTheme = useAppearance((s) => s.toggle)
   const lang = useLang()
+  const inDesktop = useDesktopShell()
+  const secrets = useSecretsStatus()
 
   const initial = profiles.find((p) => p.name === active)
   const [url, setURL] = useState(initial?.url ?? EXAMPLES.http)
@@ -202,7 +205,7 @@ export default function Login() {
         >
           <div>
             <h2 className="text-md font-semibold">{t('login.connectTitle')}</h2>
-            <p className="mt-0.5 text-sm text-muted">{t('login.introWeb')}</p>
+            <p className="mt-0.5 text-sm text-muted">{t(inDesktop ? 'login.introDesktop' : 'login.introWeb')}</p>
           </div>
 
           {profiles.length > 0 && (
@@ -329,9 +332,11 @@ export default function Login() {
               checked={remember}
               disabled={busy}
               onChange={setRemember}
-              label={t('login.rememberBrowser')}
+              label={secrets.available ? t('login.rememberKeychain') : t('login.rememberBrowser')}
               hint={
-                remember ? t('login.rememberBrowserOn') : t('login.rememberBrowserOff')
+                remember
+                  ? t(secrets.available ? 'login.rememberKeychainOn' : 'login.rememberBrowserOn')
+                  : t('login.rememberBrowserOff')
               }
             />
           </div>

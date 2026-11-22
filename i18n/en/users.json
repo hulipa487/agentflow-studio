@@ -23,6 +23,7 @@
   "users.dailyLimit": "Daily limit…",
   "users.modelAndInstructions": "Model & instructions…",
   "users.export": "Export…",
+  "users.migrationBundle": "Migration bundle",
   "users.deleteProfile": "Delete profile",
   "users.quota.title": "Quota",
   "users.quota.subtitle": "Day {day} (UTC). The limit is the profile's own, or usage.default_tokens_per_day.",

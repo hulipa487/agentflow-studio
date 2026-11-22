@@ -74,6 +74,19 @@ describe('code', () => {
     }
     expect(missing).toEqual([])
   })
+
+  it('does not hardcode untranslated English UI props in TSX', () => {
+    const multiWord = /(label|aria-label|placeholder|title|subtitle|empty)="([^"]*?[A-Za-z]{2,}\s+[A-Za-z]{2,}[^"]*)"/g
+    const singleLabel = /(label|aria-label|title|subtitle|empty)="([A-Z][a-z]{2,}[^"]*)"/g
+    const offenders: string[] = []
+    for (const [file, text] of Object.entries(sources)) {
+      if (!/^\.\.\/(screens|components)\/.*\.tsx$/.test(file)) continue
+      for (const re of [multiWord, singleLabel]) {
+        for (const m of text.matchAll(re)) offenders.push(`${file}: ${m[0]}`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
 })
 
 describe('messages', () => {

@@ -191,7 +191,7 @@ export function UserDetail({
             {t('users.export')}
           </Button>
           <Button icon={Download} loading={busy === 'bundle'} disabled={busy !== ''} onClick={exportBundle}>
-            Migration bundle
+            {t('users.migrationBundle')}
           </Button>
           <IconButton icon={Trash2} label={t('users.deleteProfile')} tone="danger" loading={busy === 'delete'} disabled={busy !== ''} onClick={remove} />
         </div>

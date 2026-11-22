@@ -24,7 +24,7 @@ export interface LexResult {
 }
 
 /**
- * Tokenizes Luau source. It never fails: malformed input produces diagnostics
+ * Tokenizes Lua 5.1 source. It never fails: malformed input produces diagnostics
  * and the longest sensible token, so an editor can keep linting while the user
  * is mid-edit.
  */

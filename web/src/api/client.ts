@@ -250,6 +250,12 @@ export class Client {
     return this.json('POST', `/admin/api/studio/threads/${enc(thread)}/stop${query({ agent })}`, {}, signal, 10_000)
   }
 
+  /** Runs an agentflow loop-test YAML scenario with deterministic mocks. */
+  async runLoopTest(req: T.LoopTestRequest, signal?: AbortSignal): Promise<T.LoopTestResult> {
+    const r = await this.json<{ result: T.LoopTestResult }>('POST', '/admin/api/studio/loop/test', req, signal, 35_000)
+    return r.result
+  }
+
   /** Fetches a media blob by handle through the authenticated Studio endpoint. */
   async mediaBlob(handle: string, signal?: AbortSignal): Promise<Blob> {
     const res = await this.raw('GET', `/admin/api/studio/media/${enc(handle)}`, undefined, signal)
@@ -368,6 +374,21 @@ export class Client {
 
   deleteSafetyClassifier(name: string, mtime: T.Mtime | undefined): Promise<T.SafetyList> {
     return this.json('DELETE', `/admin/api/studio/safety/classifiers/${enc(name)}${query({ mtime })}`)
+  }
+
+  saveSafetyLuaFilter(
+    name: string,
+    create: boolean,
+    luaFilter: T.SafetyLuaFilterDraft,
+    mtime: T.Mtime | undefined,
+  ): Promise<T.SafetyList> {
+    const body = { lua_filter: luaFilter, mtime }
+    if (create) return this.json('POST', '/admin/api/studio/safety/lua-filters', body)
+    return this.json('PUT', '/admin/api/studio/safety/lua-filters/' + enc(name), body)
+  }
+
+  deleteSafetyLuaFilter(name: string, mtime: T.Mtime | undefined): Promise<T.SafetyList> {
+    return this.json('DELETE', `/admin/api/studio/safety/lua-filters/${enc(name)}${query({ mtime })}`)
   }
 
   // ---- memory ---------------------------------------------------------------

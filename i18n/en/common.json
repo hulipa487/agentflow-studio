@@ -66,5 +66,6 @@
   "common.saveFailed": "save failed: {message}",
   "common.crashTitle": "Something went wrong rendering this screen",
   "common.crashGuidance": "Your connection is still open. Retry this screen or return to Overview.",
-  "common.goOverview": "Go to Overview"
+  "common.goOverview": "Go to Overview",
+  "common.desktopBridgeError": "desktop {action}: HTTP {status}"
 }

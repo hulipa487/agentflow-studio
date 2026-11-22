@@ -26,7 +26,7 @@
   "docs.sectionBuild": "构建",
   "docs.sectionReference": "参考",
   "docs.assetUserApi": "用户 API（OpenAPI）",
-  "docs.assetLuauTypes": "Lua 类型定义",
+  "docs.assetLuaTypes": "Lua 类型定义",
   "docs.page.gettingStarted": "概述",
   "docs.page.architecture": "架构与部署",
   "docs.page.multiRegion": "多区域部署",
@@ -39,5 +39,15 @@
   "docs.englishOnly": "本指南尚未翻译，以下显示英文原文。",
   "docs.examples": "示例循环",
   "docs.openInBuilder": "在构建器中打开",
-  "docs.exampleNotBundled": "此版本未内置该示例循环。"
+  "docs.exampleNotBundled": "此版本未内置该示例循环。",
+  "docs.example.chat": "带长期记忆的对话循环",
+  "docs.example.daemon": "持久化守护进程智能体（persistent: true）",
+  "docs.example.delegate": "父智能体委派任务给临时子智能体",
+  "docs.example.echo": "极简回声循环：无需模型和工具，原样返回输入文本",
+  "docs.example.files": "基于用户级文件存储的笔记循环",
+  "docs.example.openai_memory": "为 OpenAI 兼容通道提供带记忆的透传循环",
+  "docs.example.openai_passthrough": "将智能体包装为标准的 OpenAI 兼容模型端点",
+  "docs.example.scheduled": "会话定时器与定时触发轮次",
+  "docs.example.stream": "从模型流式输出文本增量",
+  "docs.example.tool_loop": "多轮工具调用执行循环"
 }

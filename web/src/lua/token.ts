@@ -1,4 +1,4 @@
-// The AgentFlow Luau dialect's language service: lexing, diagnostics,
+// AgentFlow's Lua 5.1 language service: lexing, diagnostics,
 // completion and hover data for loop source. A port of the desktop Studio's
 // internal/lua package, kept rule for rule.
 //

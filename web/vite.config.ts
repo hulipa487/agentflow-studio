@@ -32,5 +32,5 @@ export default defineConfig({
   preview: { host: '127.0.0.1', port: 4173, cors: false },
   build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
   // English is pinned for the tests whatever the machine's locale (src/test-setup.ts).
-  test: { setupFiles: ['./src/test-setup.ts'] },
+  test: { setupFiles: ['./src/test-setup.ts'], exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'] },
 })

@@ -26,7 +26,7 @@
   "docs.sectionBuild": "Build",
   "docs.sectionReference": "Reference",
   "docs.assetUserApi": "User API (OpenAPI)",
-  "docs.assetLuauTypes": "Lua type definitions",
+  "docs.assetLuaTypes": "Lua type definitions",
   "docs.page.gettingStarted": "Overview",
   "docs.page.architecture": "Architecture & deployment",
   "docs.page.multiRegion": "Multi-region",
@@ -39,5 +39,15 @@
   "docs.englishOnly": "This guide has no translation yet; it is shown in English.",
   "docs.examples": "Examples",
   "docs.openInBuilder": "Open in Builder",
-  "docs.exampleNotBundled": "This example loop is not bundled in this build."
+  "docs.exampleNotBundled": "This example loop is not bundled in this build.",
+  "docs.example.chat": "A conversational loop with memory",
+  "docs.example.daemon": "A persistent daemon agent (persistent: true)",
+  "docs.example.delegate": "Parent agent delegating to an ephemeral child",
+  "docs.example.echo": "Minimal echo loop: replies with inbound text without a model or tools",
+  "docs.example.files": "A note-taking loop over the user-scoped file store",
+  "docs.example.openai_memory": "Pass-through with memory for the OpenAI-compatible channel",
+  "docs.example.openai_passthrough": "Make an agent look like a standard OpenAI-compatible model endpoint",
+  "docs.example.scheduled": "Session timers and scheduled turns",
+  "docs.example.stream": "Streaming text deltas from the model",
+  "docs.example.tool_loop": "Multi-round tool execution loop"
 }

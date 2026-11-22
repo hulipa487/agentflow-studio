@@ -1,6 +1,6 @@
-# Coding Luau loops
+# Coding Lua loops
 
-A practical guide to writing AgentFlow session loops in Luau: the execution
+A practical guide to writing AgentFlow session loops in Lua 5.1: the execution
 model, the whole Lua API, worked patterns, and the mistakes that are easy to
 make.
 
@@ -28,7 +28,7 @@ The bundled Lua type definitions are at [lua/af.d.lua](lua/af.d.lua); open them 
 
 ## 1. The smallest loop
 
-A session loop is a Luau chunk that defines a global function `loop()`. The
+A session loop is a Lua chunk that defines a global function `loop()`. The
 runtime loads one fresh Lua state per session and calls `loop()`; the function
 runs for the lifetime of that session.
 
@@ -92,7 +92,7 @@ on the first turn and shows up in the Studio trace.
 
 Each session is an **actor**:
 
-- one goroutine, one mailbox, one Luau state, one loop coroutine;
+- one goroutine, one mailbox, one Lua state, one loop coroutine;
 - messages are processed one at a time, in order;
 - the loop never runs concurrently with itself.
 
@@ -1121,7 +1121,7 @@ effect without a process restart. A shadow is still version-gated.
 
 ### Route handlers
 
-`gateway.route` (default `plugin:per_chat`) is a different surface: one Luau
+`gateway.route` (default `plugin:per_chat`) is a different surface: one Lua
 state per process, outside any session. Its `loop()` receives
 `{ message = Message, agent = "..." }` items and decides where a message goes:
 

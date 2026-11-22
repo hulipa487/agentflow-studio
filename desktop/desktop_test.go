@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -154,5 +155,106 @@ func TestDesktopUpdateStatusAndOpenURL(t *testing.T) {
 	}
 	if rec := call(t, p, "POST", "/__af/__desktop/open-url", "", `{"url":"https://github.com/hulipa487/agentflow-studio/releases"}`, nil); rec.Code != 200 || opened == "" {
 		t.Fatalf("https URL should open: code=%d opened=%q", rec.Code, opened)
+	}
+}
+
+type fakeSecretStore struct {
+	mu        sync.Mutex
+	available bool
+	backend   string
+	data      map[string]string
+}
+
+func (f *fakeSecretStore) Available() bool { return f.available }
+func (f *fakeSecretStore) Backend() string   { return f.backend }
+
+func (f *fakeSecretStore) Get(account string) (string, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.available {
+		return "", false, errKeychainUnavailable
+	}
+	v, ok := f.data[account]
+	return v, ok, nil
+}
+
+func (f *fakeSecretStore) Set(account, secret string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.available {
+		return errKeychainUnavailable
+	}
+	f.data[account] = secret
+	return nil
+}
+
+func (f *fakeSecretStore) Delete(account string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.available {
+		return errKeychainUnavailable
+	}
+	delete(f.data, account)
+	return nil
+}
+
+func TestDesktopSecretsBridge(t *testing.T) {
+	// Works even before the window context arrives (during early startup).
+	p := newProxy()
+	fake := &fakeSecretStore{available: true, backend: "fake-keychain", data: map[string]string{}}
+	p.desktop.secrets = fake
+
+	st := decodeBody(t, call(t, p, "GET", "/__af/__desktop/secrets/status", "", "", nil).Body.Bytes())
+	if st["ok"] != true || st["available"] != true || st["backend"] != "fake-keychain" {
+		t.Fatalf("secrets/status = %+v", st)
+	}
+
+	if rec := call(t, p, "POST", "/__af/__desktop/secrets/set", "", `{"account":"","secret":"x"}`, nil); rec.Code != 400 {
+		t.Fatalf("empty account set code = %d, want 400", rec.Code)
+	}
+	if rec := call(t, p, "POST", "/__af/__desktop/secrets/set", "", `{"account":"prod","secret":""}`, nil); rec.Code != 400 {
+		t.Fatalf("empty secret set code = %d, want 400", rec.Code)
+	}
+
+	if rec := call(t, p, "POST", "/__af/__desktop/secrets/set", "", `{"account":"prod","secret":"s3cr3t"}`, nil); rec.Code != 200 {
+		t.Fatalf("secrets/set code = %d", rec.Code)
+	}
+
+	got := decodeBody(t, call(t, p, "POST", "/__af/__desktop/secrets/get", "", `{"account":"prod"}`, nil).Body.Bytes())
+	if got["ok"] != true || got["found"] != true || got["secret"] != "s3cr3t" {
+		t.Fatalf("secrets/get found = %+v", got)
+	}
+
+	got = decodeBody(t, call(t, p, "POST", "/__af/__desktop/secrets/get", "", `{"account":"missing"}`, nil).Body.Bytes())
+	if got["ok"] != true || got["found"] != false {
+		t.Fatalf("secrets/get missing = %+v", got)
+	}
+	if _, hasSecret := got["secret"]; hasSecret {
+		t.Fatalf("missing secret lookup must omit secret field: %+v", got)
+	}
+
+	if rec := call(t, p, "POST", "/__af/__desktop/secrets/delete", "", `{"account":"prod"}`, nil); rec.Code != 200 {
+		t.Fatalf("secrets/delete code = %d", rec.Code)
+	}
+	got = decodeBody(t, call(t, p, "POST", "/__af/__desktop/secrets/get", "", `{"account":"prod"}`, nil).Body.Bytes())
+	if got["found"] != false {
+		t.Fatalf("secrets/get after delete = %+v", got)
+	}
+
+	// Unavailable keychain returns status unavailable=false and 503 for writes/reads.
+	fake.available = false
+	fake.backend = "none"
+	st = decodeBody(t, call(t, p, "GET", "/__af/__desktop/secrets/status", "", "", nil).Body.Bytes())
+	if st["available"] != false || st["backend"] != "none" {
+		t.Fatalf("unavailable secrets/status = %+v", st)
+	}
+	if rec := call(t, p, "POST", "/__af/__desktop/secrets/get", "", `{"account":"prod"}`, nil); rec.Code != 503 {
+		t.Fatalf("unavailable secrets/get code = %d, want 503", rec.Code)
+	}
+	if rec := call(t, p, "POST", "/__af/__desktop/secrets/set", "", `{"account":"prod","secret":"x"}`, nil); rec.Code != 503 {
+		t.Fatalf("unavailable secrets/set code = %d, want 503", rec.Code)
+	}
+	if rec := call(t, p, "POST", "/__af/__desktop/secrets/delete", "", `{"account":"prod"}`, nil); rec.Code != 503 {
+		t.Fatalf("unavailable secrets/delete code = %d, want 503", rec.Code)
 	}
 }

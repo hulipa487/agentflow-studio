@@ -1,6 +1,7 @@
 // Bundled example loops from the repository root examples/loops/*.lua.
 // Compiled in just like docs/, so developers can inspect examples offline
 // and open any example loop directly in the Builder.
+import { hasMessage, t } from '@/i18n'
 
 const rawExamples = import.meta.glob<string>('../../../examples/loops/*.lua', {
   query: '?raw',
@@ -54,4 +55,9 @@ export function bundledExamples(): readonly ExampleLoop[] {
 
 export function findExample(slug: string): ExampleLoop | undefined {
   return BY_SLUG.get(slug)
+}
+
+export function exampleSummary(ex: ExampleLoop): string {
+  const key = 'docs.example.' + ex.slug
+  return hasMessage(key) ? t(key) : ex.summary
 }

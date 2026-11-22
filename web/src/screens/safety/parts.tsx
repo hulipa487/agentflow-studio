@@ -7,7 +7,7 @@ import { ApiError, errorMessage } from '@/api/client'
 import type { SafetyList } from '@/api/types'
 import { Banner, Button, Chip, StatusChip, cx, type Tone } from '@/components/ui'
 import { t } from '@/i18n'
-import { chainText, emptyChain, isClassifierFilter } from './helpers'
+import { chainText, emptyChain, isClassifierFilter, isLuaFilter } from './helpers'
 
 /** True until the component unmounts, so a late answer is not applied. */
 export function useMounted(): RefObject<boolean> {
@@ -25,7 +25,7 @@ export function LiveChip({ live }: { live: boolean }) {
   return live ? <StatusChip tone="success">{t('safety.live')}</StatusChip> : <StatusChip tone="warning">{t('safety.restartRequired')}</StatusChip>
 }
 
-/** A filter chain, left to right; classifier filters stand out from builtins. */
+/** A filter chain, left to right; classifier and Lua filters stand out from builtins. */
 export function ChainView({ filters, className }: { filters: string[]; className?: string }) {
   if (filters.length === 0) return <span className={cx('font-mono text-sm text-faint', className)}>{emptyChain()}</span>
   return (
@@ -37,7 +37,7 @@ export function ChainView({ filters, className }: { filters: string[]; className
               →
             </span>
           )}
-          <Chip tone={isClassifierFilter(f) ? 'accent' : 'neutral'}>{f}</Chip>
+          <Chip tone={isClassifierFilter(f) ? 'accent' : isLuaFilter(f) ? 'success' : 'neutral'}>{f}</Chip>
         </Fragment>
       ))}
     </span>

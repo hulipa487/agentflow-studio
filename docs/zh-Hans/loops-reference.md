@@ -10,7 +10,7 @@ AgentFlow 插件是标准的 Lua 5.1 脚本，由内置纯 Go 虚拟机（`gophe
 
 ### 异步桥接
 
-暴露给 Luau 的唯一原生原语是 `__af_op(json_request)`。它让出协程；Go 执行该请求（内联执行或交给工作池）；随后协程以 `(json_response, ok)` 恢复。prelude 把这个原始原语封装成下文所述的易用表。由于每次调用都会让出执行，繁忙的实例开销依然很低——没有任何操作系统线程会因等待模型、数据库或 HTTP 响应而阻塞。
+暴露给 Lua 的唯一原生原语是 `__af_op(json_request)`。它让出协程；Go 执行该请求（内联执行或交给工作池）；随后协程以 `(json_response, ok)` 恢复。prelude 把这个原始原语封装成下文所述的易用表。由于每次调用都会让出执行，繁忙的实例开销依然很低——没有任何操作系统线程会因等待模型、数据库或 HTTP 响应而阻塞。
 
 ```
 -- prelude 替你做的事（概念上）：
@@ -136,7 +136,7 @@ llm.rerank(query, documents, opts?) -> { results } -- results：[{ index, score 
 
 视频来源遵循生态中的约定——MiniMax `mm_file://<file_id>`、Kimi `ms://<file_id>`——并作为 URL / 文件引用原样传递。SDK 的类型化请求联合类型没有建模的结构（`video_url`、GLM 的 `file_url`、Anthropic 视频块、Responses 的 `input_video` 和 `input_audio` 项）用 `param.Override` 构建——这是 SDK 自带的原始 JSON 逃生口，在没有设置类型化变体时会原样序列化。blob 存储的 `handle` 会自动解析为 base64。
 
-对于 gemini，每个媒体部件都会上传到 **Gemini Files API**（可续传上传）并通过 URI 引用——从不内联 base64。`data`（base64）、`url` 和 blob 存储 `handle` 这几种来源都可用（url 会先下载）；在文件 48 小时的有效期内，相同字节的重复上传会按内容哈希去重，到期后 Google 会自动删除该文件。Anthropic / openai 也直接接受 `url` 来源。`llm.stream` 返回两个值——`next_delta, close`。请直接调用 `next_delta()`（结束时返回 nil），绝不要放在泛型 `for ... in` 中：迭代器会跨桥接让出执行，而 Luau 不允许从泛型 for 的 C 边界让出。提前退出后请调用 `close()`；迭代器在结束时会自行关闭。它只返回文本增量——需要用量和工具调用时请用 `llm.chat`。
+对于 gemini，每个媒体部件都会上传到 **Gemini Files API**（可续传上传）并通过 URI 引用——从不内联 base64。`data`（base64）、`url` 和 blob 存储 `handle` 这几种来源都可用（url 会先下载）；在文件 48 小时的有效期内，相同字节的重复上传会按内容哈希去重，到期后 Google 会自动删除该文件。Anthropic / openai 也直接接受 `url` 来源。`llm.stream` 返回两个值——`next_delta, close`。请直接调用 `next_delta()`（结束时返回 nil），绝不要放在泛型 `for ... in` 中：迭代器会跨桥接让出执行，而 Lua 5.1 不允许从泛型 for 的 C/Go 边界让出。提前退出后请调用 `close()`；迭代器在结束时会自行关闭。它只返回文本增量——需要用量和工具调用时请用 `llm.chat`。
 
 **多模态嵌入**遵循 Jina 约定：`llm.embed` 接受字符串与部件表混合的数组，携带媒体的批次会把每一项序列化为类型化文档（`{"text"}`、`{"image"|"video"|"audio"|"pdf": url|base64}`）——这正是 `jina-embeddings-v5-omni-small`（文本、图片、视频、音频和 PDF 位于同一向量空间）和 `jina-clip-v2` 使用的结构。纯文本批次仍是普通字符串，因此任何兼容 OpenAI 的 `/embeddings` 端点（OpenAI、Ollama、vLLM、TEI、OpenRouter）看到的请求与以往完全一致。选项：`task`（`retrieval.query` | `retrieval.passage` | `text-matching` | `clustering` | `classification`）、`dimensions`（Matryoshka 截断）、`merged = true`（把所有输入合并为一个嵌入——即 Jina 的内容组；PDF 只能单独输入）。Anthropic 和 Gemini 提供商在这里没有嵌入 API，会明确报错。`llm.rerank` 需要一个 `provider: rerank` 的模型条目，它使用 `POST {base_url}/rerank` 协议（TEI、vLLM、Jina、Cohere）。智能体声明了预算时，`llm.embed` 会按 Token 计量。`gemini` 提供商（Interactions API）不支持流式：在它上面调用 `llm.stream` 会把完整回复作为单个增量返回。
 

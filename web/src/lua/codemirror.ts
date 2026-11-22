@@ -1,5 +1,5 @@
-// The CodeMirror face of the Luau language service: diagnostics, completion
-// and hover wired the way the desktop loop editor presents them.
+// The CodeMirror face of the Lua 5.1 language service: diagnostics, completion
+// and hover wired the way the loop editor presents them.
 import {
   autocompletion,
   completionStatus,
@@ -29,11 +29,11 @@ import {
   contextFor,
   contextKey,
   hoverIn,
-  toLuauDiagnostics,
-  type LuauHover,
-  type LuauOptions,
-} from './luau'
-import { streamNote, stripSnippet, type CompletionItem, type CompletionKind } from './service'
+  toLuaDiagnostics,
+  type LuaHover,
+  type LuaOptions,
+} from './offsets'
+import { entrySummary, streamNote, stripSnippet, type CompletionItem, type CompletionKind } from './service'
 
 // The desktop editor's timings: lint 220 ms after the last edit, completion
 // 150 ms after it, and at most 60 rows in the completion menu.
@@ -84,7 +84,7 @@ function cardTitle(text: string): HTMLElement {
 export function entryCard(entry: ApiEntry, padded = true): HTMLElement {
   const root = cardRoot(padded)
   root.append(cardTitle(entry.signature))
-  root.append(el('div', 'mt-1 text-muted', entry.summary))
+  root.append(el('div', 'mt-1 text-muted', entrySummary(entry)))
   if (entry.capability || entry.yields || entry.maintenance) {
     const row = el('div', 'mt-1.5 flex flex-wrap items-center gap-1')
     if (entry.capability) {
@@ -100,14 +100,14 @@ export function entryCard(entry: ApiEntry, padded = true): HTMLElement {
   }
   if (entry.path === 'llm.stream') {
     const note = el('div', 'mt-1.5 text-muted')
-    appendInline(note, streamNote)
+    appendInline(note, streamNote())
     root.append(note)
   }
   return root
 }
 
 /** The hover card: the entry card for prelude symbols, title and text otherwise. */
-export function hoverCard(hover: LuauHover): HTMLElement {
+export function hoverCard(hover: LuaHover): HTMLElement {
   if (hover.entry) return entryCard(hover.entry)
   const root = cardRoot(true)
   const [title, ...body] = hover.markdown.split('\n\n')
@@ -264,14 +264,14 @@ const theme = EditorView.theme({
 // ---- the extension -------------------------------------------------------------
 
 /** The three sources behind the extension, usable without a view. */
-export interface LuauSources {
+export interface LuaSources {
   diagnostics(state: EditorState): CmDiagnostic[]
   completions(context: CompletionContext): CompletionResult | null
   /** side is -1 when the pointer is before pos, 1 when after it. */
-  hover(state: EditorState, pos: number, side: -1 | 1): LuauHover | null
+  hover(state: EditorState, pos: number, side: -1 | 1): LuaHover | null
 }
 
-export function luauSources(ctx: AnalysisContext): LuauSources {
+export function luaSources(ctx: AnalysisContext): LuaSources {
   // One analysis per document version serves the linter, completion and hover.
   // Its diagnostics are worded in the language of the moment, so a language
   // change analyzes again.
@@ -288,7 +288,7 @@ export function luauSources(ctx: AnalysisContext): LuauSources {
 
   return {
     diagnostics: (state) =>
-      toLuauDiagnostics(analysisOf(state)).map((d) => ({
+      toLuaDiagnostics(analysisOf(state)).map((d) => ({
         from: d.from,
         to: d.to,
         severity: d.severity,
@@ -341,8 +341,8 @@ export function luauSources(ctx: AnalysisContext): LuauSources {
  * Builds the extension set for an analyzer context: lint gutter and wavy
  * underlines, automatic completion with ghost text, and hover cards.
  */
-export function luauExtension(ctx: AnalysisContext): Extension {
-  const sources = luauSources(ctx)
+export function luaExtension(ctx: AnalysisContext): Extension {
+  const sources = luaSources(ctx)
 
   const hoverSource = (view: EditorView, pos: number, side: -1 | 1): Tooltip | null => {
     const hover = sources.hover(view.state, pos, side)
@@ -369,18 +369,18 @@ export function luauExtension(ctx: AnalysisContext): Extension {
 const built = new Map<string, Extension>()
 
 /**
- * The CodeMirror extension set for a Luau loop: diagnostics drawn as wavy
+ * The CodeMirror extension set for a Lua 5.1 loop: diagnostics drawn as wavy
  * underlines with gutter markers, automatic completion for the prelude API,
  * and hover cards with signatures. Recreate it when the options change; equal
  * options return the same extension, so an editor is not reconfigured for
  * nothing.
  */
-export function luauSupport(opts: LuauOptions): Extension {
+export function luaSupport(opts: LuaOptions): Extension {
   const ctx = contextFor(opts)
   const key = contextKey(ctx)
   let ext = built.get(key)
   if (!ext) {
-    ext = luauExtension({
+    ext = luaExtension({
       preludeVersion: ctx.preludeVersion,
       capabilities: ctx.capabilities ? [...ctx.capabilities] : null,
       requireLoop: ctx.requireLoop,

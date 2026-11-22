@@ -100,7 +100,7 @@
   "builder.docsNotBundled": "Documentation is not bundled in this build.",
   "builder.guideNotBundled": "This guide is not bundled in this build.",
   "builder.guideUnreadable": "This guide could not be read.",
-  "builder.luauReference": "Lua Reference",
+  "builder.luaReference": "Lua Reference",
   "builder.fullDocs": "Full docs",
   "builder.fullDocsTitle": "Open this guide in the documentation viewer",
   "builder.guide": "Guide",

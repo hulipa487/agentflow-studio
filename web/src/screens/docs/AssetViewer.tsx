@@ -1,4 +1,4 @@
-// A bundled contract file (the OpenAPI document, the Luau type definitions)
+// A bundled contract file (the OpenAPI document, the Lua 5.1 type definitions)
 // shown read-only, to copy or save (a save dialog in the desktop app).
 import { Download, X } from 'lucide-react'
 import { readAsset, type DocAsset } from '@/docs/library'

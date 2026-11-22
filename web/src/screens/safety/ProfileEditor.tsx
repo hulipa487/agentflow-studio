@@ -8,7 +8,7 @@ import type { SafetyList, SafetyProfile } from '@/api/types'
 import { Button, Chip, Field, IconButton, Input, Modal } from '@/components/ui'
 import { t } from '@/i18n'
 import { splitList } from '@/lib/format'
-import { CLASSIFIER_PREFIX, DEFAULT_CHAIN, appendFilters, buildProfileDraft, emptyChain, isClassifierFilter, moveFilter } from './helpers'
+import { CLASSIFIER_PREFIX, DEFAULT_CHAIN, LUA_FILTER_PREFIX, appendFilters, buildProfileDraft, emptyChain, isClassifierFilter, isLuaFilter, moveFilter } from './helpers'
 import { ChainView, EditorFooter, EditorNotice, useEditorActions } from './parts'
 
 export function ProfileEditor({
@@ -35,7 +35,8 @@ export function ProfileEditor({
 
   const builtins = list.builtin_filters ?? []
   const classifierFilters = (list.classifiers ?? []).map((c) => CLASSIFIER_PREFIX + c.name)
-  const available = [...builtins, ...classifierFilters]
+  const luaFilters = (list.lua_filters ?? []).map((f) => LUA_FILTER_PREFIX + f.name)
+  const available = [...builtins, ...classifierFilters, ...luaFilters]
 
   const actions = useEditorActions({
     build: () => buildProfileDraft(name, chain),
@@ -55,10 +56,12 @@ export function ProfileEditor({
   }
 
   // The runtime has the last word; this only flags what it will refuse.
-  const kindOf = (f: string): { label: string; tone: 'neutral' | 'accent' | 'warning'; title?: string } => {
+  const kindOf = (f: string): { label: string; tone: 'neutral' | 'accent' | 'success' | 'warning'; title?: string } => {
     if (builtins.includes(f)) return { label: t('safety.kind.builtin'), tone: 'neutral' }
     if (classifierFilters.includes(f)) return { label: t('safety.kind.classifier'), tone: 'accent' }
+    if (luaFilters.includes(f)) return { label: t('safety.kind.lua'), tone: 'success' }
     if (isClassifierFilter(f)) return { label: t('safety.kind.missing'), tone: 'warning', title: t('safety.kind.missingTitle') }
+    if (isLuaFilter(f)) return { label: t('safety.kind.missingLua'), tone: 'warning', title: t('safety.kind.missingLuaTitle') }
     return { label: t('safety.kind.unknown'), tone: 'warning', title: t('safety.kind.unknownTitle') }
   }
 

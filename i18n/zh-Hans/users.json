@@ -23,6 +23,7 @@
   "users.dailyLimit": "每日限额…",
   "users.modelAndInstructions": "模型与指令…",
   "users.export": "导出…",
+  "users.migrationBundle": "迁移包…",
   "users.deleteProfile": "删除用户资料",
   "users.quota.title": "配额",
   "users.quota.subtitle": "{day}（UTC）。限额取用户资料自身的设置，未设置时取 usage.default_tokens_per_day。",

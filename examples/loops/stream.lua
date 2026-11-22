@@ -2,7 +2,7 @@
 -- Streaming text from the model.
 --
 -- Call next_delta directly. A generic `for d in llm.stream(...)` is refused:
--- the iterator yields across the native bridge, and Luau does not allow that
+-- the iterator yields across the Go/C bridge, and Lua 5.1 does not allow that
 -- from the generic-for C boundary ("attempt to yield across metamethod/C-call
 -- boundary"). The iterator closes itself at done; call close() if you exit
 -- early, or the stream keeps its goroutine and provider connection open.

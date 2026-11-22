@@ -86,6 +86,8 @@
   "channels.field.allowedUsers": "Allowed Telegram user IDs",
   "channels.field.botToken": "Bot token",
   "channels.field.webhookSecretToken": "Webhook secret token",
+  "channels.field.appId": "AppID",
+  "channels.field.appSecret": "AppSecret",
   "channels.field.eventDelivery": "Event delivery",
   "channels.field.apiBase": "API base",
   "channels.field.scenes": "Scenes",

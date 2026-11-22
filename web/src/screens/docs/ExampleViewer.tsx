@@ -1,7 +1,7 @@
 // A bundled example loop from examples/loops/<slug>.lua, shown read-only
 // with quick actions to copy, download, or open in the Builder when connected.
 import { ArrowRight, Download, X } from 'lucide-react'
-import type { ExampleLoop } from '@/docs/examples'
+import { exampleSummary, type ExampleLoop } from '@/docs/examples'
 import { Button, Chip, CopyButton, EmptyState, IconButton } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
 import { downloadText } from '@/lib/format'
@@ -54,7 +54,7 @@ export function ExampleViewer({
         )}
         <IconButton icon={X} label={t('docs.closeEsc')} onClick={onClose} />
       </div>
-      {example.summary && <p className="shrink-0 text-sm text-muted">{example.summary}</p>}
+      {exampleSummary(example) && <p className="shrink-0 text-sm text-muted">{exampleSummary(example)}</p>}
       <CodeEditor value={example.source} language="lua" readOnly className="min-h-0 flex-1" />
     </div>
   )

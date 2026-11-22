@@ -11,10 +11,11 @@ import { t } from '@/i18n'
 import { tr } from '@/i18n/rich'
 import { Fact, FieldLabel } from './parts'
 
-type TokenState = 'stored' | 'tab' | 'none'
+type TokenState = 'keychain' | 'stored' | 'tab' | 'none'
 
 function tokenState(p: Profile | undefined): TokenState {
   if (!p) return 'none'
+  if (p.tokenInKeychain && tokenFor(p)) return 'keychain'
   if (p.token) return 'stored'
   return tokenFor(p) ? 'tab' : 'none'
 }
@@ -33,12 +34,14 @@ function transportNote(client: Client): string {
 }
 
 const TOKEN_NOTE_KEY: Record<TokenState, string> = {
+  keychain: 'settings.tokenNoteKeychain',
   stored: 'settings.tokenNoteStored',
   tab: 'settings.tokenNoteTab',
   none: 'settings.tokenNoteNone',
 }
 
 function TokenChip({ state }: { state: TokenState }) {
+  if (state === 'keychain') return <Chip tone="success">{t('settings.tokenKeychain')}</Chip>
   if (state === 'stored') return <Chip tone="warning">{t('settings.tokenStored')}</Chip>
   if (state === 'tab') return <Chip tone="accent">{t('settings.tokenTab')}</Chip>
   return <Chip>{t('settings.tokenNone')}</Chip>

@@ -152,24 +152,30 @@ export function ModelEditor({
           <Field label={t('models.field.serverTools')}>
             <Input mono placeholder="web_search, google_search" {...text('serverTools')} />
           </Field>
-          <Field label="Stream">
+          <Field label={t('models.field.stream')}>
             <Select
               value={form.stream}
               onChange={(v) => setForm((f) => ({ ...f, stream: v }))}
-              options={['true', 'false']}
+              options={[
+                { value: 'true', label: t('models.stream.true') },
+                { value: 'false', label: t('models.stream.false') },
+              ]}
               placeholder={t('models.providerDefault')}
             />
           </Field>
-          <Field label="Key source">
+          <Field label={t('models.field.keySource')}>
             <Select
               value={form.keySource}
               onChange={(v) => setForm((f) => ({ ...f, keySource: v }))}
-              options={['engine', 'user']}
-              placeholder="engine (default)"
+              options={[
+                { value: 'engine', label: t('models.keySource.engine') },
+                { value: 'user', label: t('models.keySource.user') },
+              ]}
+              placeholder={t('models.placeholder.keySourceDefault')}
             />
           </Field>
           {form.keySource === 'user' && (
-            <Field label="Credential service">
+            <Field label={t('models.field.credential')}>
               <Input mono placeholder="openai" {...text('credential')} />
             </Field>
           )}

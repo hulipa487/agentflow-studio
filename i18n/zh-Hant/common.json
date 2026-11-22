@@ -66,5 +66,6 @@
   "common.saveFailed": "儲存失敗：{message}",
   "common.crashTitle": "繪製此畫面時發生錯誤",
   "common.crashGuidance": "目前的連線仍然維持。可以重試此畫面，或返回總覽。",
-  "common.goOverview": "前往總覽"
+  "common.goOverview": "前往總覽",
+  "common.desktopBridgeError": "桌面橋接 {action}：HTTP {status}"
 }

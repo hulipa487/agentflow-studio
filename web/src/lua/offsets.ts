@@ -1,6 +1,6 @@
-// The offset-based face of the language service: what the builder and the
-// CodeMirror extension call. Everything here works in UTF-16 offsets (plain
-// JavaScript string indexes) and converts to the analyzer's line/column
+// The offset-based face of the Lua 5.1 language service: what the builder
+// and CodeMirror extension call. Everything here works in UTF-16 offsets
+// (plain JavaScript string indexes) and converts to the analyzer's line/column
 // code-point positions at the edge.
 import { currentLang, t as i18n } from '@/i18n'
 import { analyzeSource, type AnalysisContext, type AnalysisResult, type Model } from './analysis'
@@ -10,7 +10,7 @@ import type { Diagnostic, Position, SeverityLevel } from './token'
 
 export type Severity = 'error' | 'warning' | 'info' | 'hint'
 
-export interface LuauDiagnostic {
+export interface LuaDiagnostic {
   /** 0-based offsets into the source. */
   from: number
   to: number
@@ -24,7 +24,7 @@ export interface LuauDiagnostic {
   capability?: string
 }
 
-export interface LuauOptions {
+export interface LuaOptions {
   /** The runtime's prelude version (catalog.prelude_version). */
   preludeVersion: number
   /**
@@ -48,7 +48,7 @@ const severityNames: Record<SeverityLevel, Severity> = { 1: 'error', 2: 'warning
  * Maps the public options to the analyzer's context. Like the desktop loop
  * editor, a missing prelude version counts as 1.
  */
-export function contextFor(opts: LuauOptions): AnalysisContext {
+export function contextFor(opts: LuaOptions): AnalysisContext {
   return {
     preludeVersion: opts.preludeVersion > 0 ? opts.preludeVersion : 1,
     capabilities: opts.capabilities ?? null,
@@ -100,11 +100,11 @@ export function positionOf(model: Model, offset: number): Position {
 }
 
 /** Converts analyzer diagnostics to offset ranges. */
-export function toLuauDiagnostics(result: AnalysisResult): LuauDiagnostic[] {
-  return result.diagnostics.map((d) => toLuauDiagnostic(result.model, d))
+export function toLuaDiagnostics(result: AnalysisResult): LuaDiagnostic[] {
+  return result.diagnostics.map((d) => toLuaDiagnostic(result.model, d))
 }
 
-function toLuauDiagnostic(model: Model, d: Diagnostic): LuauDiagnostic {
+function toLuaDiagnostic(model: Model, d: Diagnostic): LuaDiagnostic {
   const from = offsetOf(model, { line: d.line, col: d.col })
   const to = Math.max(from, offsetOf(model, { line: d.endLine, col: d.endCol }))
   return {
@@ -119,11 +119,11 @@ function toLuauDiagnostic(model: Model, d: Diagnostic): LuauDiagnostic {
 }
 
 /** Analyzes a loop chunk and returns its diagnostics. Pure; safe to call on every keystroke. */
-export function analyze(source: string, opts: LuauOptions): LuauDiagnostic[] {
-  return toLuauDiagnostics(analysisFor(source, contextFor(opts)))
+export function analyze(source: string, opts: LuaOptions): LuaDiagnostic[] {
+  return toLuaDiagnostics(analysisFor(source, contextFor(opts)))
 }
 
-export interface LuauCompletions {
+export interface LuaCompletions {
   /** Where the typed prefix starts; accepting an item replaces from..to. */
   from: number
   to: number
@@ -140,11 +140,11 @@ export interface LuauCompletions {
  * namespace, otherwise locals in scope, prelude globals, the standard library
  * and the chunk's own functions, all filtered by the typed prefix.
  */
-export function completionsAt(source: string, offset: number, opts: LuauOptions): LuauCompletions {
+export function completionsAt(source: string, offset: number, opts: LuaOptions): LuaCompletions {
   return completionsIn(analysisFor(source, contextFor(opts)).model, offset)
 }
 
-export function completionsIn(model: Model, offset: number): LuauCompletions {
+export function completionsIn(model: Model, offset: number): LuaCompletions {
   const pos = positionOf(model, offset)
   const scope = completionScope(model, pos.line, pos.col)
   return {
@@ -156,7 +156,7 @@ export function completionsIn(model: Model, offset: number): LuauCompletions {
   }
 }
 
-export interface LuauHover {
+export interface LuaHover {
   /** The hovered symbol's range: the whole dotted path. */
   from: number
   to: number
@@ -167,11 +167,11 @@ export interface LuauHover {
 }
 
 /** Hover documentation for the symbol at an offset, or null. */
-export function hoverAt(source: string, offset: number, opts: LuauOptions): LuauHover | null {
+export function hoverAt(source: string, offset: number, opts: LuaOptions): LuaHover | null {
   return hoverIn(analysisFor(source, contextFor(opts)).model, offset)
 }
 
-export function hoverIn(model: Model, offset: number): LuauHover | null {
+export function hoverIn(model: Model, offset: number): LuaHover | null {
   const pos = positionOf(model, offset)
   const h = hoverAtPosition(model, pos.line, pos.col)
   if (!h) return null

@@ -32,6 +32,11 @@ It replaced a native Fyne app on 2026-11-20. That app is at the git tag
     against GitHub Releases (`SHA256SUMS.txt` verification, atomic replacement
     on Windows/macOS `.app`/writable Linux installs, and release-page fallback
     for `.deb` system installs).
+  - `secrets/status`, `secrets/get`, `secrets/set`, `secrets/delete`: OS
+    keychain storage (`windows-credman` via Win32 `advapi32.dll`,
+    `macos-keychain` via `/usr/bin/security`, `linux-secret-service` via
+    `secret-tool`) so remembered tokens are stored outside plaintext
+    `localStorage`.
 - **No native title bar on Windows.** The window is frameless there and the
   app's top bar is the title bar: its empty space drags the window, a
   double-click maximises, and minimise / maximise / close sit at its right end
@@ -42,10 +47,11 @@ It replaced a native Fyne app on 2026-11-20. That app is at the git tag
 - **The window (`window.go`)** remembers its size, position and maximised
   state in `<config dir>/agentflow-studio/desktop/window.json`. A second launch
   brings the running window forward.
-- **Storage.** Connections, language and theme are the web app's, in the
-  webview's localStorage: `$XDG_DATA_HOME/agentflow-studio` on Linux, whatever
-  the binary is called (`prgname_linux.go`), and the app data folder on
-  Windows.
+- **Storage.** Connections (addresses and profile metadata), language and theme
+  live in the webview's localStorage (`$XDG_DATA_HOME/agentflow-studio` on
+  Linux, whatever the binary is called via `prgname_linux.go`, and the app data
+  folder on Windows). Remembered admin tokens are stored in the OS keychain
+  (`keychain.go` / `keychain_*.go`) and hydrated into memory at startup.
 - **Icon.** `winres/` holds the icon (16 to 256 px), the Windows manifest
   (per-monitor DPI awareness, Common Controls v6, long paths) and the version
   info. `make winres` turns them into the committed
@@ -77,11 +83,13 @@ No Wails CLI is needed: a Wails v2 app builds with plain `go build` and the
 - **Linux** (ARM64): every screen at 960×600 and 1700×1000 (`docs-shots/`),
   the proxy and the live log tail, restart persistence, first-run import of a
   Fyne config, the save dialog, the title-bar buttons in frameless mode.
-- **Windows 10/11**: started, connected and switched language, with the native
-  title bar. The frameless title bar has not been run on Windows yet: check
-  dragging, double-click to maximise, resizing from the edges and the three
-  buttons.
-- **macOS**: not built or run.
+- **Windows 10/11**: `amd64` and `arm64` `CGO_ENABLED=0` binaries built cleanly;
+  frameless WebView2 window verified via live `probe` build (initial `1280x860`
+  and `1100x720` resize, `[data-window-drag]` strip, `Minimise` / `Maximise` /
+  `Close` controls, clean exit via `/__af/__desktop/close`, and Win32
+  Credential Manager `windows-credman` roundtrip).
+- **macOS**: not yet built or run on real Mac hardware (CI validates compilation
+  on `macos-latest`).
 
 | | This app | The Fyne app it replaced |
 |---|---|---|

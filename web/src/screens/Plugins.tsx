@@ -41,7 +41,7 @@ import { Split } from '@/components/ui/Split'
 import { copyText } from '@/lib/format'
 import { useAlive, useAsync, useDebounced, useScreenActions, useUnsavedGuard } from '@/lib/hooks'
 import { t, useLang } from '@/i18n'
-import { analyze, luauSupport, type LuauDiagnostic } from '@/lua'
+import { analyze, luaSupport, type LuaDiagnostic } from '@/lua'
 import { SKIP_GUARD } from '@/lib/hooks'
 import { useCatalog, useClient, useSession } from '@/state/session'
 import { confirm, toast } from '@/state/ui'
@@ -147,10 +147,10 @@ export default function Plugins() {
 
   const debouncedSource = useDebounced(source, 220)
   const extensions = useMemo(
-    () => [luauSupport({ preludeVersion, capabilities: null, requireLoop })],
+    () => [luaSupport({ preludeVersion, capabilities: null, requireLoop })],
     [preludeVersion, requireLoop],
   )
-  const diagnostics = useMemo<LuauDiagnostic[]>(() => {
+  const diagnostics = useMemo<LuaDiagnostic[]>(() => {
     if (!loadedKey) return []
     return analyze(debouncedSource, { preludeVersion, capabilities: null, requireLoop })
   }, [loadedKey, debouncedSource, preludeVersion, requireLoop])
@@ -373,7 +373,7 @@ export default function Plugins() {
     }
   }
 
-  const jumpToIssue = (d: LuauDiagnostic) => {
+  const jumpToIssue = (d: LuaDiagnostic) => {
     const v = viewRef.current
     if (!v) return
     const len = v.state.doc.length

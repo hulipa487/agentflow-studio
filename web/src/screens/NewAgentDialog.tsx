@@ -2,7 +2,7 @@
 // Everything can be edited in the builder afterwards.
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
-import { bundledExamples } from '@/docs/examples'
+import { bundledExamples, exampleSummary } from '@/docs/examples'
 import { Button, Chip, Modal } from '@/components/ui'
 import { useCatalog } from '@/state/session'
 import { useUI } from '@/state/ui'
@@ -68,7 +68,7 @@ export function NewAgentDialog() {
             <p className="text-xs text-muted">{t('agents.exampleLoopsHint')}</p>
           </div>
           <div className="flex flex-col gap-2">
-            {examples.map((ex) => card(`ex:${ex.slug}`, ex.title, ex.slug, 'neutral', ex.summary, { example: ex.slug }))}
+            {examples.map((ex) => card(`ex:${ex.slug}`, ex.title, ex.slug, 'neutral', exampleSummary(ex), { example: ex.slug }))}
           </div>
         </div>
       )}

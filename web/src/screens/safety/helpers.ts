@@ -1,15 +1,53 @@
 // Pure helpers for the Safety screen, ported from the desktop Studio
 // (internal/ui/safety.go) so both apps parse and print the same way. Parsers
 // throw an Error whose message is the text the form shows.
-import type { SafetyClassifier, SafetyClassifierDraft, SafetyProfile, SafetyProfileDraft } from '@/api/types'
-import { t } from '@/i18n'
+import type {
+  SafetyClassifier,
+  SafetyClassifierDraft,
+  SafetyLuaFilter,
+  SafetyLuaFilterDraft,
+  SafetyProfile,
+  SafetyProfileDraft,
+} from '@/api/types'
+import { hasMessage, t } from '@/i18n'
 
 export const CLASSIFIER_PREFIX = 'classifier:'
+export const LUA_FILTER_PREFIX = 'lua:'
 
 export const MODES = ['enforce', 'shadow']
 export const FAIL_ACTIONS = ['block', 'pass']
+export const LUA_FAIL_ACTIONS = ['pass', 'block']
 export const SOURCES = ['channel', 'agent', 'scheduler', 'system'] as const
 export type Source = (typeof SOURCES)[number]
+
+export function modeLabel(mode: string): string {
+  const key = `safety.mode.${mode}`
+  return hasMessage(key) ? t(key) : mode
+}
+
+export function failActionLabel(action: string): string {
+  const key = `safety.failAction.${action}`
+  return hasMessage(key) ? t(key) : action
+}
+
+export function sourceLabel(source: string): string {
+  const key = `safety.sourceKind.${source}`
+  return hasMessage(key) ? t(key) : source
+}
+
+export function directionLabel(dir: string): string {
+  const key = `safety.direction.${dir}`
+  return hasMessage(key) ? t(key) : dir
+}
+
+export function withCurrentOptions(
+  values: readonly string[],
+  current: string,
+  labelOf: (v: string) => string,
+): { value: string; label: string }[] {
+  const list = current !== '' && !values.includes(current) ? [...values, current] : [...values]
+  return list.map((v) => ({ value: v, label: labelOf(v) }))
+}
 
 // ---- formatting -------------------------------------------------------------
 
@@ -77,6 +115,10 @@ export function profileInUse(p: Pick<SafetyProfile, 'agents' | 'spawn_profiles'>
 
 export function isClassifierFilter(filter: string): boolean {
   return filter.startsWith(CLASSIFIER_PREFIX)
+}
+
+export function isLuaFilter(filter: string): boolean {
+  return filter.startsWith(LUA_FILTER_PREFIX)
 }
 
 // ---- parsing ----------------------------------------------------------------
@@ -309,4 +351,113 @@ export function buildClassifierDraft(f: ClassifierForm): SafetyClassifierDraft {
 /** A select's options, with the stored value kept selectable when the list no longer offers it. */
 export function withCurrent(options: string[], current: string): string[] {
   return current !== '' && !options.includes(current) ? [...options, current] : options
+}
+
+// ---- custom Lua filter form -------------------------------------------------
+
+export const LUA_FILTER_STARTER = `-- Sandboxed Lua 5.1 safety filter (string, table, math only).
+-- Return a table or nil. Available on input:
+--   ingress(input): input.message, input.source, input.session_id, input.annotations
+--   egress(input):  input.text, input.source, input.session_id, input.annotations
+
+function ingress(input)
+  return { text = input.message }
+end
+
+function egress(input)
+  local cleaned = string.gsub(input.text, "sk%-[A-Za-z0-9]+", "[REDACTED]")
+  return { text = cleaned }
+end
+`
+
+export interface LuaFilterForm {
+  name: string
+  useFile: boolean
+  source: string
+  file: string
+  ingress: boolean
+  egress: boolean
+  sources: Record<Source, boolean>
+  timeout: string
+  instrBudget: string
+  onError: string
+  refusal: string
+  fallback: string
+}
+
+export function luaFilterForm(existing: SafetyLuaFilter | null): LuaFilterForm {
+  if (!existing) {
+    return {
+      name: '',
+      useFile: false,
+      source: LUA_FILTER_STARTER,
+      file: '',
+      ingress: true,
+      egress: true,
+      sources: { channel: true, agent: true, scheduler: false, system: false },
+      timeout: '200ms',
+      instrBudget: '100000',
+      onError: 'pass',
+      refusal: '',
+      fallback: '',
+    }
+  }
+  const directions = existing.directions ?? []
+  const sources = existing.sources ?? []
+  const allowSrc = (s: Source) => sources.length === 0 || sources.includes(s)
+  const useFile = Boolean(existing.file && !existing.source)
+  return {
+    name: existing.name,
+    useFile,
+    source: existing.source ?? (useFile ? '' : LUA_FILTER_STARTER),
+    file: existing.file ?? '',
+    ingress: directions.length === 0 || directions.includes('ingress'),
+    egress: directions.length === 0 || directions.includes('egress'),
+    sources: {
+      channel: allowSrc('channel'),
+      agent: allowSrc('agent'),
+      scheduler: allowSrc('scheduler'),
+      system: allowSrc('system'),
+    },
+    timeout: existing.timeout ?? '',
+    instrBudget: countText(existing.instr_budget),
+    onError: existing.on_error || 'pass',
+    refusal: existing.refusal ?? '',
+    fallback: existing.fallback ?? '',
+  }
+}
+
+export function buildLuaFilterDraft(f: LuaFilterForm): SafetyLuaFilterDraft {
+  const name = f.name.trim()
+  if (name === '') throw new Error(t('safety.err.luaNameRequired'))
+  if (f.useFile) {
+    if (f.file.trim() === '') throw new Error(t('safety.err.luaFileRequired'))
+  } else if (f.source.trim() === '') {
+    throw new Error(t('safety.err.luaSourceRequired'))
+  }
+  const directions: string[] = []
+  if (f.ingress) directions.push('ingress')
+  if (f.egress) directions.push('egress')
+  if (directions.length === 0) throw new Error(t('safety.err.chooseDirection'))
+  const sources = SOURCES.filter((s) => f.sources[s])
+  if (sources.length === 0) throw new Error(t('safety.err.chooseSource'))
+
+  const d: SafetyLuaFilterDraft = {
+    name,
+    directions,
+    sources: sources.length === SOURCES.length ? undefined : sources,
+    on_error: f.onError || 'pass',
+  }
+  if (f.useFile) d.file = f.file.trim()
+  else d.source = f.source.replace(/\r\n?/g, '\n')
+
+  const timeout = f.timeout.trim()
+  if (timeout !== '') d.timeout = timeout
+  const budget = optionalCount64(t('safety.lua.instrBudget'), f.instrBudget)
+  if (budget > 0) d.instr_budget = budget
+  const refusal = f.refusal.trim()
+  if (refusal !== '') d.refusal = refusal
+  const fallback = f.fallback.trim()
+  if (fallback !== '') d.fallback = fallback
+  return d
 }

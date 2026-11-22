@@ -26,7 +26,7 @@
   "docs.sectionBuild": "建構",
   "docs.sectionReference": "參考",
   "docs.assetUserApi": "使用者 API（OpenAPI）",
-  "docs.assetLuauTypes": "Lua 型別定義",
+  "docs.assetLuaTypes": "Lua 型別定義",
   "docs.page.gettingStarted": "概述",
   "docs.page.architecture": "架構與部署",
   "docs.page.multiRegion": "多區域部署",
@@ -39,5 +39,15 @@
   "docs.englishOnly": "本指南尚未翻譯，以下顯示英文原文。",
   "docs.examples": "範例迴圈",
   "docs.openInBuilder": "在建構器中開啟",
-  "docs.exampleNotBundled": "此版本未內建此範例迴圈。"
+  "docs.exampleNotBundled": "此版本未內建此範例迴圈。",
+  "docs.example.chat": "具備長期記憶的對話迴圈",
+  "docs.example.daemon": "常駐守護程序代理（persistent: true）",
+  "docs.example.delegate": "父代理委派任務給暫時子代理",
+  "docs.example.echo": "極簡回聲迴圈：無須模型與工具，原樣回覆輸入文字",
+  "docs.example.files": "基於使用者層級檔案儲存空間的筆記迴圈",
+  "docs.example.openai_memory": "為 OpenAI 相容通道提供具記憶能力的透傳迴圈",
+  "docs.example.openai_passthrough": "將代理封裝為標準的 OpenAI 相容模型端點",
+  "docs.example.scheduled": "工作階段計時器與排程觸發輪次",
+  "docs.example.stream": "從模型串流輸出文字增量",
+  "docs.example.tool_loop": "多輪工具呼叫執行迴圈"
 }

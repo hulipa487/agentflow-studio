@@ -92,10 +92,10 @@ switcher live in the connection pill in the command bar.
 - **Agents** — one dense list: model, loop, capabilities, persisted /
   runtime-only, live sessions. Create from a template, edit, chat, delete.
 - **Builder** — form (model, safety, capabilities, skills, history budget,
-  daemon, `can_contact`, credentials, extras), a Luau loop editor with
+  daemon, `can_contact`, credentials, extras), a Lua 5.1 loop editor with
   diagnostics, completion and hover docs, an instructions editor and raw YAML.
   **Validate** runs the runtime's boot-equivalent check, **Apply** installs it
-  live, **Apply & save** persists it. The inline Luau reference sits beside it.
+  live, **Apply & save** persists it. The inline Lua reference sits beside it.
 - **Playground** — threaded chat, one session per thread, optional
   act-as-user, streamed replies and the live trace of turns, ops, model and
   tool calls, tokens, durations and errors.
@@ -113,8 +113,8 @@ switcher live in the connection pill in the command bar.
 
 ### Loop editor
 
-The Luau editor's diagnostics, completion and hover come from a TypeScript port
-of the Fyne desktop app's in-process analyzer (`src/lua`): the
+The Lua editor's diagnostics, completion and hover come from a TypeScript port
+of the runtime's Lua 5.1 analyzer (`src/lua`): the
 chunk contract (`-- af-prelude-version`, a global `loop()`), unknown prelude
 names with "did you mean", capability checks against the agent's effective
 capabilities, and AgentFlow-specific hazards. It knows the documented prelude;
@@ -138,7 +138,7 @@ for a "Discard changes?" answer.
 | `Ctrl/⌘+S` | Apply in the builder (its remembered choice); validate and save in Config |
 | `Ctrl/⌘+Enter` | Send in the playground; in the builder, apply pending edits and run |
 | `Ctrl+Space` | Completion in the loop editor |
-| `F1` | Documentation; in the builder, the Luau reference dock |
+| `F1` | Documentation; in the builder, the Lua reference dock |
 | `Esc` | Back |
 
 `Ctrl+N`, `Ctrl+1…9` and `F5` are the browser's, so navigation uses `Alt`; the
@@ -173,7 +173,7 @@ src/api                 typed admin API client, SSE reader, wire types
 src/state               connections (saved profiles), session, appearance, UI
 src/components/ui       the component kit, CodeMirror editor, Markdown
 src/components/shell    command bar, rail, status bar, command palette, shortcuts
-src/lua                 the Luau analyzer and its CodeMirror extension
+src/lua                 the Lua 5.1 analyzer and its CodeMirror extension
 src/docs                the library over ../docs, the bundled guides
 src/i18n                t(), the current language, and the catalogues from ../i18n
 src/screens             one file per screen (+ a folder for its parts)
@@ -187,7 +187,7 @@ component built on `Page` from the kit.
 
 ```bash
 npm run typecheck    # tsc -b
-npm test             # vitest: API client, proxy, Luau analyzer, screen logic
+npm test             # vitest: API client, proxy, Lua analyzer, screen logic
 ```
 
 The documentation is not copied into this app: `src/docs/library.ts` bundles

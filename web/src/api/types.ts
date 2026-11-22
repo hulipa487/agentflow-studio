@@ -158,6 +158,36 @@ export interface Thread {
   events: number
 }
 
+export interface LoopTestAssertion {
+  kind: string
+  index: number
+  expected: string
+  actual?: string
+  ok: boolean
+  err?: string
+}
+
+export interface LoopTestResult {
+  ok: boolean
+  error?: string
+  agent?: string
+  loop?: string
+  model?: string
+  duration_ms: number
+  sends: string[]
+  ops: string[]
+  assertions: LoopTestAssertion[]
+  events: TraceEvent[]
+}
+
+export interface LoopTestRequest {
+  yaml: string
+  agent?: string
+  loop_source?: string
+  instructions?: string
+  model?: string
+}
+
 export interface ValidationResult {
   ok: boolean
   errors: string[] | null
@@ -335,6 +365,7 @@ export interface SafetyProfile {
   agents: string[] | null
   spawn_profiles: string[] | null
   classifiers: string[] | null
+  lua_filters?: string[] | null
   live: boolean
 }
 
@@ -375,6 +406,24 @@ export interface SafetyClassifier extends SafetyClassifierDraft {
   live: boolean
 }
 
+export interface SafetyLuaFilterDraft {
+  name: string
+  source?: string
+  file?: string
+  directions?: string[]
+  sources?: string[]
+  timeout?: string
+  instr_budget?: number
+  on_error?: string
+  refusal?: string
+  fallback?: string
+}
+
+export interface SafetyLuaFilter extends SafetyLuaFilterDraft {
+  used_by: string[] | null
+  live: boolean
+}
+
 export interface SafetyList {
   ok: boolean
   restart_required: boolean
@@ -386,6 +435,7 @@ export interface SafetyList {
   builtin_filters: string[] | null
   profiles: SafetyProfile[] | null
   classifiers: SafetyClassifier[] | null
+  lua_filters?: SafetyLuaFilter[] | null
   models: string[] | null
   prompts: string[] | null
   note: string
@@ -397,10 +447,11 @@ export interface SafetyProfileDraft {
 }
 
 export interface SafetyValidateRequest {
-  kind: 'profile' | 'classifier'
+  kind: 'profile' | 'classifier' | 'lua_filter'
   creating: boolean
   profile?: SafetyProfileDraft
   classifier?: SafetyClassifierDraft
+  lua_filter?: SafetyLuaFilterDraft
 }
 
 export interface MemoryStoreDraft {

@@ -1,6 +1,6 @@
 // The agent builder, a workbench: one toolbar (the agent, its state, the
 // actions), the definition on four tabs at full width, and a dock that holds
-// either a run panel (chat and trace with this agent) or the Luau reference.
+// either a run panel (chat and trace with this agent) or the Lua reference.
 // A port of the desktop Studio's builder.go: the form renders the agent
 // document, the loop and instructions travel as sources, and Apply swaps the
 // live definition. Ctrl+Enter applies pending edits and runs a turn.
@@ -15,7 +15,7 @@ import { Split } from '@/components/ui/Split'
 import { findExample, type ExampleLoop } from '@/docs/examples'
 import { t, useLang } from '@/i18n'
 import { SKIP_GUARD, useAlive, useAsync, useDebounced, useScreenActions, useStored, useUnsavedGuard } from '@/lib/hooks'
-import { analyze, luauSupport, type LuauDiagnostic, type LuauOptions } from '@/lua'
+import { analyze, luaSupport, type LuaDiagnostic, type LuaOptions } from '@/lua'
 import { MOD } from '@/nav'
 import { useCatalog, useClient, useSession } from '@/state/session'
 import { confirm, toast } from '@/state/ui'
@@ -280,7 +280,7 @@ function BuilderView({
   // Keyed by content so the extension is rebuilt exactly when the effective
   // list changes: that is what re-lints the loop the moment a box is toggled.
   const capsKey = effectiveCapabilities(form.capabilities, catalog).join('\n')
-  const luaOptions = useMemo<LuauOptions>(
+  const luaOptions = useMemo<LuaOptions>(
     // No selection and no deployment defaults: the effective list is unknown,
     // so capability checks are skipped rather than flagging every call.
     () => ({ preludeVersion, capabilities: capsKey === '' ? null : capsKey.split('\n') }),
@@ -288,7 +288,7 @@ function BuilderView({
   )
   const support = useMemo(() => {
     try {
-      return { extensions: [luauSupport(luaOptions)], failure: '' }
+      return { extensions: [luaSupport(luaOptions)], failure: '' }
     } catch (err) {
       return { extensions: [], failure: errorMessage(err) }
     }
@@ -296,7 +296,7 @@ function BuilderView({
   const linted = useDebounced(loop, 220)
   // Diagnostics are written in the language current when they are computed.
   const lang = useLang()
-  const analysis = useMemo<{ diagnostics: LuauDiagnostic[]; failure: string }>(() => {
+  const analysis = useMemo<{ diagnostics: LuaDiagnostic[]; failure: string }>(() => {
     try {
       return { diagnostics: analyze(linted, luaOptions), failure: '' }
     } catch (err) {

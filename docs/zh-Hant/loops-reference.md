@@ -10,7 +10,7 @@ AgentFlow 外掛程式是標準的 Lua 5.1 指令碼，由內建純 Go 虛擬機
 
 ### 非同步橋接
 
-公開給 Luau 的唯一原生基本操作是 `__af_op(json_request)`。它會讓出協程；Go 執行該請求（直接執行或交給工作者池）；然後協程以 `(json_response, ok)` 恢復執行。prelude 把這個原始基本操作包裝成下文記載的易用資料表。由於每次呼叫都會讓出執行，忙碌的執行個體依然成本低廉：不會有任何作業系統執行緒因等待模型、資料庫或 HTTP 回應而被阻塞。
+公開給 Lua 的唯一原生基本操作是 `__af_op(json_request)`。它會讓出協程；Go 執行該請求（直接執行或交給工作者池）；然後協程以 `(json_response, ok)` 恢復執行。prelude 把這個原始基本操作包裝成下文記載的易用資料表。由於每次呼叫都會讓出執行，忙碌的執行個體依然成本低廉：不會有任何作業系統執行緒因等待模型、資料庫或 HTTP 回應而被阻塞。
 
 ```
 -- prelude 替你做的事（概念上）：
@@ -137,7 +137,7 @@ llm.rerank(query, documents, opts?) -> { results } -- results: [{ index, score }
 
 影片來源遵循生態系的慣例，例如 MiniMax `mm_file://<file_id>`、Kimi `ms://<file_id>`，並以 URL／檔案參照的形式原樣傳遞。SDK 的型別化請求聯集未涵蓋的形式（`video_url`、GLM 的 `file_url`、Anthropic 影片區塊、Responses 的 `input_video` 與 `input_audio` 項目）是用 `param.Override` 建構的；這是 SDK 本身的原始 JSON 逃生口，在未設定任何型別化變體時會原樣序列化。Blob 儲存區的 `handle` 會自動解析為 base64。
 
-對 gemini 而言，每個媒體部分都會上傳到 **Gemini Files API**（可續傳上傳）並以 URI 參照，絕不會以內嵌 base64 傳送。`data`（base64）、`url` 與 Blob 儲存區 `handle` 來源都可使用（url 會先下載）；相同位元組的重複上傳會在檔案的 48 小時存續期間內依內容雜湊去重複，期滿後 Google 會自動刪除檔案。Anthropic／openai 也直接接受 `url` 來源。`llm.stream` 傳回兩個值：`next_delta, close`。請直接呼叫 `next_delta()`（結束時傳回 nil），絕不要放在泛型 `for ... in` 中：迭代器會跨越橋接讓出執行，而 Luau 不允許從泛型 for 的 C 邊界這麼做。提前離開時請呼叫 `close()`；迭代器在結束時會自行關閉。它只傳回文字片段；需要用量與工具呼叫時請使用 `llm.chat`。
+對 gemini 而言，每個媒體部分都會上傳到 **Gemini Files API**（可續傳上傳）並以 URI 參照，絕不會以內嵌 base64 傳送。`data`（base64）、`url` 與 Blob 儲存區 `handle` 來源都可使用（url 會先下載）；相同位元組的重複上傳會在檔案的 48 小時存續期間內依內容雜湊去重複，期滿後 Google 會自動刪除檔案。Anthropic／openai 也直接接受 `url` 來源。`llm.stream` 傳回兩個值：`next_delta, close`。請直接呼叫 `next_delta()`（結束時傳回 nil），絕不要放在泛型 `for ... in` 中：迭代器會跨越橋接讓出執行，而 Lua 5.1 不允許從泛型 for 的 C/Go 邊界這麼做。提前離開時請呼叫 `close()`；迭代器在結束時會自行關閉。它只傳回文字片段；需要用量與工具呼叫時請使用 `llm.chat`。
 
 **多模態嵌入**遵循 Jina 慣例：`llm.embed` 接受字串與部分資料表混合的陣列，帶有媒體的批次會把每個項目序列化為型別化文件（`{"text"}`、`{"image"|"video"|"audio"|"pdf": url|base64}`），也就是 `jina-embeddings-v5-omni-small`（文字、圖片、影片、音訊與 PDF 共用同一個向量空間）和 `jina-clip-v2` 使用的形式。純文字批次仍是一般字串，因此任何相容 OpenAI 的 `/embeddings` 端點（OpenAI、Ollama、vLLM、TEI、OpenRouter）看到的都是與以往完全相同的請求。選項：`task`（`retrieval.query` | `retrieval.passage` | `text-matching` | `clustering` | `classification`）、`dimensions`（Matryoshka 截斷）、`merged = true`（把所有輸入合併成一個嵌入，即 Jina 的內容群組；PDF 只能單一輸入）。Anthropic 與 Gemini 供應商在這裡沒有嵌入 API，會明確失敗。`llm.rerank` 需要一個 `provider: rerank` 的模型項目，且該項目支援 `POST {base_url}/rerank`（TEI、vLLM、Jina、Cohere）。代理宣告了預算時，`llm.embed` 會依 Token 計量。`gemini` 供應商（Interactions API）不支援串流：在它上面使用 `llm.stream`，會以單一片段產生完整回覆。
 

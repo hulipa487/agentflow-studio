@@ -10,7 +10,7 @@
   "memory.backendCount": "{n, plural, one {# backend} other {# backends}}",
   "memory.profileCount": "{n, plural, one {# profile} other {# profiles}}",
   "memory.storeCount": "{n, plural, one {# store} other {# stores}}",
-  "memory.source": "source {mode}",
+  "memory.source": "{mode, select, configdir {source config directory} file {source config file} other {source {mode}}}",
   "memory.editable": "editable",
   "memory.readOnly": "read-only",
   "memory.whatPath": "path",

@@ -10,7 +10,7 @@
   "memory.backendCount": "{n} 個後端",
   "memory.profileCount": "{n} 個設定檔",
   "memory.storeCount": "{n} 個儲存區",
-  "memory.source": "來源：{mode}",
+  "memory.source": "來源：{mode, select, configdir {組態目錄} file {組態檔} other {{mode}}}",
   "memory.editable": "可編輯",
   "memory.readOnly": "唯讀",
   "memory.whatPath": "路徑",

@@ -4,7 +4,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Code2, FileCode } from 'lucide-react'
-import { bundledExamples } from '@/docs/examples'
+import { bundledExamples, exampleSummary } from '@/docs/examples'
 import { DOC_ASSETS, DOC_SECTIONS, docHeadingIDs, docPages, docTitle, readDoc, searchDocs, type DocPage } from '@/docs/library'
 import { SearchBox, cx } from '@/components/ui'
 import { t, useLang } from '@/i18n'
@@ -129,7 +129,7 @@ export function Sidebar({
                     key={ex.slug}
                     type="button"
                     onClick={() => onExample(ex.slug)}
-                    title={ex.summary || ex.file}
+                    title={exampleSummary(ex) || ex.file}
                     className={cx(ITEM, example === ex.slug ? ACTIVE : IDLE)}
                   >
                     <Code2 className="size-[15px] shrink-0" strokeWidth={1.9} />

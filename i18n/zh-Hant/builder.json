@@ -100,7 +100,7 @@
   "builder.docsNotBundled": "此版本未隨附文件。",
   "builder.guideNotBundled": "此版本未隨附此指南。",
   "builder.guideUnreadable": "無法讀取此指南。",
-  "builder.luauReference": "Lua 參考",
+  "builder.luaReference": "Lua 參考",
   "builder.fullDocs": "完整文件",
   "builder.fullDocsTitle": "在文件檢視器中開啟此指南",
   "builder.guide": "指南",

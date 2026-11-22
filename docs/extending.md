@@ -213,7 +213,7 @@ These run on every turn whatever the loop does. Replacing the loop handler canno
 | --- | --- | --- | --- |
 | `safety.ingress` | filter | Go, core-owned | Runs before the loop sees a message; may drop it, skip the turn, or rewrite the text. Of the five baseline filters only `affect-guard` ever drops; `classifier:<name>` filters can block on model output. |
 | `safety.egress` | filter | Go, core-owned | Runs before the reply reaches the channel; may drop it (with an optional core-authored fallback). |
-| `gateway.route` | handler | a Lua chunk named by `gateway.route`, default `plugin:per_chat` | One Luau state per process. Reads the message and returns a session address. A route handler may call only `inbox`, `deliver`, `runtime.triggers`, `router.state.*` and `log`; anything else is refused by name. |
+| `gateway.route` | handler | a Lua chunk named by `gateway.route`, default `plugin:per_chat` | One Lua state per process. Reads the message and returns a session address. A route handler may call only `inbox`, `deliver`, `runtime.triggers`, `router.state.*` and `log`; anything else is refused by name. |
 
 ### Naming conventions the Lua calls
 

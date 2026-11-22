@@ -14,6 +14,10 @@ package main
 //   POST update/check                    query GitHub Releases for a newer version
 //   POST update/apply                    download, verify SHA-256 and relaunch
 //   POST open-url     {url}              open an http(s) URL in the OS browser
+//   GET  secrets/status                  OS keychain availability and backend name
+//   POST secrets/get    {account}        read a token from the OS keychain
+//   POST secrets/set    {account, secret} store a token in the OS keychain
+//   POST secrets/delete {account}        remove a token from the OS keychain
 //
 // Like the proxy, this is reachable only from the app's own webview.
 
@@ -46,6 +50,7 @@ type desktop struct {
 	close     func(ctx context.Context)
 	quit      func(ctx context.Context)
 	updater   *updater
+	secrets   secretStore
 	// The window calls, swappable in tests.
 	saveDialog func(ctx context.Context, name string) (string, error)
 	setBg      func(ctx context.Context, r, g, b uint8)
@@ -57,6 +62,7 @@ func newDesktop() *desktop {
 	return &desktop{
 		quit:    runtime.Quit,
 		updater: newUpdater(version),
+		secrets: newSecretStore(),
 		saveDialog: func(ctx context.Context, name string) (string, error) {
 			return runtime.SaveFileDialog(ctx, runtime.SaveDialogOptions{DefaultFilename: name, CanCreateDirectories: true})
 		},
@@ -202,6 +208,101 @@ func (d *desktop) serve(w http.ResponseWriter, r *http.Request, action string) {
 		}
 		if d.openURL != nil {
 			d.openURL(ctx, parsed.String())
+		}
+		reply(w, map[string]any{"ok": true})
+
+	case action == "secrets/status" && r.Method == http.MethodGet:
+		if d.secrets == nil {
+			reply(w, map[string]any{"ok": true, "available": false, "backend": "none"})
+			return
+		}
+		reply(w, map[string]any{"ok": true, "available": d.secrets.Available(), "backend": d.secrets.Backend()})
+
+	case action == "secrets/get" && r.Method == http.MethodPost:
+		var in struct {
+			Account string `json:"account"`
+		}
+		if err := decode(r, 4096, &in); err != nil {
+			refuse(w, http.StatusBadRequest, "bad secret lookup request")
+			return
+		}
+		if err := validateAccount(in.Account); err != nil {
+			refuse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if d.secrets == nil || !d.secrets.Available() {
+			refuse(w, http.StatusServiceUnavailable, errKeychainUnavailable.Error())
+			return
+		}
+		secret, found, err := d.secrets.Get(in.Account)
+		if err != nil {
+			if errors.Is(err, errKeychainUnavailable) {
+				refuse(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			refuse(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		out := map[string]any{"ok": true, "found": found}
+		if found {
+			out["secret"] = secret
+		}
+		reply(w, out)
+
+	case action == "secrets/set" && r.Method == http.MethodPost:
+		var in struct {
+			Account string `json:"account"`
+			Secret  string `json:"secret"`
+		}
+		if err := decode(r, 65536, &in); err != nil {
+			refuse(w, http.StatusBadRequest, "bad secret store request")
+			return
+		}
+		if err := validateAccount(in.Account); err != nil {
+			refuse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if in.Secret == "" {
+			refuse(w, http.StatusBadRequest, "secret is required")
+			return
+		}
+		if d.secrets == nil || !d.secrets.Available() {
+			refuse(w, http.StatusServiceUnavailable, errKeychainUnavailable.Error())
+			return
+		}
+		if err := d.secrets.Set(in.Account, in.Secret); err != nil {
+			if errors.Is(err, errKeychainUnavailable) {
+				refuse(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			refuse(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		reply(w, map[string]any{"ok": true})
+
+	case action == "secrets/delete" && r.Method == http.MethodPost:
+		var in struct {
+			Account string `json:"account"`
+		}
+		if err := decode(r, 4096, &in); err != nil {
+			refuse(w, http.StatusBadRequest, "bad secret delete request")
+			return
+		}
+		if err := validateAccount(in.Account); err != nil {
+			refuse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if d.secrets == nil || !d.secrets.Available() {
+			refuse(w, http.StatusServiceUnavailable, errKeychainUnavailable.Error())
+			return
+		}
+		if err := d.secrets.Delete(in.Account); err != nil {
+			if errors.Is(err, errKeychainUnavailable) {
+				refuse(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			refuse(w, http.StatusInternalServerError, err.Error())
+			return
 		}
 		reply(w, map[string]any{"ok": true})
 

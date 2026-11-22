@@ -215,7 +215,7 @@ search on `facts`. Time bounds are RFC3339 strings.
 ### Raw tables
 
 `store.put`, `store.get`, `store.query` and `store.delete` work on a store by
-name with no routing or embedding. They are covered in [Luau loops](loops.md#memory).
+name with no routing or embedding. They are covered in [Lua loops](loops.md#memory).
 
 ## Isolation
 

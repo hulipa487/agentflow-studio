@@ -272,10 +272,10 @@ export function ChannelEditor({
 
         {qq && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="AppID" hint={t('channels.hint.appId')}>
+            <Field label={t('channels.field.appId')} hint={t('channels.hint.appId')}>
               <Input mono placeholder="102xxxxxx" {...text('appID')} />
             </Field>
-            {secretField('AppSecret', t('channels.placeholder.appSecret'), t('channels.hint.appSecret'))}
+            {secretField(t('channels.field.appSecret'), t('channels.placeholder.appSecret'), t('channels.hint.appSecret'))}
             <Field
               label={t('channels.field.eventDelivery')}
               hint={

@@ -1,6 +1,6 @@
-# 撰寫 Luau 迴圈
+# 撰寫 Lua 迴圈
 
-以 Luau 撰寫 AgentFlow 工作階段迴圈的實用指南：執行模型、完整的 Lua API、實作模式，以及容易犯的錯誤。
+以 Lua 5.1 撰寫 AgentFlow 工作階段迴圈的實用指南：執行模型、完整的 Lua API、實作模式，以及容易犯的錯誤。
 
 這些模式的可執行版本位於 [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops)。
 
@@ -26,7 +26,7 @@
 
 ## 1. 最小的迴圈
 
-工作階段迴圈是一個定義了全域函式 `loop()` 的 Luau 程式碼區塊。執行環境為每個工作階段載入一個全新的 Lua 狀態並呼叫 `loop()`；這個函式會在該工作階段的整個生命週期內持續執行。
+工作階段迴圈是一個定義了全域函式 `loop()` 的 Lua 程式碼區塊。執行環境為每個工作階段載入一個全新的 Lua 狀態並呼叫 `loop()`；這個函式會在該工作階段的整個生命週期內持續執行。
 
 ```lua
 -- af-prelude-version: 1
@@ -79,7 +79,7 @@ Studio 應用程式（`/admin/api/studio/*`）驗證迴圈的方式是檢查指�
 
 每個工作階段都是一個 **actor**：
 
-- 一個 goroutine、一個信箱、一個 Luau 狀態、一個迴圈協程；
+- 一個 goroutine、一個信箱、一個 Lua 狀態、一個迴圈協程；
 - 訊息依序逐一處理；
 - 迴圈永遠不會與自己並行執行。
 
@@ -895,7 +895,7 @@ local reply = llm.chat(messages, { model = info.model })
 
 ### 路由處理常式
 
-`gateway.route`（預設 `plugin:per_chat`）是另一種介面：每個行程一個 Luau 狀態，位於任何工作階段之外。它的 `loop()` 接收 `{ message = Message, agent = "..." }` 項目，並決定訊息要送往何處：
+`gateway.route`（預設 `plugin:per_chat`）是另一種介面：每個行程一個 Lua 狀態，位於任何工作階段之外。它的 `loop()` 接收 `{ message = Message, agent = "..." }` 項目，並決定訊息要送往何處：
 
 ```lua
 function loop()

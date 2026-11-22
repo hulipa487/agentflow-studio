@@ -179,7 +179,7 @@ expect_contains: ["help"]
 | --- | --- | --- | --- |
 | `safety.ingress` | 过滤器 | Go，由核心掌管 | 在循环看到消息之前运行；可以丢弃消息、跳过本轮次或改写文本。五个基线过滤器中只有 `affect-guard` 会丢弃消息；`classifier:<name>` 过滤器可以根据模型输出拦截。 |
 | `safety.egress` | 过滤器 | Go，由核心掌管 | 在回复到达渠道之前运行；可以丢弃回复（可附带一条由核心撰写的替代回复）。 |
-| `gateway.route` | 处理器 | 由 `gateway.route` 指定的 Lua 代码块，默认 `plugin:per_chat` | 每个进程一个 Luau 状态。读取消息并返回一个会话地址。路由处理器只能调用 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 和 `log`；其他调用都会按名称被拒绝。 |
+| `gateway.route` | 处理器 | 由 `gateway.route` 指定的 Lua 代码块，默认 `plugin:per_chat` | 每个进程一个 Lua 状态。读取消息并返回一个会话地址。路由处理器只能调用 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 和 `log`；其他调用都会按名称被拒绝。 |
 
 ### Lua 调用的命名约定
 

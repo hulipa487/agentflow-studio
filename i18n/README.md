@@ -41,8 +41,8 @@ samples can be written as they are.
 Everything Studio itself says: titles, labels, hints, buttons, banners, toasts,
 dialogs, empty states, tooltips, and the errors Studio composes. Not
 translated: config keys and values, identifiers, capability and tool names,
-model and profile names, file paths, YAML, Luau, key names (Ctrl, Enter, F1),
-product names (AgentFlow, Studio, Telegram, GitHub, Luau, YAML, Webhook), and
+model and profile names, file paths, YAML, Lua, key names (Ctrl, Enter, F1),
+product names (AgentFlow, Studio, Telegram, GitHub, Lua, YAML, Webhook), and
 whatever the runtime returns, error text included. Those are passed in as
 parameters.
 
@@ -72,7 +72,7 @@ Use these terms on every screen.
 | --- | --- | --- |
 | agent | 智能体 | 代理 |
 | runtime | 运行时 | 執行環境 |
-| loop (the Luau loop of an agent) | 循环 | 迴圈 |
+| loop (the Lua loop of an agent) | 循环 | 迴圈 |
 | script | 脚本 | 指令碼 |
 | model | 模型 | 模型 |
 | channel | 渠道 | 頻道 |

@@ -1,4 +1,4 @@
-import { t as i18n } from '@/i18n'
+import { hasMessage, t as i18n } from '@/i18n'
 import type { Local, Model } from './analysis'
 import {
   children,
@@ -105,7 +105,13 @@ export function complete(m: Model | null | undefined, line: number, col: number)
   const pos: Position = { line, col }
   for (const l of m.locals) {
     if (before(pos, l.decl) || !inScope(l, line, col)) continue
-    add({ label: l.name, kind: 'variable', detail: l.kind, documentation: '', insert: l.name })
+    add({
+      label: l.name,
+      kind: 'variable',
+      detail: i18n(localKindKey[l.kind] ?? 'lua.hover.localVariable'),
+      documentation: '',
+      insert: l.name,
+    })
   }
   for (const e of children('')) add(completionFromEntry(e))
   for (const name of stdlibCompletion()) {
@@ -123,13 +129,18 @@ export function complete(m: Model | null | undefined, line: number, col: number)
   return items.sort(byLabel)
 }
 
+export function entrySummary(e: Pick<ApiEntry, 'path' | 'summary'>): string {
+  const key = 'lua.api.' + e.path
+  return hasMessage(key) ? i18n(key) : e.summary
+}
+
 export function completionFromEntry(e: ApiEntry): CompletionItem {
   const label = leafName(e.path)
   let kind: CompletionKind = 'field'
   if (e.kind === 'function') kind = 'function'
   else if (e.kind === 'table') kind = 'module'
   else if (e.kind === 'variable') kind = 'variable'
-  let doc = e.summary
+  let doc = entrySummary(e)
   if (e.capability) doc += '\n\n' + i18n('lua.doc.capability', { capability: e.capability })
   if (e.maintenance) doc += '\n\n' + i18n('lua.doc.maintenanceShort')
   return {
@@ -225,20 +236,22 @@ export function hoverAtPosition(m: Model | null | undefined, line: number, col: 
   const entry = lookup(path)
   if (entry) return { ...range, markdown: entryMarkdown(entry), entry }
   const rootEntry = lookup(root)
-  if (rootEntry) return { ...range, markdown: `**${parts.join('.')}**\n\n${rootEntry.summary}` }
+  if (rootEntry) return { ...range, markdown: `**${parts.join('.')}**\n\n${entrySummary(rootEntry)}` }
   if (m.globals.has(root)) return { ...range, markdown: `**${root}**\n\n${i18n('lua.hover.chunkFunction')}` }
   if (isKnownGlobal(root)) return { ...range, markdown: `**${root}**\n\n${i18n('lua.hover.stdlib')}` }
   return null
 }
 
 /** The extra hover line for llm.stream, the one call with a usage trap. */
-export const streamNote = 'Call `next_delta()` directly; a generic `for` fails across the bridge.'
+export function streamNote(): string {
+  return i18n('lua.doc.streamNote')
+}
 
 export function entryMarkdown(e: ApiEntry): string {
-  let b = `**${e.signature}**\n\n${e.summary}`
+  let b = `**${e.signature}**\n\n${entrySummary(e)}`
   if (e.capability) b += '\n\n' + i18n('lua.doc.capabilityMarkdown', { capability: e.capability })
   if (e.maintenance) b += `\n\n*${i18n('lua.doc.maintenance')}*`
-  if (e.path === 'llm.stream') b += '\n\n' + streamNote
+  if (e.path === 'llm.stream') b += '\n\n' + streamNote()
   return b
 }
 

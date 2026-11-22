@@ -1,6 +1,6 @@
 ## 架構
 
-一個請求會依序穿過一個不深的堆疊。頻道驅動程式把平台傳來的位元組轉成 `session.Message`。選用的身分層判斷是誰傳送的，路由器的 Lua 處理常式再選出工作階段鍵。監督者（supervisor）找到或建立工作階段 actor，由它執行一個 Luau 迴圈。迴圈透過非同步橋接呼叫以能力為後盾的操作，驅動程式再連到外部系統。安全過濾器、稽核記錄與來源資訊都由核心掌管。它們就位在這條路徑上，所以迴圈無法移除或偽造。
+一個請求會依序穿過一個不深的堆疊。頻道驅動程式把平台傳來的位元組轉成 `session.Message`。選用的身分層判斷是誰傳送的，路由器的 Lua 處理常式再選出工作階段鍵。監督者（supervisor）找到或建立工作階段 actor，由它執行一個 Lua 迴圈。迴圈透過非同步橋接呼叫以能力為後盾的操作，驅動程式再連到外部系統。安全過濾器、稽核記錄與來源資訊都由核心掌管。它們就位在這條路徑上，所以迴圈無法移除或偽造。
 
 ```
 ┌─ Channels (bytes in / replies out) ─────────────────────────────────────────┐
@@ -15,7 +15,7 @@
 │  handle → user:<uuid> · /link codes consumed here · unregistered allow|reject │
 └───────────┬──────────────────────────────────────────────────────────────────┘
             ▼
-┌─ Router (one Luau service state per process) ───────────────────────────────┐
+┌─ Router (one Lua service state per process) ────────────────────────────────┐
 │  audit journal (inbound) ──► gateway.route handler (default plugin:per_chat)  │
 │  computes the session key, may propose a group; router.state.* is durable     │
 └───────────┬──────────────────────────────────────────────────────────────────┘
@@ -28,7 +28,7 @@
 └───────────┬──────────────────────────────────────────────────────────────────┘
             │ one mailbox per session
             ▼
-┌─ Actor (1 goroutine + 1 Luau state per session) ────────────────────────────┐
+┌─ Actor (1 goroutine + 1 Lua state per session) ─────────────────────────────┐
 │  session.inbox() ──► safety ingress ──► loop() continues                      │
 │  llm.* / memory.* / tools.run / shell.* / http.* / files.* / agent.* / …      │
 │  __af_op(json) yields ── inline op, or worker pool (fair-share per tenant)    │
@@ -112,7 +112,7 @@ project launch: user ──► main ──[directive: start_project]──► ag
 | identity | 身分 | 選用。把頻道帳號解析成 `user:<uuid>`、消耗 `/link` 代碼，並在 `runtime.users.unregistered: reject` 時拒絕未註冊的傳送者。 |
 | router | 路由 | 先將傳入訊息寫入稽核記錄，再於每個行程一個的服務狀態中執行 `gateway.route` Lua 處理常式，算出工作階段鍵（也可以提議一個群組身分）。可熱重新載入。 |
 | supervisor | 權限 | 工作階段的查找與衍生、蓋上來源資訊、驗證群組成員資格、每個租戶的工作階段上限、代理之間轉送時的 `can_contact`、spawn/request/reply，以及透過工作階段中樞在叢集內交接。 |
-| actor | 執行 | 每個工作階段一個 goroutine + 一個 Luau 狀態。驅動迴圈，在 `__af_op` 上暫停，取得結果後繼續，在 `session.inbox()` 執行傳入安全檢查，並在每次傳送時執行傳出安全檢查。 |
+| actor | 執行 | 每個工作階段一個 goroutine + 一個 Lua 狀態。驅動迴圈，在 `__af_op` 上暫停，取得結果後繼續，在 `session.inbox()` 執行傳入安全檢查，並在每次傳送時執行傳出安全檢查。 |
 | capabilities | 操作 | 面向 Lua 的資料表（`llm`、`memory`、`store`、`tools`、`shell`、`http`、`mail`、`files`、`agent`、`scheduler`、`session.state`、`user`、`credential`），全部建立在單一的非同步橋接基本操作上。每個代理只會取得其 `capabilities` 授予的處理常式。 |
 | drivers | I/O | 連到實際系統：LLM 供應商、儲存與向量後端、shell 供應商、MCP 伺服器、搜尋引擎、瀏覽器、郵件、S3。 |
 | safety | 防護 | 由核心掌管的過濾鏈（`profiles.safety`、以模型為基礎的 `safety.classifiers`），不論迴圈怎麼寫，都會在 actor 內於傳入與傳出時執行。無法從 Lua 移除。 |
@@ -196,7 +196,7 @@ files: { backend: s3, s3: { bucket: agentflow-files, region: eu-west-1 } }
 
 ### 部署必須遵守的不變條件
 
-- **路由處理常式把狀態放在儲存區，而不是 Lua 中。** 路由器在每個行程是一個 Luau 狀態，由接收到傳入訊息的那個執行個體執行；所以在 Lua 全域變數中記住任何東西的處理常式，會讓每個執行個體各有不同的答案，重新啟動後也會遺忘。應該改用 `router.state.*`：持久、整個部署共用、在每個執行個體上值都相同，而且能撐過容錯移轉。
+- **路由處理常式把狀態放在儲存區，而不是 Lua 中。** 路由器在每個行程是一個 Lua 狀態，由接收到傳入訊息的那個執行個體執行；所以在 Lua 全域變數中記住任何東西的處理常式，會讓每個執行個體各有不同的答案，重新啟動後也會遺忘。應該改用 `router.state.*`：持久、整個部署共用、在每個執行個體上值都相同，而且能撐過容錯移轉。
 - **明確設定 `ADMIN_TOKEN`，或把每個執行個體都設為具名操作人員。** 在區域單元中，每次啟動時產生的權杖會被拒絕，而不會被產生，因為每個主控台都會拒絕其他主控台的權杖。
 - **訊息 ID 在每個執行個體內唯一，而不是在整個叢集內唯一。** 頻道驅動程式常自行為訊息編號（`wh-1`）。收件匣會以接受該訊息的執行個體來限定它們，所以不會遺失任何東西；但只用 ID 在稽核記錄中查詢，可能會比對到兩個執行個體的資料列。查詢時請把 ID 當成每個執行個體各自的鍵。
 - **比較組態紀元。** `/admin/api/state` 會回報 `config_epoch`，也就是組態片段原始寫法的短雜湊，並標出紀元不同的執行中執行個體。兩個執行個體不一致，表示其中一個執行的是不同的部署；輪替密鑰不會改變它（它雜湊的是寫下的內容，而不是解析後的內容）。

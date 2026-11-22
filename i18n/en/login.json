@@ -28,6 +28,8 @@
   "login.rememberBrowser": "Remember the token in this browser",
   "login.rememberBrowserOn": "Stored in plain text in this browser profile’s localStorage. Lock forgets it.",
   "login.rememberBrowserOff": "Kept for this tab only; closing the tab forgets it.",
+  "login.rememberKeychain": "Remember the token in the OS keychain",
+  "login.rememberKeychainOn": "Stored in your operating system’s credential manager (Keychain / Windows Credential Manager / Secret Service), not in plain text localStorage. Lock forgets it.",
   "login.rememberDesktop": "Remember the token on this computer",
   "login.rememberDesktopNote": "Stored in plain text, owner-only, in {path}. Lock forgets it.",
   "login.connect": "Connect",

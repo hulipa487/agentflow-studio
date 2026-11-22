@@ -10,7 +10,7 @@
   "memory.backendCount": "{n} 个后端",
   "memory.profileCount": "{n} 个方案",
   "memory.storeCount": "{n} 个存储区",
-  "memory.source": "来源：{mode}",
+  "memory.source": "来源：{mode, select, configdir {配置目录} file {配置文件} other {{mode}}}",
   "memory.editable": "可编辑",
   "memory.readOnly": "只读",
   "memory.whatPath": "路径",

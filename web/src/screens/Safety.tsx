@@ -5,18 +5,32 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
-import type { SafetyClassifier, SafetyList, SafetyProfile } from '@/api/types'
+import type { SafetyClassifier, SafetyList, SafetyLuaFilter, SafetyProfile } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, CopyButton, IconButton, Page, Section, type Tone } from '@/components/ui'
 import { t } from '@/i18n'
 import { useAsync, useScreenActions } from '@/lib/hooks'
 import { useClient, useSession } from '@/state/session'
 import { confirm, info, toast } from '@/state/ui'
 import { ClassifierEditor } from './safety/ClassifierEditor'
+import { LuaFilterEditor } from './safety/LuaFilterEditor'
 import { ProfileEditor } from './safety/ProfileEditor'
-import { categorySummary, formatThreshold, profileInUse, profileUsage, profileUsedBy } from './safety/helpers'
+import {
+  categorySummary,
+  directionLabel,
+  failActionLabel,
+  formatThreshold,
+  modeLabel,
+  profileInUse,
+  profileUsage,
+  profileUsedBy,
+  sourceLabel,
+} from './safety/helpers'
 import { ChainView, LiveChip, useMounted } from './safety/parts'
 
-type Editor = { kind: 'profile'; existing: SafetyProfile | null } | { kind: 'classifier'; existing: SafetyClassifier | null }
+type Editor =
+  | { kind: 'profile'; existing: SafetyProfile | null }
+  | { kind: 'classifier'; existing: SafetyClassifier | null }
+  | { kind: 'lua_filter'; existing: SafetyLuaFilter | null }
 
 const ACTION_TONE: Record<string, Tone> = { allow: 'success', review: 'warning', block: 'danger' }
 
@@ -83,6 +97,7 @@ export default function Safety() {
 
   const profiles = list?.profiles ?? []
   const classifiers = list?.classifiers ?? []
+  const luaFilters = list?.lua_filters ?? []
   const editable = list?.editable ?? false
 
   const readOnly = () =>
@@ -120,20 +135,39 @@ export default function Safety() {
             confirmLabel: t('common.delete'),
             danger: true,
           }
-        : {
-            title: t('safety.deleteClassifierTitle'),
-            message: t('safety.deleteClassifierMessage', { name }),
-            confirmLabel: t('common.delete'),
-            danger: true,
-          },
+        : kind === 'lua_filter'
+          ? {
+              title: t('safety.deleteLuaTitle'),
+              message: t('safety.deleteLuaMessage', { name }),
+              confirmLabel: t('common.delete'),
+              danger: true,
+            }
+          : {
+              title: t('safety.deleteClassifierTitle'),
+              message: t('safety.deleteClassifierMessage', { name }),
+              confirmLabel: t('common.delete'),
+              danger: true,
+            },
     )
     if (!ok || !mounted.current) return
     const mtime = latest.current?.mtime
     setDeleting(`${kind}:${name}`)
     try {
-      const next = kind === 'profile' ? await client.deleteSafetyProfile(name, mtime) : await client.deleteSafetyClassifier(name, mtime)
+      const next =
+        kind === 'profile'
+          ? await client.deleteSafetyProfile(name, mtime)
+          : kind === 'lua_filter'
+            ? await client.deleteSafetyLuaFilter(name, mtime)
+            : await client.deleteSafetyClassifier(name, mtime)
       if (!mounted.current) return
-      applied(next, kind === 'profile' ? t('safety.profileDeleted') : t('safety.classifierDeleted'))
+      applied(
+        next,
+        kind === 'profile'
+          ? t('safety.profileDeleted')
+          : kind === 'lua_filter'
+            ? t('safety.luaDeleted')
+            : t('safety.classifierDeleted'),
+      )
     } catch (err) {
       // An entry that is still referenced, or a config that changed on disk
       // (409), is refused by the runtime; its words say which.
@@ -157,6 +191,7 @@ export default function Safety() {
             <LiveChip live={!restart} />
             <span>{t('safety.profileCount', { n: profiles.length })}</span>
             <span>{t('safety.classifierCount', { n: classifiers.length })}</span>
+            <span>{t('safety.luaFilterCount', { n: luaFilters.length })}</span>
             <span>{t('safety.source', { mode: list.mode || 'file' })}</span>
             {list.path && (
               <span className="flex min-w-0 items-center gap-1">
@@ -203,6 +238,7 @@ export default function Safety() {
             {profiles.map((p) => {
               const filters = p.filters ?? []
               const refs = p.classifiers ?? []
+              const luaRefs = p.lua_filters ?? []
               const inUse = profileInUse(p)
               return (
                 <div key={p.name} className="border-t border-line/70 px-3 py-2.5">
@@ -238,6 +274,11 @@ export default function Safety() {
                         <span className="font-mono text-text">{refs.join(', ')}</span>
                       </Row>
                     )}
+                    {luaRefs.length > 0 && (
+                      <Row label={t('safety.row.luaFilters')}>
+                        <span className="font-mono text-text">{luaRefs.join(', ')}</span>
+                      </Row>
+                    )}
                   </div>
                 </div>
               )
@@ -266,7 +307,7 @@ export default function Safety() {
                     <Chip tone="accent" title={t('safety.row.model')}>
                       {c.model}
                     </Chip>
-                    <Chip tone={mode === 'shadow' ? 'warning' : 'success'}>{mode}</Chip>
+                    <Chip tone={mode === 'shadow' ? 'warning' : 'success'}>{modeLabel(mode)}</Chip>
                     <LiveChip live={c.live} />
                     <div className="flex-1" />
                     <IconButton icon={Pencil} label={t('safety.editWhat', { name: c.name })} onClick={() => open({ kind: 'classifier', existing: c })} />
@@ -287,8 +328,12 @@ export default function Safety() {
                     <Row label={t('safety.row.threshold')}>
                       <span className="font-mono">{typeof c.threshold === 'number' ? formatThreshold(c.threshold) : t('safety.thresholdDefault')}</span>
                     </Row>
-                    <Row label={t('safety.row.directions')}>{(c.directions ?? []).length > 0 ? (c.directions ?? []).join(', ') : 'ingress + egress'}</Row>
-                    <Row label={t('safety.row.sources')}>{(c.sources ?? []).length > 0 ? (c.sources ?? []).join(', ') : 'channel + agent'}</Row>
+                    <Row label={t('safety.row.directions')}>
+                      {(c.directions ?? []).length > 0 ? (c.directions ?? []).map(directionLabel).join(', ') : t('safety.directionsDefault')}
+                    </Row>
+                    <Row label={t('safety.row.sources')}>
+                      {(c.sources ?? []).length > 0 ? (c.sources ?? []).map(sourceLabel).join(', ') : t('safety.sourcesDefault')}
+                    </Row>
                     <Row label={t('safety.row.usedBy')}>
                       {inUse ? (
                         <>
@@ -301,6 +346,69 @@ export default function Safety() {
                     </Row>
                     <Row label={t('safety.row.categories')} className="md:col-span-2">
                       <Categories categories={c.categories} />
+                    </Row>
+                  </div>
+                </div>
+              )
+            })}
+          </Section>
+
+          <Section
+            flush
+            title={t('safety.luaFilters')}
+            subtitle={t('safety.luaFiltersSubtitle')}
+            action={
+              <Button size="sm" icon={Plus} disabled={!editable} onClick={() => open({ kind: 'lua_filter', existing: null })}>
+                {t('safety.newLuaFilter')}
+              </Button>
+            }
+          >
+            {luaFilters.length === 0 && <p className="px-3 pb-2 text-sm text-muted">{t('safety.noLuaFilters')}</p>}
+            {luaFilters.map((lf) => {
+              const onError = lf.on_error || 'pass'
+              const usedBy = lf.used_by ?? []
+              const inUse = usedBy.length > 0
+              return (
+                <div key={lf.name} className="border-t border-line/70 px-3 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-mono text-base font-semibold">{lf.name}</span>
+                    <Chip tone={onError === 'block' ? 'warning' : 'neutral'}>{failActionLabel(onError)}</Chip>
+                    {lf.file && <Chip>{lf.file}</Chip>}
+                    <LiveChip live={lf.live} />
+                    <div className="flex-1" />
+                    <IconButton icon={Pencil} label={t('safety.editWhat', { name: lf.name })} onClick={() => open({ kind: 'lua_filter', existing: lf })} />
+                    <IconButton
+                      icon={Trash2}
+                      tone="danger"
+                      label={
+                        inUse
+                          ? t('safety.cannotDeleteLuaFilter', { name: lf.name, n: usedBy.length, profiles: usedBy.join(', ') })
+                          : t('safety.deleteWhat', { name: lf.name })
+                      }
+                      disabled={inUse || deleting !== ''}
+                      loading={deleting === 'lua_filter:' + lf.name}
+                      onClick={() => void remove('lua_filter', lf.name)}
+                    />
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
+                    <Row label={t('safety.row.directions')}>
+                      {(lf.directions ?? []).length > 0 ? (lf.directions ?? []).map(directionLabel).join(', ') : t('safety.directionsDefault')}
+                    </Row>
+                    <Row label={t('safety.row.sources')}>
+                      {(lf.sources ?? []).length > 0 ? (lf.sources ?? []).map(sourceLabel).join(', ') : t('safety.sourcesAll')}
+                    </Row>
+                    <Row label={t('safety.row.timeout')}>
+                      <span className="font-mono">{lf.timeout || '200ms'}</span>
+                    </Row>
+                    <Row label={t('safety.row.usedBy')}>
+                      {inUse ? (
+                        <>
+                          {usedBy.join(', ')}
+                          <span className="text-faint"> · {t('safety.deleteOff')}</span>
+                        </>
+                      ) : (
+                        t('safety.unused')
+                      )}
                     </Row>
                   </div>
                 </div>
@@ -332,6 +440,19 @@ export default function Safety() {
           onSaved={(next) => {
             setEditor(null)
             applied(next, next.saved_note || t('safety.classifierSaved'))
+          }}
+          reload={reloadForEditor}
+        />
+      )}
+      {list && editor?.kind === 'lua_filter' && (
+        <LuaFilterEditor
+          client={client}
+          list={list}
+          existing={editor.existing}
+          onClose={() => setEditor(null)}
+          onSaved={(next) => {
+            setEditor(null)
+            applied(next, next.saved_note || t('safety.luaSaved'))
           }}
           reload={reloadForEditor}
         />

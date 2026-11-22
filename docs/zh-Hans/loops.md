@@ -1,6 +1,6 @@
-# 编写 Luau 循环
+# 编写 Lua 循环
 
-这是一份用 Luau 编写 AgentFlow 会话循环的实用指南：执行模型、完整的 Lua API、实际可用的模式，以及容易犯的错误。
+这是一份用 Lua 5.1 编写 AgentFlow 会话循环的实用指南：执行模型、完整的 Lua API、实际可用的模式，以及容易犯的错误。
 
 这些模式的可运行版本位于 [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops)。
 
@@ -26,7 +26,7 @@
 
 ## 1. 最小的循环
 
-会话循环是一个定义了全局函数 `loop()` 的 Luau 代码块。运行时为每个会话加载一个全新的 Lua 状态并调用 `loop()`；该函数在整个会话生命周期内持续运行。
+会话循环是一个定义了全局函数 `loop()` 的 Lua 代码块。运行时为每个会话加载一个全新的 Lua 状态并调用 `loop()`；该函数在整个会话生命周期内持续运行。
 
 ```lua
 -- af-prelude-version: 1
@@ -79,7 +79,7 @@ Studio 应用（`/admin/api/studio/*`）校验循环的方式是检查该指令�
 
 每个会话都是一个 **Actor**：
 
-- 一个 goroutine、一个邮箱、一个 Luau 状态、一个循环协程；
+- 一个 goroutine、一个邮箱、一个 Lua 状态、一个循环协程；
 - 消息按顺序逐条处理；
 - 循环永远不会与自身并发运行。
 
@@ -895,7 +895,7 @@ local reply = llm.chat(messages, { model = info.model })
 
 ### 路由处理器
 
-`gateway.route`（默认 `plugin:per_chat`）是另一套接口：每个进程一个 Luau 状态，位于任何会话之外。它的 `loop()` 接收 `{ message = Message, agent = "..." }` 条目，并决定消息的去向：
+`gateway.route`（默认 `plugin:per_chat`）是另一套接口：每个进程一个 Lua 状态，位于任何会话之外。它的 `loop()` 接收 `{ message = Message, agent = "..." }` 条目，并决定消息的去向：
 
 ```lua
 function loop()

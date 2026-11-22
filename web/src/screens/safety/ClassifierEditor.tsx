@@ -5,7 +5,19 @@ import type { Client } from '@/api/client'
 import type { SafetyClassifier, SafetyList } from '@/api/types'
 import { Checkbox, Field, Input, Modal, Select, Textarea } from '@/components/ui'
 import { t } from '@/i18n'
-import { FAIL_ACTIONS, MODES, SOURCES, buildClassifierDraft, classifierForm, withCurrent, type ClassifierForm } from './helpers'
+import {
+  FAIL_ACTIONS,
+  MODES,
+  SOURCES,
+  buildClassifierDraft,
+  classifierForm,
+  failActionLabel,
+  modeLabel,
+  sourceLabel,
+  withCurrent,
+  withCurrentOptions,
+  type ClassifierForm,
+} from './helpers'
 import { EditorFooter, EditorNotice, useEditorActions } from './parts'
 
 export function ClassifierEditor({
@@ -77,7 +89,7 @@ export function ClassifierEditor({
             />
           </Field>
           <Field label={t('safety.classifier.mode')}>
-            <Select value={form.mode} onChange={(v) => set('mode', v)} options={withCurrent(MODES, form.mode)} />
+            <Select value={form.mode} onChange={(v) => set('mode', v)} options={withCurrentOptions(MODES, form.mode, modeLabel)} />
           </Field>
           <Field label={t('safety.classifier.prompt')}>
             <Select mono value={form.prompt} onChange={(v) => set('prompt', v)} options={prompts} placeholder={t('safety.classifier.embeddedDefault')} />
@@ -93,7 +105,7 @@ export function ClassifierEditor({
         <Field label={t('safety.classifier.sources')}>
           <div className="flex flex-wrap gap-x-5 gap-y-1.5">
             {SOURCES.map((s) => (
-              <Checkbox key={s} checked={form.sources[s]} onChange={(v) => set('sources', { ...form.sources, [s]: v })} label={s} />
+              <Checkbox key={s} checked={form.sources[s]} onChange={(v) => set('sources', { ...form.sources, [s]: v })} label={sourceLabel(s)} />
             ))}
           </div>
         </Field>
@@ -106,13 +118,13 @@ export function ClassifierEditor({
             <Input mono {...text('timeout')} placeholder="2s" />
           </Field>
           <Field label={t('safety.classifier.onError')}>
-            <Select value={form.onError} onChange={(v) => set('onError', v)} options={withCurrent(FAIL_ACTIONS, form.onError)} />
+            <Select value={form.onError} onChange={(v) => set('onError', v)} options={withCurrentOptions(FAIL_ACTIONS, form.onError, failActionLabel)} />
           </Field>
           <Field label={t('safety.classifier.onSaturated')}>
-            <Select value={form.onSaturated} onChange={(v) => set('onSaturated', v)} options={withCurrent(FAIL_ACTIONS, form.onSaturated)} />
+            <Select value={form.onSaturated} onChange={(v) => set('onSaturated', v)} options={withCurrentOptions(FAIL_ACTIONS, form.onSaturated, failActionLabel)} />
           </Field>
           <Field label={t('safety.classifier.onBudget')}>
-            <Select value={form.onBudget} onChange={(v) => set('onBudget', v)} options={withCurrent(FAIL_ACTIONS, form.onBudget)} />
+            <Select value={form.onBudget} onChange={(v) => set('onBudget', v)} options={withCurrentOptions(FAIL_ACTIONS, form.onBudget, failActionLabel)} />
           </Field>
           <Field label={t('safety.classifier.maxTokens')}>
             <Input mono {...text('maxTokens')} placeholder="64" inputMode="numeric" />

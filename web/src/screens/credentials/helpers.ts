@@ -35,9 +35,10 @@ export function bucketOptions(users: string[] | null | undefined, selected: stri
 
 /** How the runtime injects the secret into a request; the value is never shown. */
 export function injectionShape(c: Pick<Credential, 'header' | 'scheme'>): string {
-  if (c.header && c.scheme) return `${c.header}: ${c.scheme} <secret>`
-  if (c.header) return `${c.header}: <secret>`
-  return `${DEFAULT_HEADER}: ${DEFAULT_SCHEME} <secret>`
+  const token = `<${t('credentials.secretToken')}>`
+  if (c.header && c.scheme) return `${c.header}: ${c.scheme} ${token}`
+  if (c.header) return `${c.header}: ${token}`
+  return `${DEFAULT_HEADER}: ${DEFAULT_SCHEME} ${token}`
 }
 
 /** The credential editor's fields, as typed. The secret is never prefilled. */

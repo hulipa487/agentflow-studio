@@ -179,7 +179,7 @@ expect_contains: ["help"]
 | --- | --- | --- | --- |
 | `safety.ingress` | 過濾器 | Go，由核心擁有 | 在迴圈看到訊息之前執行；可以捨棄訊息、略過這一輪，或改寫文字。五個基準過濾器中只有 `affect-guard` 會捨棄訊息；`classifier:<name>` 過濾器可依模型輸出加以封鎖。 |
 | `safety.egress` | 過濾器 | Go，由核心擁有 | 在回覆送達頻道之前執行；可以捨棄回覆（並可附上由核心撰寫的替代回覆）。 |
-| `gateway.route` | 處理常式 | 由 `gateway.route` 指定的 Lua 程式碼區塊，預設為 `plugin:per_chat` | 每個行程一個 Luau 狀態。讀取訊息並傳回工作階段位址。路由處理常式只能呼叫 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 與 `log`；其他呼叫都會依名稱被拒絕。 |
+| `gateway.route` | 處理常式 | 由 `gateway.route` 指定的 Lua 程式碼區塊，預設為 `plugin:per_chat` | 每個行程一個 Lua 狀態。讀取訊息並傳回工作階段位址。路由處理常式只能呼叫 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 與 `log`；其他呼叫都會依名稱被拒絕。 |
 
 ### 由 Lua 呼叫的命名慣例
 

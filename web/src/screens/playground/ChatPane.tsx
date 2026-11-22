@@ -59,7 +59,7 @@ function AttachmentView({ part, loadMedia }: { part: MediaPart; loadMedia?: Medi
     }
   }, [handle, loadMedia])
 
-  const label = part.name || (handle ? handle.slice(0, 22) : part.type || 'attachment')
+  const label = part.name || (handle ? handle.slice(0, 22) : part.type || t('playground.attachment'))
   const meta = [mime || part.type, formatBytes(part.size)].filter(Boolean).join(' · ')
 
   if (handle && blobURL && isImage) {
@@ -288,7 +288,7 @@ export const ChatPane = forwardRef<
                   <button
                     type="button"
                     className="text-muted hover:text-danger"
-                    aria-label="Remove attachment"
+                    aria-label={t('playground.removeAttachment')}
                     onClick={() => onAttachments(attachments.filter((_, i) => i !== idx))}
                   >
                     <X className="h-3 w-3" />
@@ -320,7 +320,7 @@ export const ChatPane = forwardRef<
                     e.target.value = ''
                   }}
                 />
-                <IconButton icon={Paperclip} label="Attach media or file" onClick={() => fileInput.current?.click()} disabled={sending} />
+                <IconButton icon={Paperclip} label={t('playground.attachMedia')} onClick={() => fileInput.current?.click()} disabled={sending} />
               </>
             )}
             <span className="min-w-0 flex-1 truncate text-xs text-faint">{hint ?? t('playground.sendHint', { mod: MOD })}</span>

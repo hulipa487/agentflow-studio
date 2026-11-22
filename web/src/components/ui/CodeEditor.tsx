@@ -1,6 +1,6 @@
 // A CodeMirror 6 editor themed from the design tokens: line numbers,
 // highlighting, bracket pairing, auto-indent, search, multi-cursor, undo/redo
-// and the usual IDE keys. Language intelligence for Luau loops (diagnostics,
+// and the usual IDE keys. Language intelligence for Lua 5.1 loops (diagnostics,
 // completion, hover) is supplied by the caller through `extensions`.
 import { useEffect, useRef, useState } from 'react'
 import { Compartment, EditorSelection, EditorState, RangeSetBuilder, type ChangeSpec, type Extension } from '@codemirror/state'
@@ -234,7 +234,7 @@ const joinLines: Command = (view) => {
   return true
 }
 
-const LANGUAGE_LABEL: Record<Exclude<CodeLanguage, 'text'>, string> = { lua: 'Luau', yaml: 'YAML', markdown: 'Markdown', json: 'JSON' }
+const LANGUAGE_LABEL: Record<Exclude<CodeLanguage, 'text'>, string> = { lua: 'Lua', yaml: 'YAML', markdown: 'Markdown', json: 'JSON' }
 
 function languageLabel(lang: CodeLanguage): string {
   return lang === 'text' ? i18n('editor.lang.plain') : LANGUAGE_LABEL[lang]

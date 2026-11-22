@@ -186,7 +186,7 @@ memory.recall({ text = msg.text, k = 5 })                        -- 語意召回
 
 ### 原始資料表
 
-`store.put`、`store.get`、`store.query` 與 `store.delete` 依名稱操作儲存區，不經過路由也不產生嵌入。說明請見 [Luau 迴圈](loops.md#memory)。
+`store.put`、`store.get`、`store.query` 與 `store.delete` 依名稱操作儲存區，不經過路由也不產生嵌入。說明請見 [Lua 迴圈](loops.md#memory)。
 
 ## 隔離
 

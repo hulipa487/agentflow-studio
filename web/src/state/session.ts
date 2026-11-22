@@ -5,7 +5,7 @@ import { create } from 'zustand'
 import { ApiError, Client, errorMessage } from '@/api/client'
 import type { Catalog, State } from '@/api/types'
 import { t } from '@/i18n'
-import { activeProfile, tokenFor, useConnections } from './connections'
+import { activeProfile, hydrateDesktopTokens, tokenFor, useConnections } from './connections'
 import { toast } from './ui'
 
 const EMPTY_CATALOG: Catalog = {
@@ -113,6 +113,7 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   restore: async () => {
+    await hydrateDesktopTokens()
     const p = activeProfile()
     const token = tokenFor(p)
     if (!p || !token) return false

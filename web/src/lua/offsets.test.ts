@@ -8,8 +8,8 @@ import {
   completionsAt,
   hoverAt,
   lookup,
-  luauSources,
-  luauSupport,
+  luaSources,
+  luaSupport,
   plainDoc,
   preludeEntries,
   stripSnippet,
@@ -188,7 +188,7 @@ describe('status line', () => {
 })
 
 describe('editor sources', () => {
-  const sources = luauSources({ preludeVersion: 1, capabilities: [] })
+  const sources = luaSources({ preludeVersion: 1, capabilities: [] })
   const stateOf = (doc: string) => EditorState.create({ doc })
   const complete = (doc: string, explicit = false) => {
     const pos = doc.indexOf('|')
@@ -197,9 +197,9 @@ describe('editor sources', () => {
   }
 
   it('builds an extension that a state accepts, and reuses it for equal options', () => {
-    const ext = luauSupport({ preludeVersion: 1, capabilities: ['llm.chat'] })
-    expect(luauSupport({ preludeVersion: 1, capabilities: ['llm.chat'] })).toBe(ext)
-    expect(luauSupport({ preludeVersion: 1, capabilities: [] })).not.toBe(luauSupport({ preludeVersion: 1, capabilities: null }))
+    const ext = luaSupport({ preludeVersion: 1, capabilities: ['llm.chat'] })
+    expect(luaSupport({ preludeVersion: 1, capabilities: ['llm.chat'] })).toBe(ext)
+    expect(luaSupport({ preludeVersion: 1, capabilities: [] })).not.toBe(luaSupport({ preludeVersion: 1, capabilities: null }))
     expect(EditorState.create({ doc: loop, extensions: [ext] }).doc.toString()).toBe(loop)
   })
 

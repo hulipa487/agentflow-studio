@@ -28,6 +28,8 @@
   "login.rememberBrowser": "在此瀏覽器中記住權杖",
   "login.rememberBrowserOn": "以純文字儲存在此瀏覽器設定檔的 localStorage 中，鎖定時會清除。",
   "login.rememberBrowserOff": "僅保留於此分頁，關閉分頁即會清除。",
+  "login.rememberKeychain": "在系統鑰匙圈中記住權杖",
+  "login.rememberKeychainOn": "儲存在作業系統的認證管理員（鑰匙圈 / Windows 認證管理員 / Secret Service）中，不以純文字存入 localStorage，鎖定時會清除。",
   "login.rememberDesktop": "在這台電腦上記住權杖",
   "login.rememberDesktopNote": "以純文字儲存在 {path}（僅擁有者可讀取），鎖定時會清除。",
   "login.connect": "連線",

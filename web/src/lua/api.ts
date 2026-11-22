@@ -1,7 +1,7 @@
 /** The completion/hover class of a prelude symbol. */
 export type SymbolKind = 'function' | 'table' | 'variable' | 'snippet'
 
-/** One global or field of the AgentFlow Luau prelude. */
+/** One global or field of the AgentFlow Lua prelude. */
 export interface ApiEntry {
   path: string
   signature: string

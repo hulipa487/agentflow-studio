@@ -6,13 +6,19 @@
 // it exists and every function here falls back or does nothing.
 import { PROXY_PREFIX, probeProxy } from '@/api/client'
 import { useEffect, useState } from 'react'
-import { useI18n, type Lang } from '@/i18n'
+import { t, useI18n, type Lang } from '@/i18n'
 import { useAppearance } from '@/state/appearance'
-import { importProfiles } from '@/state/connections'
+import { hydrateDesktopTokens, importProfiles } from '@/state/connections'
 
 const DESKTOP = PROXY_PREFIX + '/__desktop/'
 
 let probe: Promise<{ shell: boolean; frameless: boolean; version: string }> | null = null
+let secretsProbe: Promise<SecretsStatus> | null = null
+
+export function resetDesktopProbesForTests(): void {
+  probe = null
+  secretsProbe = null
+}
 
 function probeShell() {
   probe ??= probeProxy().then((p) => ({
@@ -83,7 +89,7 @@ async function call<T>(action: string, body?: unknown): Promise<T> {
     cache: 'no-store',
   })
   const out = (await res.json()) as T & { error?: string }
-  if (!res.ok) throw new Error(out.error || `desktop ${action}: HTTP ${res.status}`)
+  if (!res.ok) throw new Error(out.error || t('common.desktopBridgeError', { action, status: res.status }))
   return out
 }
 
@@ -169,11 +175,77 @@ async function importOldDesktopApp(): Promise<void> {
     return // storage is unavailable: nothing could be kept anyway
   }
   if (!cfg.found) return
-  importProfiles(cfg.profiles, cfg.active)
+  if (importProfiles(cfg.profiles, cfg.active) > 0) {
+    await hydrateDesktopTokens()
+  }
   if (!stored(LANGUAGE_KEY) && isLang(cfg.language)) useI18n.getState().setLang(cfg.language)
   if (!stored(APPEARANCE_KEY)) {
     if (cfg.theme === 'light' || cfg.theme === 'dark') useAppearance.getState().setMode(cfg.theme)
     if (cfg.palette === 'trans' || cfg.palette === 'obsidian') useAppearance.getState().setPalette(cfg.palette)
+  }
+}
+
+export interface SecretsStatus {
+  available: boolean
+  backend: string
+}
+
+/** Queries whether the desktop OS keychain backend is available. Cached per session. */
+export function getSecretsStatus(): Promise<SecretsStatus> {
+  secretsProbe ??= inDesktopShell()
+    .then((yes) => {
+      if (!yes) return { available: false, backend: 'none' }
+      return call<{ ok: boolean; available: boolean; backend: string }>('secrets/status').then(
+        (res) => ({ available: Boolean(res.available), backend: res.backend || 'none' }),
+        () => ({ available: false, backend: 'none' }),
+      )
+    })
+    .catch(() => ({ available: false, backend: 'none' }))
+  return secretsProbe
+}
+
+/** React hook reporting whether desktop OS keychain storage is available. */
+export function useSecretsStatus(): SecretsStatus {
+  const [val, setVal] = useState<SecretsStatus>({ available: false, backend: 'none' })
+  useEffect(() => {
+    let live = true
+    void getSecretsStatus().then((st) => live && setVal(st))
+    return () => {
+      live = false
+    }
+  }, [])
+  return val
+}
+
+/** Reads a remembered token from the OS keychain, or null if absent/unavailable. */
+export async function getDesktopSecret(account: string): Promise<string | null> {
+  if (!(await inDesktopShell())) return null
+  try {
+    const res = await call<{ ok: boolean; found: boolean; secret?: string }>('secrets/get', { account })
+    return res.found && typeof res.secret === 'string' ? res.secret : null
+  } catch {
+    return null
+  }
+}
+
+/** Stores a remembered token in the OS keychain. Returns false on failure/unavailable. */
+export async function setDesktopSecret(account: string, secret: string): Promise<boolean> {
+  if (!(await inDesktopShell())) return false
+  try {
+    await call<{ ok: boolean }>('secrets/set', { account, secret })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Removes a remembered token from the OS keychain. */
+export async function deleteDesktopSecret(account: string): Promise<void> {
+  if (!(await inDesktopShell())) return
+  try {
+    await call<{ ok: boolean }>('secrets/delete', { account })
+  } catch {
+    /* ignore: deleting a missing entry or unavailable keychain is harmless */
   }
 }
 
