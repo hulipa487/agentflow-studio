@@ -27,7 +27,11 @@ It replaced a native Fyne app on 2026-11-20. That app is at the git tag
     its language, theme and palette where the app has none of its own yet;
   - `background`: the window colour follows the page's theme, so a resize
     never shows mismatched edges;
-  - `close`: the app's own close button (see the next point).
+  - `close`: the app's own close button (see the next point);
+  - `update/status`, `update/check`, `update/apply`, `open-url`: self-updater
+    against GitHub Releases (`SHA256SUMS.txt` verification, atomic replacement
+    on Windows/macOS `.app`/writable Linux installs, and release-page fallback
+    for `.deb` system installs).
 - **No native title bar on Windows.** The window is frameless there and the
   app's top bar is the title bar: its empty space drags the window, a
   double-click maximises, and minimise / maximise / close sit at its right end
@@ -89,9 +93,12 @@ No Wails CLI is needed: a Wails v2 app builds with plain `go build` and the
 ## Still open
 
 1. **macOS** has to be built and run on a Mac.
-2. **Packaging.** No installer (NSIS/MSI with the WebView2 bootstrapper, or the
-   fixed runtime for offline installs), no macOS bundle, signing or
-   notarisation, no Linux .desktop file or package. Code signing for Windows
-   too.
+2. **Packaging & signing.** Cross-platform packaging scripts live under
+   `desktop/packaging/{windows,macos,linux}` and are wired into
+   `.github/workflows/release.yml` (Windows NSIS installer with WebView2
+   bootstrapper check, macOS `.app` / `.dmg` / `.tar.gz`, Linux `.deb` +
+   user-local `.tar.gz`, plus `SHA256SUMS.txt` used by the built-in updater).
+   Windows Authenticode signing and Apple Developer signing / notarisation are
+   not configured yet (macOS builds use ad-hoc `codesign`).
 3. **Native dialogs follow the OS language,** not the app's: the save dialog
    is in the system language.

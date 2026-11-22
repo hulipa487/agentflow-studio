@@ -1,6 +1,8 @@
 /agentflow-studio
 /agentflow-studio.exe
 /agentflow-studio-*.exe
+/packaging/windows/app.ico
+/packaging/dist/
 # the web build, copied in by `make web`
 /frontend/dist/*
 !/frontend/dist/.gitkeep

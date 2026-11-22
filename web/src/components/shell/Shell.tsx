@@ -3,18 +3,19 @@
 // app on Windows the command bar is also the window's title bar.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { BookOpen, Check, ChevronDown, Keyboard, Lock, Moon, PanelLeft, Plus, RotateCw, Search, Settings, Sun } from 'lucide-react'
+import { ArrowUpCircle, BookOpen, Check, ChevronDown, Keyboard, Lock, Moon, PanelLeft, Plus, RotateCw, Search, Settings, Sun } from 'lucide-react'
 import { Dot, IconButton, Kbd, Logo, StatusChip, cx } from '@/components/ui'
 import { MOD, NAV, SECTIONS, digitShortcut, navForPath, sectionKey } from '@/nav'
 import { useAppearance, useResolvedMode } from '@/state/appearance'
 import { useConnections } from '@/state/connections'
 import { useSession } from '@/state/session'
 import { useUI } from '@/state/ui'
+import { useUpdater } from '@/state/updater'
 import { humanDuration, shortID } from '@/lib/format'
 import { t } from '@/i18n'
 import { LanguageToggle } from './LanguageToggle'
 import { WindowControls, useWindowDrag } from './WindowControls'
-import { useFramelessWindow } from '@/lib/desktop'
+import { useDesktopShell, useDesktopVersion, useFramelessWindow } from '@/lib/desktop'
 
 const APP_VERSION = '0.1.0'
 
@@ -141,6 +142,9 @@ function TopBar() {
   const toggleRail = useUI((s) => s.toggleRail)
   const setPalette = useUI((s) => s.setPalette)
   const setShortcuts = useUI((s) => s.setShortcuts)
+  const desktop = useDesktopShell()
+  const updateStatus = useUpdater((s) => s.status)
+  const dismissedVersion = useUpdater((s) => s.dismissedVersion)
   // In the desktop app on Windows this bar is also the window's title bar.
   const frameless = useFramelessWindow()
   const drag = useWindowDrag()
@@ -185,6 +189,17 @@ function TopBar() {
           <span className="min-w-0 flex-1 truncate text-base text-faint">{t('shell.goToHint')}</span>
           <Kbd>{MOD}+K</Kbd>
         </button>
+        {desktop && updateStatus?.update_available && updateStatus.latest_version && updateStatus.latest_version !== dismissedVersion && (
+          <button
+            type="button"
+            onClick={() => navigate('/settings')}
+            className="hidden h-[30px] items-center gap-1.5 rounded-ctl border border-accent/40 bg-tone-accent px-2.5 text-xs font-medium text-accent transition hover:border-accent sm:inline-flex"
+            title={t('shell.updateAvailable', { version: updateStatus.latest_version })}
+          >
+            <ArrowUpCircle className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+            <span className="truncate">{t('shell.updateAvailable', { version: updateStatus.latest_version })}</span>
+          </button>
+        )}
         <ConnectionMenu />
         <LanguageToggle />
         <div className="flex items-center">
@@ -254,6 +269,9 @@ function StatusBar() {
   const client = useSession((s) => s.client)
   const st = useSession((s) => s.runtime)
   const prelude = useSession((s) => s.catalog.prelude_version)
+  const desktop = useDesktopShell()
+  const desktopVersion = useDesktopVersion()
+  const appVersion = desktop && desktopVersion ? desktopVersion : APP_VERSION
   const [retrying, setRetrying] = useState(false)
   const retry = async () => {
     if (retrying) return
@@ -292,7 +310,7 @@ function StatusBar() {
       )}
       <span className="min-w-0 flex-1 truncate">{facts.join('  ·  ')}</span>
       <span className="shrink-0">
-        {t('shell.versions', { prelude, version: APP_VERSION })}
+        {t('shell.versions', { prelude, version: appVersion })}
       </span>
     </footer>
   )

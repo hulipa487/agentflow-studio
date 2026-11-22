@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AgentFlow Studio
+Comment=Build, run and trace AgentFlow LLM agents
+Exec=agentflow-studio
+Icon=agentflow-studio
+Terminal=false
+Categories=Development;Utility;
+StartupWMClass=agentflow-studio

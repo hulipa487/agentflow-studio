@@ -1,0 +1,197 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version label (e.g. v0.2.0) when dispatching manually
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: windows (amd64 + arm64 + nsis)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache: true
+          cache-dependency-path: desktop/go.sum
+      - name: Build web assets & sync desktop bundle
+        shell: bash
+        run: |
+          cd web && npm ci && npm run build
+          cd ..
+          node web/scripts/desktop-assets.mjs sync
+          node web/scripts/desktop-assets.mjs make-ico desktop/packaging/windows/app.ico
+      - name: Ensure NSIS is installed
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            $nsis = "C:\Program Files (x86)\NSIS\makensis.exe"
+            if (Test-Path $nsis) {
+              "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            } else {
+              choco install nsis -y
+            }
+          }
+      - name: Build binaries & NSIS installers
+        shell: pwsh
+        run: |
+          $ver = "${{ inputs.version }}"
+          if (-not $ver) { $ver = $env:GITHUB_REF_NAME }
+          if (-not $ver) { $ver = "dev" }
+          $outDir = Join-Path (Get-Location) "release-out"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+          $env:CGO_ENABLED = "0"
+          $env:GOOS = "windows"
+          foreach ($arch in @("amd64", "arm64")) {
+            $env:GOARCH = $arch
+            $bin = Join-Path $outDir "agentflow-studio-windows-$arch.exe"
+            Push-Location desktop
+            try {
+              go build -tags "desktop,production" -trimpath -ldflags "-s -w -H windowsgui -X main.version=$ver" -o $bin .
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            } finally {
+              Pop-Location
+            }
+            $setup = Join-Path $outDir "agentflow-studio-$ver-windows-$arch-setup.exe"
+            $ico = Join-Path (Get-Location) "desktop\packaging\windows\app.ico"
+            $nsi = Join-Path (Get-Location) "desktop\packaging\windows\installer.nsi"
+            makensis "-DVERSION=$ver" "-DARCH=$arch" "-DBINARY=$bin" "-DICON=$ico" "-DOUTFILE=$setup" $nsi
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-artifacts
+          path: release-out/*
+
+  macos:
+    name: macos (${{ matrix.arch }})
+    runs-on: macos-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, amd64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache: true
+          cache-dependency-path: desktop/go.sum
+      - name: Build web assets & sync desktop bundle
+        run: |
+          cd web && npm ci && npm run build
+          cd ..
+          node web/scripts/desktop-assets.mjs sync
+      - name: Build desktop binary & package (.app/.dmg/.tar.gz)
+        run: |
+          VER="${{ inputs.version }}"
+          VER="${VER:-$GITHUB_REF_NAME}"
+          VER="${VER:-dev}"
+          ARCH="${{ matrix.arch }}"
+          export CGO_ENABLED=1 GOOS=darwin GOARCH="$ARCH"
+          if [ "$ARCH" = "amd64" ]; then
+            export CGO_CFLAGS="-arch x86_64"
+            export CGO_LDFLAGS="-arch x86_64"
+          fi
+          mkdir -p release-out
+          BIN="$PWD/release-out/bin-agentflow-studio"
+          (cd desktop && go build -tags "desktop,production" -trimpath -ldflags "-s -w -X main.version=${VER}" -o "$BIN" .)
+          bash desktop/packaging/macos/package.sh "$VER" "$ARCH" "$BIN" "$PWD/release-out"
+          rm -f "$BIN"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-${{ matrix.arch }}-artifacts
+          path: release-out/*
+
+  linux:
+    name: linux (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: desktop/go.mod
+          cache: true
+          cache-dependency-path: desktop/go.sum
+      - name: Install WebKitGTK dev dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev dpkg
+      - name: Build web assets & sync desktop bundle
+        run: |
+          cd web && npm ci && npm run build
+          cd ..
+          node web/scripts/desktop-assets.mjs sync
+      - name: Build desktop binary & package (.deb/.tar.gz)
+        run: |
+          VER="${{ inputs.version }}"
+          VER="${VER:-$GITHUB_REF_NAME}"
+          VER="${VER:-dev}"
+          ARCH="${{ matrix.arch }}"
+          export CGO_ENABLED=1 GOOS=linux GOARCH="$ARCH"
+          mkdir -p release-out
+          BIN="$PWD/release-out/bin-agentflow-studio"
+          (cd desktop && go build -tags "desktop,production,webkit2_41" -trimpath -ldflags "-s -w -X main.version=${VER}" -o "$BIN" .)
+          bash desktop/packaging/linux/package.sh "$VER" "$ARCH" "$BIN" "$PWD/release-out"
+          rm -f "$BIN"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-${{ matrix.arch }}-artifacts
+          path: release-out/*
+
+  publish:
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate SHA256SUMS.txt
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v3
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: dist/*
+          generate_release_notes: true

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
 import { Button, Kbd, Page, Section } from '@/components/ui'
 import { APP_VERSION } from '@/components/shell/Shell'
+import { useDesktopShell, useDesktopVersion } from '@/lib/desktop'
 import { orDash } from '@/lib/format'
 import { useAppearance } from '@/state/appearance'
 import { useCatalog, useSession } from '@/state/session'
@@ -12,15 +13,19 @@ import { t } from '@/i18n'
 import { ConnectionSection } from './settings/Connection'
 import { LanguageSection } from './settings/Language'
 import { ShortcutsSection } from './settings/Shortcuts'
+import { UpdatesSection } from './settings/Updates'
 import { Fact, themeSummary, useShownTheme } from './settings/parts'
 
 function AboutSection() {
   const navigate = useNavigate()
   const catalog = useCatalog()
+  const desktop = useDesktopShell()
+  const desktopVersion = useDesktopVersion()
   const version = useSession((s) => s.runtime?.version ?? '')
   const mode = useAppearance((s) => s.mode)
   const palette = useAppearance((s) => s.palette)
   const shown = useShownTheme()
+  const studioVersion = desktop && desktopVersion ? desktopVersion : APP_VERSION
   return (
     <Section
       title={t('settings.about')}
@@ -32,8 +37,8 @@ function AboutSection() {
     >
       <div className="flex flex-col">
         <Fact label={t('settings.studioVersion')}>
-          <span className="font-mono text-xs">{APP_VERSION}</span>
-          <span className="text-xs text-muted">{t('settings.webBuild')}</span>
+          <span className="font-mono text-xs">{studioVersion}</span>
+          <span className="text-xs text-muted">{desktop ? t('settings.desktopBuild') : t('settings.webBuild')}</span>
         </Fact>
         <Fact label={t('settings.runtimeApi')}>
           {t('settings.adminApi')}
@@ -55,6 +60,7 @@ export default function Settings() {
         <AppearanceSection />
         <LanguageSection />
         <ConnectionSection />
+        <UpdatesSection />
         <ShortcutsSection />
         <AboutSection />
       </div>

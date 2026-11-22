@@ -129,7 +129,7 @@ func TestPingReportsFramelessAndCloseRuns(t *testing.T) {
 	closed := make(chan bool, 1)
 	p.desktop.close = func(context.Context) { closed <- true }
 	ping := decodeBody(t, call(t, p, "GET", "/__af/__ping", "", "", nil).Body.Bytes())
-	if ping["frameless"] != true || ping["shell"] != "wails" {
+	if ping["frameless"] != true || ping["shell"] != "wails" || ping["version"] != version {
 		t.Fatalf("ping = %+v", ping)
 	}
 	if got := decodeBody(t, call(t, p, "POST", "/__af/__desktop/close", "", "", nil).Body.Bytes()); got["ok"] != true {
@@ -137,5 +137,22 @@ func TestPingReportsFramelessAndCloseRuns(t *testing.T) {
 	}
 	if !<-closed {
 		t.Fatal("close did not run")
+	}
+}
+
+func TestDesktopUpdateStatusAndOpenURL(t *testing.T) {
+	p := readyProxy(t)
+	st := decodeBody(t, call(t, p, "GET", "/__af/__desktop/update/status", "", "", nil).Body.Bytes())
+	if st["current_version"] != version || st["repo"] == "" {
+		t.Fatalf("update/status = %+v", st)
+	}
+
+	var opened string
+	p.desktop.openURL = func(_ context.Context, target string) { opened = target }
+	if rec := call(t, p, "POST", "/__af/__desktop/open-url", "", `{"url":"file:///etc/passwd"}`, nil); rec.Code != 400 || opened != "" {
+		t.Fatalf("non-http URL should be rejected: code=%d opened=%q", rec.Code, opened)
+	}
+	if rec := call(t, p, "POST", "/__af/__desktop/open-url", "", `{"url":"https://github.com/hulipa487/agentflow-studio/releases"}`, nil); rec.Code != 200 || opened == "" {
+		t.Fatalf("https URL should open: code=%d opened=%q", rec.Code, opened)
 	}
 }

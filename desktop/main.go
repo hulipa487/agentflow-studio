@@ -63,6 +63,8 @@ func wantFrameless() bool {
 }
 
 func main() {
+	cleanupOldUpdateFiles()
+
 	assets, err := fs.Sub(embedded, "frontend/dist")
 	if err != nil {
 		log.Fatal(err)

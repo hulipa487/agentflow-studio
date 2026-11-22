@@ -59,5 +59,6 @@
   "shell.window.minimise": "Minimise",
   "shell.window.maximise": "Maximise",
   "shell.window.restore": "Restore down",
-  "shell.window.close": "Close"
+  "shell.window.close": "Close",
+  "shell.updateAvailable": "Update {version}"
 }

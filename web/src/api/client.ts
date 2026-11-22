@@ -665,8 +665,8 @@ export async function readSSE(res: Response, onEvent: (event: string, data: stri
  * Asks this origin whether Studio's local proxy is serving it, and which
  * shell serves the page: "wails" for the desktop app, empty for a browser.
  */
-export async function probeProxy(): Promise<{ available: boolean; platform: string; shell: string; frameless: boolean }> {
-  const none = { available: false, platform: '', shell: '', frameless: false }
+export async function probeProxy(): Promise<{ available: boolean; platform: string; shell: string; frameless: boolean; version: string }> {
+  const none = { available: false, platform: '', shell: '', frameless: false, version: '' }
   try {
     const res = await fetch(PROXY_PREFIX + '/__ping', { cache: 'no-store' })
     if (!res.ok) return none
@@ -677,6 +677,7 @@ export async function probeProxy(): Promise<{ available: boolean; platform: stri
       shell: String(body?.shell ?? ''),
       // The desktop app without a native title bar: the page draws the window controls.
       frameless: body?.frameless === true,
+      version: String(body?.version ?? ''),
     }
   } catch {
     return none

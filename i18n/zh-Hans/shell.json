@@ -59,5 +59,6 @@
   "shell.window.minimise": "最小化",
   "shell.window.maximise": "最大化",
   "shell.window.restore": "向下还原",
-  "shell.window.close": "关闭"
+  "shell.window.close": "关闭",
+  "shell.updateAvailable": "更新 {version}"
 }

@@ -10,6 +10,10 @@ package main
 //   GET  fyne-config                     the old Fyne app's saved connections
 //   POST background   {r, g, b}          window colour behind the page
 //   POST close                           the app's own close button
+//   GET  update/status                   cached release/updater status
+//   POST update/check                    query GitHub Releases for a newer version
+//   POST update/apply                    download, verify SHA-256 and relaunch
+//   POST open-url     {url}              open an http(s) URL in the OS browser
 //
 // Like the proxy, this is reachable only from the app's own webview.
 
@@ -19,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,14 +44,19 @@ type desktop struct {
 	// window controls; close is what its close button runs.
 	frameless bool
 	close     func(ctx context.Context)
+	quit      func(ctx context.Context)
+	updater   *updater
 	// The window calls, swappable in tests.
 	saveDialog func(ctx context.Context, name string) (string, error)
 	setBg      func(ctx context.Context, r, g, b uint8)
 	openDir    func(dir string) error
+	openURL    func(ctx context.Context, target string)
 }
 
 func newDesktop() *desktop {
 	return &desktop{
+		quit:    runtime.Quit,
+		updater: newUpdater(version),
 		saveDialog: func(ctx context.Context, name string) (string, error) {
 			return runtime.SaveFileDialog(ctx, runtime.SaveDialogOptions{DefaultFilename: name, CanCreateDirectories: true})
 		},
@@ -54,6 +64,7 @@ func newDesktop() *desktop {
 			runtime.WindowSetBackgroundColour(ctx, r, g, b, 255)
 		},
 		openDir: openInFileManager,
+		openURL: runtime.BrowserOpenURL,
 	}
 }
 
@@ -82,7 +93,7 @@ func decode(r *http.Request, limit int64, v any) error {
 // serve handles one /__af/__desktop/<action> request.
 func (d *desktop) serve(w http.ResponseWriter, r *http.Request, action string) {
 	ctx := d.context()
-	needsWindow := action == "save" || action == "background" || action == "close"
+	needsWindow := action == "save" || action == "background" || action == "close" || action == "open-url" || action == "update/apply"
 	if needsWindow && ctx == nil {
 		refuse(w, http.StatusServiceUnavailable, "the window is not ready")
 		return
@@ -150,6 +161,49 @@ func (d *desktop) serve(w http.ResponseWriter, r *http.Request, action string) {
 			// the quitting app will never finish.
 			go d.close(ctx)
 		}
+
+	case action == "update/status" && r.Method == http.MethodGet:
+		reply(w, d.updater.status())
+
+	case action == "update/check" && r.Method == http.MethodPost:
+		st, err := d.updater.check(r.Context())
+		if err != nil {
+			refuse(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		reply(w, st)
+
+	case action == "update/apply" && r.Method == http.MethodPost:
+		quitFn := func() {
+			if d.close != nil {
+				d.close(ctx)
+			} else if d.quit != nil {
+				d.quit(ctx)
+			}
+		}
+		if err := d.updater.apply(r.Context(), quitFn); err != nil {
+			refuse(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		reply(w, map[string]any{"ok": true, "restarting": true})
+
+	case action == "open-url" && r.Method == http.MethodPost:
+		var in struct {
+			URL string `json:"url"`
+		}
+		if err := decode(r, 4096, &in); err != nil || in.URL == "" {
+			refuse(w, http.StatusBadRequest, "url is required")
+			return
+		}
+		parsed, err := url.Parse(in.URL)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			refuse(w, http.StatusBadRequest, "only http and https URLs are allowed")
+			return
+		}
+		if d.openURL != nil {
+			d.openURL(ctx, parsed.String())
+		}
+		reply(w, map[string]any{"ok": true})
 
 	default:
 		refuse(w, http.StatusNotFound, "no such desktop action")

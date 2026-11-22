@@ -12,10 +12,14 @@ import { importProfiles } from '@/state/connections'
 
 const DESKTOP = PROXY_PREFIX + '/__desktop/'
 
-let probe: Promise<{ shell: boolean; frameless: boolean }> | null = null
+let probe: Promise<{ shell: boolean; frameless: boolean; version: string }> | null = null
 
 function probeShell() {
-  probe ??= probeProxy().then((p) => ({ shell: p.shell === 'wails', frameless: p.shell === 'wails' && p.frameless }))
+  probe ??= probeProxy().then((p) => ({
+    shell: p.shell === 'wails',
+    frameless: p.shell === 'wails' && p.frameless,
+    version: p.shell === 'wails' ? p.version : '',
+  }))
   return probe
 }
 
@@ -24,22 +28,27 @@ export function inDesktopShell(): Promise<boolean> {
   return probeShell().then((p) => p.shell)
 }
 
-function useProbe(pick: (p: { shell: boolean; frameless: boolean }) => boolean): boolean {
-  const [yes, setYes] = useState(false)
+function useProbe<T>(pick: (p: { shell: boolean; frameless: boolean; version: string }) => T, fallback: T): T {
+  const [val, setVal] = useState<T>(fallback)
   useEffect(() => {
     let live = true
-    void probeShell().then((p) => live && setYes(pick(p)))
+    void probeShell().then((p) => live && setVal(pick(p)))
     return () => {
       live = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  return yes
+  return val
 }
 
 /** inDesktopShell as React state: false until the answer arrives. */
 export function useDesktopShell(): boolean {
-  return useProbe((p) => p.shell)
+  return useProbe((p) => p.shell, false)
+}
+
+/** Built-in desktop version reported by /__af/__ping ("" in browser mode). */
+export function useDesktopVersion(): string {
+  return useProbe((p) => p.version, '')
 }
 
 /**
@@ -47,7 +56,7 @@ export function useDesktopShell(): boolean {
  * window controls and lets its top bar drag the window.
  */
 export function useFramelessWindow(): boolean {
-  return useProbe((p) => p.frameless)
+  return useProbe((p) => p.frameless, false)
 }
 
 // The Wails runtime the shell injects into the page (window.runtime).
@@ -168,11 +177,53 @@ async function importOldDesktopApp(): Promise<void> {
   }
 }
 
+export interface UpdateStatus {
+  current_version: string
+  latest_version?: string
+  update_available: boolean
+  is_dev: boolean
+  repo: string
+  platform: string
+  arch: string
+  can_self_update: boolean
+  managed_reason?: string
+  release_url?: string
+  release_notes?: string
+  asset_name?: string
+  checked_at?: string
+  applying?: boolean
+  error?: string
+}
+
+/** Returns the desktop updater state without hitting GitHub. */
+export function getUpdateStatus(): Promise<UpdateStatus> {
+  return call<UpdateStatus>('update/status')
+}
+
+/** Checks GitHub Releases for a newer desktop build. */
+export function checkForUpdates(): Promise<UpdateStatus> {
+  return call<UpdateStatus>('update/check', {})
+}
+
+/** Downloads, verifies, swaps the desktop binary/bundle, and restarts. */
+export function applyDesktopUpdate(): Promise<{ ok: boolean; restarting?: boolean }> {
+  return call<{ ok: boolean; restarting?: boolean }>('update/apply', {})
+}
+
+/** Opens an http(s) URL in the OS default browser from inside the desktop shell. */
+export function openExternalURL(url: string): Promise<{ ok: boolean }> {
+  return call<{ ok: boolean }>('open-url', { url })
+}
+
 /** Starts what the shell needs from the page; does nothing in a browser. */
 export function startDesktopBridge(): void {
   void inDesktopShell().then((yes) => {
     if (!yes) return
     syncBackground()
     void importOldDesktopApp()
+    void import('@/state/updater').then((m) => {
+      const st = m.useUpdater.getState()
+      if (st.autoCheck) void st.check(true)
+    })
   })
 }
