@@ -115,7 +115,7 @@
   "safety.classifier.cacheTTL": "缓存 TTL",
   "safety.classifier.budget": "每日 Token 预算",
   "safety.classifier.categories": "类别",
-  "safety.classifier.categoriesHint": "每行一个，格式为 label: allow|review|block。至少需要一个 allow 标签。",
+  "safety.classifier.categoriesHint": "每行一个，格式为 label: allow|review|block|redirect:<model>。至少需要一个 allow 标签。",
   "safety.classifier.refusal": "拒绝回复（入站拦截）",
   "safety.classifier.refusalPlaceholder": "可选的入站拒绝文本",
   "safety.classifier.fallback": "替代回复（出站拦截）",

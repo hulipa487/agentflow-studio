@@ -144,8 +144,22 @@ export function parseOptionalThreshold(raw: string): number | undefined {
 }
 
 /**
+ * Normalizes a category action keyword while preserving the target model's case
+ * in "redirect:<model>".
+ */
+export function normalizeCategoryAction(raw: string): string {
+  const s = raw.trim()
+  const prefix = 'redirect:'
+  if (s.slice(0, prefix.length).toLowerCase() === prefix) {
+    return prefix + s.slice(prefix.length).trim()
+  }
+  return s.toLowerCase()
+}
+
+/**
  * Parses the categories text: one "label: action" per line, blank lines
- * skipped, the action lowercased. The action itself is checked by the runtime.
+ * skipped, normalizing the action keyword while preserving redirect target
+ * model case. The action itself is checked by the runtime.
  */
 export function parseCategoriesEntry(raw: string): Record<string, string> {
   const out = new Map<string, string>()
@@ -155,7 +169,7 @@ export function parseCategoriesEntry(raw: string): Record<string, string> {
     const cut = line.indexOf(':')
     if (cut < 0) throw new Error(t('safety.err.categoriesNoColon', { line: quote(line) }))
     const label = line.slice(0, cut).trim()
-    const action = line.slice(cut + 1).trim().toLowerCase()
+    const action = normalizeCategoryAction(line.slice(cut + 1))
     if (label === '') throw new Error(t('safety.err.categoriesEmptyLabel', { line: quote(line) }))
     out.set(label, action)
   }
@@ -358,6 +372,7 @@ export function withCurrent(options: string[], current: string): string[] {
 export const LUA_FILTER_STARTER = `-- Sandboxed Lua 5.1 safety filter (string, table, math only).
 -- Return a table or nil. Available on input:
 --   ingress(input): input.message, input.source, input.session_id, input.annotations
+--                   return redirect = "model-name" on ingress to reroute this turn
 --   egress(input):  input.text, input.source, input.session_id, input.annotations
 
 function ingress(input)

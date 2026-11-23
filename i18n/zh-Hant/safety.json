@@ -115,7 +115,7 @@
   "safety.classifier.cacheTTL": "快取 TTL",
   "safety.classifier.budget": "每日 Token 預算",
   "safety.classifier.categories": "類別",
-  "safety.classifier.categoriesHint": "每行一個，格式為 label: allow|review|block。至少需要一個 allow 標籤。",
+  "safety.classifier.categoriesHint": "每行一個，格式為 label: allow|review|block|redirect:<model>。至少需要一個 allow 標籤。",
   "safety.classifier.refusal": "拒絕回覆（傳入攔截）",
   "safety.classifier.refusalPlaceholder": "選填的傳入拒絕文字",
   "safety.classifier.fallback": "替代回覆（傳出攔截）",

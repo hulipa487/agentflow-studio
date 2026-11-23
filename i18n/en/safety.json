@@ -115,7 +115,7 @@
   "safety.classifier.cacheTTL": "Cache TTL",
   "safety.classifier.budget": "Daily token budget",
   "safety.classifier.categories": "Categories",
-  "safety.classifier.categoriesHint": "One per line, label: allow|review|block. At least one allow label is required.",
+  "safety.classifier.categoriesHint": "One per line, label: allow|review|block|redirect:<model>. At least one allow label is required.",
   "safety.classifier.refusal": "Refusal (ingress block)",
   "safety.classifier.refusalPlaceholder": "optional ingress refusal text",
   "safety.classifier.fallback": "Fallback (egress block)",

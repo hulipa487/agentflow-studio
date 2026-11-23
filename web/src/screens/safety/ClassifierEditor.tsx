@@ -147,7 +147,7 @@ export function ClassifierEditor({
         </div>
 
         <Field label={t('safety.classifier.categories')} hint={t('safety.classifier.categoriesHint')}>
-          <Textarea mono rows={4} {...text('categories')} placeholder={'safe: allow\nself_harm: block\nharassment: review'} />
+          <Textarea mono rows={4} {...text('categories')} placeholder={'safe: allow\nself_harm: block\nharassment: review\nlegal: redirect:strong-model'} />
         </Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

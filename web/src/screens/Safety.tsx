@@ -48,11 +48,15 @@ function Categories({ categories }: { categories: Record<string, string> | null 
   if (!categories || labels.length === 0) return <>—</>
   return (
     <span className="flex flex-wrap gap-1" title={categorySummary(categories)}>
-      {labels.map((label) => (
-        <Chip key={label} tone={ACTION_TONE[categories[label]] ?? 'neutral'}>
-          {label}={categories[label]}
-        </Chip>
-      ))}
+      {labels.map((label) => {
+        const action = categories[label]
+        const tone = action.startsWith('redirect:') ? 'accent' : (ACTION_TONE[action] ?? 'neutral')
+        return (
+          <Chip key={label} tone={tone}>
+            {label}={action}
+          </Chip>
+        )
+      })}
     </span>
   )
 }
