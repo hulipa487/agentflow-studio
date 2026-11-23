@@ -106,7 +106,7 @@ export function Split({
       className={cx('group relative w-3 shrink-0 cursor-col-resize', collapsed && 'hidden')}
       title={t('common.resizeHint')}
     >
-      <span className="absolute inset-y-2 left-1/2 w-px -translate-x-1/2 rounded-full bg-transparent transition-colors group-hover:bg-accent/60" />
+      <span className="absolute inset-y-2 left-1/2 w-px -translate-x-1/2 rounded-full bg-line/70 transition-colors group-hover:bg-accent/60" />
     </div>
   )
 

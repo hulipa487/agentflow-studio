@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Check, Database, Plus, X } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { Grant, Pool, PoolDraft } from '@/api/types'
-import { Banner, Button, Chip, ComboInput, CopyButton, Field, IconButton, Input, KV, Loading, Panel, Section, Segmented, Select, Table } from '@/components/ui'
+import { Banner, Button, Chip, ComboInput, CopyButton, EmptyState, Field, IconButton, Input, KV, Loading, Panel, Section, Segmented, Select, Table } from '@/components/ui'
 import { Split } from '@/components/ui/Split'
 import { useAsync } from '@/lib/hooks'
 import { t } from '@/i18n'
@@ -29,12 +29,11 @@ export function PoolsPane({ dir, selected, onSelect, rev, reloadAll, notify }: P
   const pool = dir.pools.find((p) => p.uuid === selected)
 
   const left = (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-card border border-line bg-surface p-2.5">
       <Button icon={Plus} className="self-start" onClick={() => setCreating(true)}>
         {t('tenancy.pools.new')}
       </Button>
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
-        {dir.pools.length === 0 && <PaneNote>{t('tenancy.pools.empty')}</PaneNote>}
         {dir.pools.map((p) => {
           const owner = p.owner?.group ? t('tenancy.pools.ownerGroup', { id: shortID(p.owner.group) }) : t('tenancy.pools.ownerTenant', { id: shortID(p.owner?.tenant) })
           return (
@@ -64,7 +63,17 @@ export function PoolsPane({ dir, selected, onSelect, rev, reloadAll, notify }: P
 
   return (
     <>
-      <Split fixed="left" initial={300} min={220} max={520} storageKey="tenancy-pools" left={left} right={right} />
+      {dir.pools.length === 0 ? (
+        <EmptyState
+          icon={<Database className="mb-1 size-7 text-faint" strokeWidth={1.5} />}
+          title={t('tenancy.tabPools')}
+          guidance={t('tenancy.pools.empty')}
+          actionLabel={t('tenancy.pools.new')}
+          onAction={() => setCreating(true)}
+        />
+      ) : (
+        <Split fixed="left" initial={300} min={220} max={520} storageKey="tenancy-pools" left={left} right={right} />
+      )}
       {creating && (
         <NewPoolDialog
           dir={dir}

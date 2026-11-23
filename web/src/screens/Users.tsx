@@ -94,7 +94,7 @@ export default function Users() {
   const current = id && detail.data?.profile?.user_id === id ? detail.data : undefined
 
   const left = (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-card border border-line bg-surface p-2.5">
       <SearchBox value={filter} onChange={setFilter} placeholder={t('users.filterPlaceholder')} />
       <div className="px-1 font-mono text-xs text-faint">{count}</div>
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">

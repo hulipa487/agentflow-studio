@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Plus, Trash2, Users, X } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { Group, Membership } from '@/api/types'
-import { Banner, Button, Chip, ComboInput, Field, IconButton, Input, KV, Loading, Panel, Section, StatusChip, Table } from '@/components/ui'
+import { Banner, Button, Chip, ComboInput, EmptyState, Field, IconButton, Input, KV, Loading, Panel, Section, StatusChip, Table } from '@/components/ui'
 import { Split } from '@/components/ui/Split'
 import { useAsync } from '@/lib/hooks'
 import { t } from '@/i18n'
@@ -19,16 +19,14 @@ const disbandedAt = (g: Group) => g.disbanded_at ?? 0
 
 export function GroupsPane({ dir, selected, onSelect, rev, reloadAll, notify }: PaneProps) {
   const [creating, setCreating] = useState(false)
+  const group = dir.groups.find((g) => g.uuid === selected)
 
   const left = (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-card border border-line bg-surface p-2.5">
       <Button icon={Plus} className="self-start" onClick={() => setCreating(true)}>
         {t('tenancy.groups.new')}
       </Button>
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
-        {dir.groups.length === 0 && (
-          <PaneNote>{t('tenancy.groups.empty')}</PaneNote>
-        )}
         {dir.groups.map((g) => (
           <RailRow
             key={g.uuid}
@@ -45,17 +43,27 @@ export function GroupsPane({ dir, selected, onSelect, rev, reloadAll, notify }: 
 
   const right = (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      {selected === '' ? (
-        <PaneNote lowered>{t('tenancy.groups.selectHint')}</PaneNote>
+      {group ? (
+        <GroupDetail key={group.uuid} id={group.uuid} dir={dir} rev={rev} reloadAll={reloadAll} notify={notify} />
       ) : (
-        <GroupDetail key={selected} id={selected} dir={dir} rev={rev} reloadAll={reloadAll} notify={notify} />
+        <PaneNote lowered>{t('tenancy.groups.selectHint')}</PaneNote>
       )}
     </div>
   )
 
   return (
     <>
-      <Split fixed="left" initial={300} min={220} max={520} storageKey="tenancy-groups" left={left} right={right} />
+      {dir.groups.length === 0 ? (
+        <EmptyState
+          icon={<Users className="mb-1 size-7 text-faint" strokeWidth={1.5} />}
+          title={t('tenancy.tabGroups')}
+          guidance={t('tenancy.groups.empty')}
+          actionLabel={t('tenancy.groups.new')}
+          onAction={() => setCreating(true)}
+        />
+      ) : (
+        <Split fixed="left" initial={300} min={220} max={520} storageKey="tenancy-groups" left={left} right={right} />
+      )}
       {creating && (
         <NewGroupDialog
           dir={dir}
