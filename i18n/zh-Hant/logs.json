@@ -1,10 +1,10 @@
 {
   "logs.title": "日誌",
-  "logs.subtitle": "執行環境的日誌尾端：先重播最近 500 行，再即時顯示。等級下限即執行環境的 -log-level；按一下某一行即可複製。",
-  "logs.lineCopied": "已複製日誌行",
+  "logs.subtitle": "執行環境的日誌尾端：先回放最近 500 行，再即時推送。等級下限跟隨執行環境的 -log-level；點選任一行即可複製。",
+  "logs.lineCopied": "日誌行已複製",
   "logs.linesCopied": "已複製 {n} 行",
   "logs.lines": "{n} 行",
-  "logs.linesShown": "顯示 {shown} / {total} 行",
+  "logs.linesShown": "已顯示 {shown} / {total} 行",
   "logs.paused": "已暫停",
   "logs.filterPlaceholder": "篩選文字，例如 agent=assistant 或 err=",
   "logs.levelFloor": "等級下限",
@@ -17,12 +17,12 @@
   "logs.resume": "繼續",
   "logs.resumePending": "繼續（{n}）",
   "logs.copyVisible": "複製可見行",
-  "logs.emptyLive": "尚無日誌。執行環境寫入日誌後會顯示在這裡。",
-  "logs.noMatch": "沒有符合此篩選的行。",
+  "logs.emptyLive": "尚無日誌。執行環境一寫入就會顯示在這裡。",
+  "logs.noMatch": "沒有符合篩選條件的行。",
   "logs.runtimeLog": "執行環境日誌",
-  "logs.jumpToLatest": "跳至最新",
-  "logs.connecting": "正在連線…",
-  "logs.streaming": "串流中 · {url}",
-  "logs.reconnecting": "{message} · {seconds} 秒後重新連線",
-  "logs.endedReconnecting": "串流已結束 · {seconds} 秒後重新連線"
+  "logs.jumpToLatest": "跳到最新",
+  "logs.connecting": "連線中…",
+  "logs.streaming": "接收中 · {url}",
+  "logs.reconnecting": "{message} · {seconds} 秒後重連",
+  "logs.endedReconnecting": "串流已結束 · {seconds} 秒後重連"
 }

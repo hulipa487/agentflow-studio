@@ -1,10 +1,10 @@
 {
   "logs.title": "日志",
-  "logs.subtitle": "运行时的日志尾部：先重放最近 500 行，然后实时显示。级别下限即运行时的 -log-level；点击某一行即可复制。",
-  "logs.lineCopied": "已复制日志行",
+  "logs.subtitle": "运行时日志尾部：先回放最近 500 行，再实时推送。级别下限跟随运行时的 -log-level；点击任意一行即可复制。",
+  "logs.lineCopied": "日志行已复制",
   "logs.linesCopied": "已复制 {n} 行",
   "logs.lines": "{n} 行",
-  "logs.linesShown": "显示 {shown} / {total} 行",
+  "logs.linesShown": "已显示 {shown} / {total} 行",
   "logs.paused": "已暂停",
   "logs.filterPlaceholder": "筛选文本，例如 agent=assistant 或 err=",
   "logs.levelFloor": "级别下限",
@@ -17,12 +17,12 @@
   "logs.resume": "继续",
   "logs.resumePending": "继续（{n}）",
   "logs.copyVisible": "复制可见行",
-  "logs.emptyLive": "还没有日志。运行时写入日志后会显示在这里。",
-  "logs.noMatch": "没有符合此筛选的行。",
+  "logs.emptyLive": "还没有日志。运行时一写入就会显示在这里。",
+  "logs.noMatch": "没有符合筛选条件的行。",
   "logs.runtimeLog": "运行时日志",
   "logs.jumpToLatest": "跳到最新",
-  "logs.connecting": "正在连接…",
-  "logs.streaming": "正在接收 · {url}",
-  "logs.reconnecting": "{message} · {seconds} 秒后重新连接",
-  "logs.endedReconnecting": "数据流已结束 · {seconds} 秒后重新连接"
+  "logs.connecting": "连接中…",
+  "logs.streaming": "接收中 · {url}",
+  "logs.reconnecting": "{message} · {seconds} 秒后重连",
+  "logs.endedReconnecting": "数据流已结束 · {seconds} 秒后重连"
 }

@@ -1,10 +1,10 @@
 # 不重新編譯 Go 也能擴充 AgentFlow
 
-AgentFlow 有四個擴充層面。前三個只需組態、TypeScript/JS 指令碼或 Wasm 外部 API；只有最後一個會改動二進位檔。
+AgentFlow 有四個擴充面。前三個靠組態、TypeScript/JS 或 Wasm 外部 API 就能搞定；只有最後一個要改執行檔。
 
 ## 1. 宣告式 HTTP 工具
 
-外部 API 不必寫指令碼或 Go，就能成為模型可見的工具：
+把外部 API 變成模型可見的工具，不必寫指令碼，也不必碰 Go：
 
 ```yaml
 tools:
@@ -27,32 +27,32 @@ tools:
       hosts: [api.example.com]
 ```
 
-這個工具會註冊為 `http:crm_lookup`。執行環境負責：
+這個工具註冊為 `http:crm_lookup`。以下這些由執行環境負責：
 
 - 模型看到的 JSON Schema；
-- URL、查詢參數與 JSON 本文中的 `{arg}` 範本替換；
-- 依租戶解析憑證（`auth.service`；值永遠不會傳到模型或訊息日誌）；
+- URL、query 與 JSON 請求主體裡的 `{arg}` 樣板替換；
+- 依租戶解析憑證（`auth.service`，憑證值永遠不會到模型或日誌裡）；
 - 共用的位址防護（`net.http.allow_private`）與選用的主機允許清單；
-- 回應大小上限，以及選用的點號路徑選取（`customer.id`、`items[0].name`）。
+- 回應大小上限，以及選用的點路徑取值（`customer.id`、`items[0].name`）。
 
-非 GET 工具預設為 `needs_confirm: true`；要改變這點，請明確設定它。當某個值恰好是 `{arg}` 時，本文範本會保留其 JSON 型別。
+非 GET 工具預設 `needs_confirm: true`；要改就明確設定。當某個值正好是 `{arg}` 時，請求主體樣板會保留它的 JSON 型別。
 
-也可以匯入 OpenAPI 3 文件，而不必逐一手寫每個操作：
+也可以直接匯入 OpenAPI 3 文件，不必手寫每個操作：
 
 ```bash
 agentflow tools import-openapi openapi.yaml -out tools.yaml \
   -base-url https://api.example.com -auth crm -prefix crm
 ```
 
-匯入工具會輸出一段 `tools:` 區塊供你審閱；它不會在執行時擷取規格。加上 `-read-only` 即只匯入 GET/HEAD。
+匯入器會產生一個 `tools:` 區塊供你審閱，執行環境並不會去抓取這份規格。加上 `-read-only` 則只匯入 GET/HEAD。
 
 ## 2. MCP 伺服器
 
-MCP 仍是接入任意外部工具的邊界。stdio 子行程或 Streamable HTTP 端點宣告在 `mcp.servers` 下；它的工具會以 `<server>/<tool>` 的名稱出現。HTTP 伺服器接受 `token:`，值可以是字面值、`${VAR}` 或 `cred:<service>`，並與 `http.request` 和 `builtin:fetch` 受相同的位址防護約束。
+任意外部工具的邊界仍然交給 MCP。stdio 子行程或 Streamable HTTP 端點在 `mcp.servers` 下宣告，其工具顯示為 `<server>/<tool>`。HTTP 伺服器接受 `token:`，可以是字面值、`${VAR}` 或 `cred:<service>`，並與 `http.request`、`builtin:fetch` 受同一套位址防護約束。
 
 ## 3. 頻道橋接
 
-AgentFlow 未內建編譯的聊天平台，可以透過外部配接器加入。配接器把平台事件轉換成以下協定，並接收回覆；AgentFlow 不需要任何 Go 變更：
+AgentFlow 沒編譯進去的聊天平台，可以用外部配接器接進來。配接器把平台事件翻譯成下面的協定並接收回覆，AgentFlow 一行 Go 都不用改：
 
 ```yaml
 gateway:
@@ -81,11 +81,11 @@ X-Agentflow-Signature: sha256=<hex HMAC-SHA256 of the raw body>
 {"to":"C456","text":"...","attachments":[{"type":"image","mime":"image/png","handle":"media:..."}]}
 ```
 
-HMAC 是必要的。執行環境信任配接器轉送平台的寄件者身分，但橋接的連結帳號會記錄為「自稱」；連結帳號仍須通過一般的頻道內 `/link` 驗證挑戰，才能取得使用者資料範圍。
+HMAC 是必要的。配接器被信任可以轉達平台端的傳送者身分，但橋接拿到的帳號只記為「聲稱」，要取得資料範圍仍需走正常的頻道內 `/link` 驗證。
 
 ## 4. 指令碼套件與外部 API
 
-套件是一個存放依版本控管的 TypeScript/JS 原始碼的資料夾。先宣告，再從迴圈匯入：
+套件是一個目錄，裡面是帶版本閘門的 TypeScript/JS 原始碼。宣告它，然後在迴圈裡匯入：
 
 ```yaml
 packages:
@@ -104,7 +104,7 @@ function loop() {
 }
 ```
 
-套件可以包含 `manifest.yaml`：
+套件裡可以帶 `manifest.yaml`：
 
 ```yaml
 name: greeting
@@ -113,21 +113,21 @@ prelude_api: 2
 files: [greeting.ts]
 ```
 
-沒有 manifest 時，`*.ts` 與 `*.js` 檔案依字典順序載入。套件是原始碼層級的組合，不是隔離的模組：它們共用工作階段的 Goja 虛擬機器狀態與能力集合（能力仍由代理控制）。代理的 `loop:` 參照也可直接使用 `package:<name>`。編輯套件會重新啟動可能匯入它的工作階段。若需要隔離的可重用整合，請在 `apis` 下設定 TypeScript/JS 或 `wazero` Wasm 模組，並透過 `api.*` 從迴圈呼叫。
+沒有 manifest 時，`*.ts` 與 `*.js` 依字典序載入。套件是原始碼組合，不是隔離模組：它們共用工作階段的 Goja VM 狀態與能力集（這些仍由代理控制）。`package:<name>` 也可以直接當作代理的 `loop:` 參照。改動一個套件會重新啟動可能匯入它的工作階段。需要隔離的可重用整合，就在 `apis` 下設定 TypeScript/JS 或 `wazero` Wasm 模組，迴圈裡用 `api.*` 呼叫。
 
-## 5. 仍然需要 Go 的部分
+## 5. 哪些還是得靠 Go
 
-編譯式驅動程式仍需編譯：新的 LLM 傳輸協定、新的記憶／向量後端、新的搜尋引擎或 shell 供應商，以及新的原生 Go *種類*安全過濾器。以模型為基礎的內容審核使用 `safety.classifiers`（`classifier:<name>`），自訂指令碼掛鉤則使用 `safety.script_filters`（`script:<name>`）。替代做法如下：
+編譯進去的驅動還是得編譯：新的 LLM 線路協定、新的記憶／向量後端、新的搜尋引擎或 Shell 提供者，以及新的一類 Go 原生安全過濾器。以模型為後盾的審核用 `safety.classifiers`（`classifier:<name>`），指令碼過濾器用 `safety.script_filters`（`script:<name>`）。其餘的變通做法有：
 
-- 新的模型廠商使用 OpenAI 相容端點（`provider: openai` + `base_url`）；
-- 新的搜尋／API 供應商使用 MCP、外部 API（以 Goja 或 `wazero` Wasm 實作的 `apis.*`）或宣告式 HTTP 工具；
-- 新的聊天平台使用橋接；
-- 共用原則使用 TypeScript/JS 套件；
-- 不重新編譯就做內容審核：使用分類器提示詞加上標籤原則，或 `safety.script_filters` 掛鉤。
+- 新型號供應商走 OpenAI 相容端點（`provider: openai` + `base_url`）；
+- 新的搜尋／API 提供者，用 MCP、外部 API（Goja 裡的 `apis.*` 或 `wazero` Wasm），或宣告式 HTTP 工具；
+- 新聊天平台走 bridge；
+- 共用原則寫成 TypeScript/JS 套件；
+- 不想重新編譯又要做審核，就用分類器提示詞加標籤原則，或掛一個 `safety.script_filters` 掛鉤。
 
-## 6. 租戶控制
+## 6. 租戶控管
 
-四個部署層級的開關可補足產品層面的缺口，且不改變推論路徑：
+四個部署層級開關就能補上產品層的缺口，完全不動推論路徑：
 
 ```yaml
 runtime:
@@ -141,9 +141,9 @@ runtime:
       alice: "${ALICE_ADMIN_TOKEN}"
 ```
 
-租戶生命週期端點為 `GET /admin/api/usage`、`GET /admin/api/users/{id}/export` 與 `DELETE /admin/api/users/{id}?confirm=<id>`。刪除路徑會移除使用者資料、連結帳號、權杖、憑證、用量、訊息日誌與檔案中繼資料；記憶資料列依其儲存區的保留期限處理，以內容定址的 blob 則由檔案 GC 回收。管理 API 仍只有一個權限等級：操作人員名稱用來標示是誰執行了操作，但不會區分讀取／寫入權限。
+租戶生命週期端點有 `GET /admin/api/usage`、`GET /admin/api/users/{id}/export` 與 `DELETE /admin/api/users/{id}?confirm=<id>`。刪除會清掉資料、帳號、權杖、憑證、用量、日誌與檔案中繼資料；記憶紀錄依各自儲存區的保留期限處理，內容定址的 blob 由檔案 GC 回收。管理 API 仍然只有一個權限層級：操作員名稱用於歸屬操作，但讀與寫並不區分層級。
 
-## 7. 部署前先測試
+## 7. 部署前先測
 
 ```bash
 agentflow validate -config agentflow.yaml
@@ -151,7 +151,7 @@ agentflow loop check loops/support.ts
 agentflow loop test scenarios/refund.yaml
 ```
 
-情境就是資料：
+情境本身就是資料：
 
 ```yaml
 agent: support
@@ -165,32 +165,32 @@ messages:
 expect_contains: ["help"]
 ```
 
-`loop test` 會以假的 LLM／工具／頻道相依項目執行真正的 actor，因此不需要憑證，也不需要網路。完整的情境結構請見 `internal/looptest`。
+`loop test` 用假的 LLM／工具／頻道相依性跑真實的 actor，所以不需要憑證也不需要網路。完整的情境結構見 `internal/looptest`。
 
 ## 掛鉤與擴充點
 
-沒有掛鉤登錄表。引擎本身只分派三個點，其餘都是**由指令碼呼叫的命名慣例**：外掛提供一個全域變數，名稱就是呼叫端要找的名稱，這就是全部的約定。兩者的差別決定了外掛程式碼必須放在哪裡，所以這裡兩種都列出來。
+AgentFlow 沒有掛鉤登錄表。引擎自己分派三個點，其餘全靠 **指令碼依約定命名全域函式**：外掛提供一個全域，呼叫方依名字去找，這就是全部的約定。兩種機制決定了外掛程式碼該放哪裡，所以這裡都列出來。
 
 ### 由核心分派
 
-無論迴圈做什麼，這些點在每一輪都會執行。替換迴圈處理常式也無法移除它們——前兩個存在的目的正是如此。
+不論迴圈怎麼寫，這些每一輪都會跑。替換迴圈處理函式也卸不掉它們 —— 前兩個存在的意義正是如此。
 
-| 點 | 種類 | 實作者 | 說明 |
+| 位置 | 類型 | 實作方 | 說明 |
 | --- | --- | --- | --- |
-| `safety.ingress` | 過濾器 | Go，由核心擁有 | 在迴圈看到訊息之前執行；可以捨棄訊息、略過這一輪，或改寫文字。基準過濾器中只有 `affect-guard` 會捨棄訊息，`classifier:<name>` 與 `script:<name>` 過濾器可依原則封鎖或重新導向。 |
-| `safety.egress` | 過濾器 | Go，由核心擁有 | 在回覆送達頻道之前執行；可以捨棄回覆（並可附上由核心撰寫的替代回覆）。 |
-| `gateway.route` | 處理常式 | 由 `gateway.route` 指定的指令碼程式碼區塊，預設為 `plugin:per_chat` | 每個行程一個 Goja 虛擬機器。讀取訊息並傳回工作階段位址。路由處理常式只能呼叫 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 與 `log`；其他呼叫都會依名稱被拒絕。 |
+| `safety.ingress` | 過濾器 | Go，核心掌管 | 在迴圈看到訊息之前執行；可以丟棄訊息、跳過本輪，或改寫文字。基線過濾器裡只有 `affect-guard` 會丟棄，而 `classifier:<name>` 與 `script:<name>` 過濾器可以攔截或重新導向。 |
+| `safety.egress` | 過濾器 | Go，核心掌管 | 在回覆送達頻道之前執行；可以丟棄回覆（可附上由核心撰寫的備援文案）。 |
+| `gateway.route` | 處理常式 | 由 `gateway.route` 指定的指令碼區塊，預設 `plugin:per_chat` | 每個行程一個 Goja VM 狀態。讀取訊息並傳回工作階段位址。路由處理常式只能呼叫 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 與 `log`，其他一律依名稱拒絕。 |
 
-### 由指令碼呼叫的命名慣例
+### 指令碼依約定呼叫的名稱
 
-這些是一般的全域變數，不是引擎會呼叫的進入點。當部署設定了對應行為時，prelude 或迴圈會依名稱呼叫它們；要遮蔽內建項目，就在 `plugins/<name>.ts` 中定義同名的全域變數。
+這些是普通的全域函式，不是引擎呼叫的入口。部署組態啟用了對應行為時，prelude 或迴圈會依名字呼叫它們；要覆寫內建實作，就在 `plugins/<name>.ts` 裡定義同名全域。
 
-| 設定方式 | 指令碼必須定義的全域變數 | 呼叫者 |
+| 組態寫法 | 指令碼需定義的全域 | 呼叫方 |
 | --- | --- | --- |
 | 記憶設定檔 `write: plugin:routing_table` | `memory_routing_table(record)` | prelude 的 `memory.write` |
 | 記憶設定檔 `recall: plugin:recency` | `memory_recall_handler(query, opts)` | prelude 的 `memory.recall` |
 | 記憶設定檔 `recall: plugin:semantic` | `memory_semantic_recall_handler(query, opts)` | prelude 的 `memory.recall` |
-| 支援程式碼區塊 `plugin:token_budget` | `token_budget(messages, budget)` | 迴圈，在需要修剪提示詞時 |
-| 迴圈外掛 `plugin:per_chat` | `loop()` | 沒有——它*本身*就是迴圈，不是輔助函式 |
+| 支援片段 `plugin:token_budget` | `token_budget(messages, budget)` | 迴圈，需要裁剪提示詞時 |
+| 迴圈外掛 `plugin:per_chat` | `loop()` | 無人呼叫 —— 它本身就是迴圈，不是輔助函式 |
 
-> **本節過去的內容**：先前列出了 26 個掛鉤——`gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等——附有種類、簽章與預設值，並聲稱由核心分派。實際上並不存在分派器，所以定義這些名稱的外掛會默默地永遠不被呼叫。其中兩個指向內建項目（`shell.before_exec` 的 `plugin:exec_policy`、`shell.teardown` 的 `plugin:ttl`），它們會載入每個工作階段狀態，卻沒有任何東西呼叫；兩者現已移除。**Shell 指令只受 `shell.exec` 能力控管——沒有指令原則過濾器。** 迴圈當機時會重新啟動，檔案變更時會熱重新載入，這正是 `session.resume` 與 `core.on_reload` 想要達成的；需要在這兩種情況之間保留狀態的迴圈，請使用 `session.state.*`。
+> **本節以前寫的是什麼**：它列了 26 個掛鉤 —— `gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等 —— 還寫了類型、簽章與預設值，並聲稱由核心分派。並不存在這樣的分派器，定義這些名字的外掛從未被呼叫過。其中兩個還點到了內建實作（`shell.before_exec` 對應 `plugin:exec_policy`，`shell.teardown` 對應 `plugin:ttl`），它們被載入每個工作階段狀態卻沒有任何呼叫方；這兩個現在都已移除。**Shell 命令只受 `shell.exec` 能力約束 —— 不存在命令原則過濾器。** 迴圈崩潰會重新啟動，檔案變更會熱重載，這才是 `session.resume` 與 `core.on_reload` 當初想要的；需要在兩者之間保留狀態的迴圈，請用 `session.state.*`。

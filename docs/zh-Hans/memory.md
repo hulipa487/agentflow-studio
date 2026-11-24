@@ -1,20 +1,20 @@
 # 记忆
 
-记忆是智能体在轮次之间保留下来的东西：最近的对话、别人告诉它的事实、它可以搜索的文档。本页说明这些部分如何组合在一起，如何在配置文件或 Studio 中设置，以及循环如何使用它。
+记忆是智能体在轮次之间保留的东西：最近的对话、被告知的事实、可供检索的文档。本页说明它是怎么搭起来的、如何在配置文件中或 Studio 里设置，以及循环怎么使用它。
 
-记忆分为三层：
+一共三层：
 
 | 层 | 位置 | 是什么 |
 | --- | --- | --- |
 | **后端** | `memory.backends.<name>` | 一个数据库：SQLite 文件、PostgreSQL 或 Redis 服务器、Qdrant 集群，或进程内存。 |
-| **方案** | `profiles.memory.<name>` | 一组具名的逻辑**存储区**，每个存储区是某个后端上的一张表，外加 `memory.recall` 如何搜索它们。 |
-| **智能体** | `agents.<name>.memory` | 智能体使用哪个方案：方案名称、内置的 `conversational`，或内联方案。 |
+| **方案** | `profiles.memory.<name>` | 一组具名的逻辑 **存储区**，每个都是某个后端上的一张表，外加 `memory.recall` 如何在其中检索。 |
+| **智能体** | `agents.<name>.memory` | 智能体用哪个方案：方案名、内置的 `conversational`，或内联方案。 |
 
-多个智能体可以共用一个方案。每个智能体仍然拥有自己的表（见[隔离](#isolation)），所以共用方案共享的是结构，而不是数据。
+多个智能体可以共用一个方案。每个智能体仍然有自己的表（见[隔离](#isolation)），所以共用方案共用的是形状，不是数据。
 
-## 两分钟速览
+## 两分钟版
 
-完全没有 memory 部分的配置本身就能用：
+完全没有 memory 段的配置本来就能用：
 
 ```yaml
 agents:
@@ -23,16 +23,16 @@ agents:
     memory: conversational        # 内置方案
 ```
 
-`conversational` 把对话存放在 `dialogue` 表中（保留 30 天，最多最近 1000 条记录），把事实存放在可搜索的 `facts` 表中（永久保留），两者都位于名为 `main_db` 的后端上。如果配置没有声明任何后端，`main_db` 就是运行时存储本身（`runtime.persistence`），因此最小部署不需要第二个数据库。
+`conversational` 把对话存在 `dialogue` 表（30 天，最近 1000 条记录），把事实存在可检索的 `facts` 表（永久保留），后端叫 `main_db`。配置里没声明任何后端时，`main_db` 就是运行时存储本身（`runtime.persistence`），所以最小部署不需要第二个数据库。
 
-在循环中：
+在循环里：
 
 ```ts
 memory.write({ type: "turn", id: msg.id, text: msg.text, reply: reply.text });
 const recent = memory.recall({ kind: "all" });          // 来自 dialogue 的记录
 ```
 
-智能体需要 `memory` 能力，它默认已开启。
+智能体需要 `memory` 能力，它在默认集合里。
 
 ## 后端
 
@@ -47,21 +47,21 @@ memory:
       config: { url: "${PG_URL}", dim: 1536 }
 ```
 
-| 提供商 | 适用场景 | 读取的设置 |
+| 提供商 | 适合 | 读取的设置 |
 | --- | --- | --- |
-| `sqlite` | 单实例，无需服务器。键值、全文和暴力向量搜索。 | `path`, `vector_scan_limit` |
-| `postgres` | 共享服务器。键值和全文；安装 pgvector 后也支持向量。 | `url`, `dim` |
-| `pgvector` | PostgreSQL 向量搜索（为兼容而保留；`postgres` 已涵盖）。 | `url`, `dim` |
-| `redis` | 快速的共享键值，不支持搜索。 | `url` |
-| `redisvector` | Redis Stack：键值加向量搜索。 | `url`, `dim` |
-| `qdrant` | 大规模向量搜索。 | `url`, `api_key`, `collection`, `dim`, `distance`, `timeout` |
-| `volatile` | 进程内存：速度快，重启即丢失，所有会话共享。 | `max_entries` |
+| `sqlite` | 单实例，无需服务器。键值、全文检索和暴力向量检索。 | `path`、`vector_scan_limit` |
+| `postgres` | 共享服务器。键值和全文检索；装了 pgvector 也能做向量。 | `url`、`dim` |
+| `pgvector` | PostgreSQL 向量检索（为兼容保留；`postgres` 已覆盖）。 | `url`、`dim` |
+| `redis` | 快速共享键值，无检索。 | `url` |
+| `redisvector` | Redis Stack：键值加向量检索。 | `url`、`dim` |
+| `qdrant` | 大规模向量检索。 | `url`、`api_key`、`collection`、`dim`、`distance`、`timeout` |
+| `volatile` | 进程内存：快，重启即丢，所有会话共享。 | `max_entries` |
 
-- **密钥。** `url`、`password` 和 `api_key` 接受 `${VAR}`、`${VAR:-default}` 或 `cred:<service>`，这样密钥就不会写进文件。密钥无法解析的后端会被跳过并给出警告，它的存储区会转移到仍可用的后端上。
-- **`dim`** 在首次创建向量表时就固定下来。它必须与嵌入模型一致（`text-embedding-3-small` 为 1536，许多开源模型为 768）。
-- **`main_db`** 是内置方案使用的后端。一旦配置声明了任何后端，也要同时声明 `main_db`，否则使用 `conversational` 的智能体会退回到 `./data/agentflow.db`。Studio 的记忆界面会替你写出它。
+- **密钥。** `url`、`password` 和 `api_key` 接受 `${VAR}`、`${VAR:-default}` 或 `cred:<service>`，密钥因此不会进文件。密钥解析不出来的后端会被跳过并给出警告，它的存储区转到还活着的后端上。
+- **`dim`** 在向量表首次创建时固定，必须和嵌入模型一致（`text-embedding-3-small` 是 1536，很多开源模型是 768）。
+- **`main_db`** 是内置方案的后端。配置里一旦声明了任何后端，就要把 `main_db` 也声明出来，否则用 `conversational` 的智能体会退回到 `./data/agentflow.db`。Studio 的“记忆”页面会替你写出来。
 
-完整的提供商表、本地性规则和 Qdrant 传输细节见[配置](configuration.md)。
+完整的提供商表、locality 规则和 Qdrant 传输细节见[配置](configuration.md)。
 
 ## 方案
 
@@ -76,39 +76,39 @@ profiles:
       recall: plugin:recency
 ```
 
-方案名称由 1–64 个字母、数字、`_`、`.` 或 `-` 组成。`conversational` 保留给内置方案。
+方案名为 1–64 个字母、数字、`_`、`.` 或 `-`。`conversational` 保留给内置方案。
 
 ### 存储区
 
-存储区是循环使用的名称（`dialogue`、`facts`、`semantic` 或你自己起的名字），绑定到某个后端上的一张物理表。
+存储区是循环使用的名字（`dialogue`、`facts`、`semantic`，或你自己起的），绑定到某个后端上的一张物理表。
 
 | 键 | 含义 |
 | --- | --- |
 | `backend` | 必填。一个 `memory.backends` 名称。 |
 | `table` | 物理表或集合。 |
-| `retention` | 记录写入后保留多久：`30d`、`12h`、`2d12h` 或 `forever`。它是每次写入的默认 TTL，而不是定期清理，所以在设置它之前写入的行永远不会过期。 |
-| `window` | 每张表最多保留的记录数，由定期清理裁剪。仅适用于键值后端；向量后端不做裁剪。 |
-| `requires` | 后端必须具备的功能：`kv`、`text_search`、`vector`。在启动时检查，因此放错后端的存储区会在启动时失败，而不是等到第一次召回。 |
-| `scope` | `user`（默认）按用户分别保存行；`agent` 让该智能体的所有用户共享一组行。 |
-| `pool` | 改为把存储区绑定到“租户”中的某个具名共享池。由授权决定谁可以读写它。绑定到池的存储区不能设置 `scope`。 |
-| `locality_ok` | 在区域单元中，接受位于实例本地后端上的持久存储区。 |
+| `retention` | 记录写入后存活多久：`30d`、`12h`、`2d12h` 或 `forever`。它是每次写入的默认 TTL，不是清扫，所以在设置它之前写入的行永远不会过期。 |
+| `window` | 每张表最多保留多少条记录，由定期清扫裁剪。仅限键值后端；向量后端不裁剪。 |
+| `requires` | 后端必须具备的特性：`kv`、`text_search`、`vector`。启动时检查，所以放错后端的存储区在启动时就失败，而不是等到第一次召回。 |
+| `scope` | `user`（默认）按用户保留数据行；`agent` 在整个智能体的所有用户之间共用一份。 |
+| `pool` | 改为把存储区绑定到“租户”里的具名共享池，由授权决定谁能读写。绑定池的存储区不设 `scope`。 |
+| `locality_ok` | 在区域单元中，接受把持久存储区放在实例本地的后端上。 |
 
-内置插件会查找三个存储区名称：
+内置插件会找三个存储区名字：
 
-- **`dialogue`** 接收 `turn` 记录，也是 `memory.recall` 默认读取的存储区。
-- **`facts`** 接收 `fact` 记录。用 `kind = "text"` 和 `store = "facts"` 搜索它。
-- **`semantic`** 是语义召回搜索的存储区；没有它时则搜索 `dialogue`。
+- **`dialogue`** 存 `turn` 记录，也是 `memory.recall` 默认读的地方。
+- **`facts`** 存 `fact` 记录。用 `kind = "text"` 和 `store = "facts"` 检索。
+- **`semantic`** 是语义召回的检索目标；没有它就在 `dialogue` 里检索。
 
 ### 召回
 
-`recall` 选择 `memory.recall` 分派到哪个处理器。
+`recall` 决定 `memory.recall` 分派到哪个处理器。
 
 | 值 | `memory.recall` 的行为 |
 | --- | --- |
-| `plugin:recency`（默认） | 直接读取存储区：最新的记录、前缀扫描、全文搜索或时间窗口。 |
-| `plugin:semantic` | 为查询文本生成嵌入，执行向量搜索，并可选地重排。没有 `text` 的查询会退回到按时间读取。 |
+| `plugin:recency`（默认） | 直接读存储区：最新记录、前缀扫描、全文检索或时间窗。 |
+| `plugin:semantic` | 把查询文本转成嵌入，做向量检索，可选地重排。没有 `text` 的查询退回到按时间。 |
 
-语义召回需要在方案上设置三项：
+语义召回需要在方案上配三样东西：
 
 ```yaml
     knowledge:
@@ -121,14 +121,14 @@ profiles:
       oversample: 4               # 配合重排器：取回 k*4 条结果，再重排到 k 条
 ```
 
-- **`embed_model`** 在召回时为查询生成嵌入。对于 `memory.write` 发往支持向量的后端上的存储区的每条记录，它也会生成嵌入，因此写入和查询使用同一个模型。
-- **`rerank_model`** 是可选的。设置后，向量搜索会取回 `k × oversample` 条结果，再由交叉编码器排序；每条结果都带有 `meta.rerank_score`。
+- **`embed_model`** 在召回时把查询转成嵌入。它也会把 `memory.write` 送到支持向量的后端存储区的每条记录转成嵌入，所以写入和查询用的是同一个模型。
+- **`rerank_model`** 可选。设置后，向量检索先取 `k × oversample` 个命中，再由交叉编码器排序；每条结果带上 `meta.rerank_score`。
 
 ### 写入
 
-`write` 列出写入链。目前 `memory.write` 总是运行路由表：随附的 `plugin:routing_table`，或者当你的部署覆盖了它时运行 `plugins/routing_table.ts`。这个列表本身会以 `agent.info().memory.write` 的形式传给循环，循环可以读取它，但它并不会切换写入链。请保持为 `[plugin:routing_table]`。
+`write` 列出写入链。目前 `memory.write` 始终走路由表：随附的 `plugin:routing_table`，或者部署覆写了它时的 `plugins/routing_table.ts`。这个列表会作为 `agent.info().memory.write` 传给循环，循环可以读它，但它并不会切换链路。保持 `[plugin:routing_table]` 即可。
 
-## 为智能体提供记忆
+## 给智能体配记忆
 
 ```yaml
 agents:
@@ -143,11 +143,11 @@ agents:
         dialogue: { backend: main_db, table: scratch, retention: 1h }
 ```
 
-- **能力。** 带记忆的智能体需要 `memory` 能力。它在默认集合中；如果你自己列出了 `capabilities:`，记得把它包含进去。
-- **派生模板。** `profiles.agent.<name>.memory` 以同样的方式指定方案。
-- **不需要记忆。** 不写 `memory:` 即可。这时 `memory.write` 无处可路由，召回会返回空列表。
+- **能力。** 带记忆的智能体需要 `memory` 能力。它在默认集合里；如果你自己列了 `capabilities:`，记得把它写进去。
+- **派生模板。** `profiles.agent.<name>.memory` 用同样的方式指定方案。
+- **不要记忆。** 把 `memory:` 留空。此时 `memory.write` 无处可路由，召回返回空列表。
 
-## 在循环中使用记忆
+## 在循环里使用记忆
 
 ### 写入
 
@@ -164,11 +164,11 @@ memory.write({ targets: [
 ] });
 ```
 
-记录只会写入方案中声明的存储区：如果智能体的方案没有 `dialogue` 存储区，它写入的 `turn` 会被丢弃，而不会报错。
+记录只会进方案里声明过的存储区：方案没有 `dialogue` 存储区的智能体写 `turn` 会被丢弃，而不是报错。
 
 ### 召回
 
-`memory.recall` 返回一个 `{ key, value, meta }` 列表。
+`memory.recall` 返回 `{ key, value, meta }` 列表。
 
 ```ts
 // plugin:recency
@@ -182,46 +182,45 @@ memory.recall({ kind: "time", store: "dialogue",
 memory.recall({ text: msg.text, k: 5 });                         // 语义召回，否则读 dialogue
 ```
 
-不指定 `store` 时，按时间读取的是 `dialogue`，所以要在 `facts` 上做文本搜索，就得写明存储区。时间范围使用 RFC3339 字符串。
+不带 `store` 时，按时间召回读 `dialogue`，所以要在 `facts` 上做全文检索就得指明存储区。时间边界是 RFC3339 字符串。
 
 ### 原始表
 
-`store.put`、`store.get`、`store.query` 和 `store.delete` 按名称直接操作存储区，不经过路由，也不生成嵌入。详见 [脚本循环](loops.md#memory)。
+`store.put`、`store.get`、`store.query` 和 `store.delete` 按名字直接操作存储区，不经过路由也不做嵌入。详见[脚本循环](loops.md#memory)。
 
 ## 隔离
 
-- **按智能体。** 每个智能体绑定自己的物理表（`<agent>.<table>`），所以使用同一方案的两个智能体永远不会读到彼此的行。
-- **按用户。** 在一个智能体内部，行默认按用户分别保存：一个人的对话轮次不会出现在另一个人的召回结果中。对某个存储区设置 `scope: agent` 可以关闭这一点，用于所有用户都应看到的知识。
-- **有意共享。** `pool: <name>` 把存储区绑定到在“租户”界面创建的池。由授权决定哪些租户可以读写它。
+- **按智能体。** 每个智能体绑定自己的物理表（`<agent>.<table>`），所以共用同一方案的两个智能体永远读不到对方的行。
+- **按用户。** 在同一智能体内，数据行默认按用户保留：一个人的轮次不会出现在另一个人的召回里。`scope: agent` 会关掉某个存储区的这一行为，用于所有人都该看到的知识。
+- **有意共享。** `pool: <name>` 把存储区绑定到“租户”页面创建的池。授权决定哪些租户可以读写。
 
-## 保留期、窗口和上限
+## 保留期、窗口与上限
 
-- `retention` 是写入时打上的 TTL；之后修改它只影响新写入的行。
-- `window` 在定期清理时裁剪键值表中最旧的行。
-- 位于 `volatile` 后端上的存储区必须有上限：要么后端设置 `max_entries`，要么存储区设置 `retention`。否则校验会拒绝它，因为所有会话共享的进程内存会一直增长，直到进程崩溃。
-- 在区域单元中，`dialogue`、`facts` 以及（使用语义召回时的）`semantic` 必须位于共享后端上，不能是 SQLite 或 `volatile`，除非该存储区设置了 `locality_ok: true`。
+- `retention` 是写入时打上的 TTL；之后再改只影响新行。
+- `window` 在定期清扫时裁掉键值表中最旧的行。
+- `volatile` 后端上的存储区必须有界：要么后端设 `max_entries`，要么存储区设 `retention`。否则校验会拒绝，因为所有会话共用的进程内存会一直涨到进程死掉。
+- 在区域单元中，`dialogue`、`facts` 和（启用语义召回时的）`semantic` 必须放在共享后端上，不能用 SQLite 或 `volatile`，除非存储区设了 `locality_ok: true`。
 
-## 在 Studio 中设置
+## 在 Studio 里设置
 
-**记忆**（两个应用中都位于“连接”分组下）无需接触 YAML 就能编辑 `memory.backends` 和 `profiles.memory`。
+**记忆**（在两个应用的“接入”下）不改 YAML 就能编辑 `memory.backends` 和 `profiles.memory`。
 
-- **后端。** 选择一个提供商，表单就只显示该提供商读取的设置。URL 和 API 密钥只能写入：界面显示的是 `${VAR}` 或 `cred:` 引用，或者隐去密码的 URL；字段留空则保留已存储的值。
-- **方案。** 每个存储区占一行：名称、后端、表、保留期、窗口、所需功能，以及它的范围或池。存储区下方是召回、写入、嵌入模型和重排模型，以及过采样倍数。新方案一开始是内置方案的副本。
-- **校验** 会像重启时一样，针对整个配置检查这次修改，但不写入任何内容。**保存** 会再校验一次，保留一份 `.bak`，并且只写入这两个部分。
-- **删除** 在条目仍被使用时会被拒绝；界面会指出是谁在使用。
-- **隐式的 `main_db`。** 没有后端的配置会把 `main_db` 显示为内置。保存你的第一个后端时也会把 `main_db` 写入文件，这样使用 `conversational` 的智能体仍能保留它们的存储区。
+- **后端。** 选一个提供商，表单只显示该提供商读取的设置。URL 和 API 密钥只写不读：页面显示 `${VAR}`、`cred:` 引用，或把密码打码后的 URL；留空即保留已存储的值。
+- **方案。** 每个存储区一行：名称、后端、表、保留期、窗口、它要求的特性，以及范围或池。存储区下面是召回、写入、嵌入与重排模型，以及过采样倍数。新方案以内置方案为副本开始。
+- **校验** 按整份配置检查改动，和重启时一样，但不写任何东西。**保存** 会再校验一次，留一份 `.bak`，并且只写这两节。
+- **删除** 在有东西引用时会被拒绝，页面会指出是哪个。
+- **隐式的 `main_db`。** 没声明后端的配置会把 `main_db` 显示为内置。保存第一个后端时，`main_db` 也会一并写进文件，用 `conversational` 的智能体因此不会丢存储。
+- 在智能体构建器里，**记忆方案**（挨着安全方案）提供 *无*、*conversational（内置）*、每个具名方案，以及该智能体已有的内联方案（按原样保留）。
 
-在智能体构建器中，**记忆方案**（位于安全方案旁边）提供以下选项：*无*、*conversational（内置）*、每个具名方案，以及智能体已有的内联方案（会按原样保留）。
+智能体在 agentflow 启动时打开存储区，所以记忆的改动要重启后才生效。在“记忆”页面新建的方案也要等那次重启后才会出现在构建器的选择器里。
 
-智能体在 agentflow 启动时打开它们的存储区，所以记忆相关的修改要在重启后才生效。在记忆界面创建的方案，也要在重启之后才会出现在构建器的选择列表中。
-
-该界面使用以下管理路由：
+页面使用这些管理路由：
 
 | 路由 | 作用 |
 | --- | --- |
-| `GET /admin/api/studio/memory` | 后端（密钥以引用或隐去密码的 URL 显示）、方案、各自的使用方，以及编辑器可提供的提供商、模型和插件。 |
-| `POST /admin/api/studio/memory/validate` | 对方案或后端草稿做试运行。 |
-| `POST/PUT/DELETE /admin/api/studio/memory/profiles` · `/backends` | 创建、替换或移除一项。名称不可更改。 |
+| `GET /admin/api/studio/memory` | 后端（密钥以引用或打码 URL 呈现）、方案、各自被谁使用，以及编辑器可选的提供商、模型和插件。 |
+| `POST /admin/api/studio/memory/validate` | 对方案或后端草稿做一次试运行。 |
+| `POST/PUT/DELETE /admin/api/studio/memory/profiles` · `/backends` | 创建一个、替换一个或删除一个。名称不可更改。 |
 
 ## 配方
 
@@ -237,9 +236,9 @@ profiles:
       recall: plugin:recency
 ```
 
-`scope: agent` 让群里的每个人共享同一份历史。`agentflow-studio` 仓库中的 `examples/qq-group-chat` 场景是一个完整的版本。
+`scope: agent` 让群里的所有人共用一份历史。`agentflow-studio` 里的 `examples/qq-group-chat` 就是一个完整版本。
 
-### 基于 SQLite 的知识库，无需额外服务器
+### 建在 SQLite 上的知识库，不额外加服务器
 
 ```yaml
 models:
@@ -254,9 +253,9 @@ profiles:
       embed_model: embed
 ```
 
-SQLite 以暴力方式搜索向量，上限由 `vector_scan_limit` 控制（默认 50,000 行）。超过这个规模时，把存储区迁移到 `pgvector` 或 `qdrant`；循环无需改动。参见 `examples/telegram-rag`。
+SQLite 用暴力方式检索向量，受 `vector_scan_limit` 限制（默认 50000 行）。超过这个量就把存储区迁到 `pgvector` 或 `qdrant`，循环不用改。见 `examples/telegram-rag`。
 
-### 进程内存中的临时空间
+### 进程内存里的草稿空间
 
 ```yaml
 memory:
@@ -272,16 +271,16 @@ profiles:
         scratch:  { backend: cache, table: scratch, retention: 1h }
 ```
 
-## 校验不通过时
+## 校验报错时
 
-| 消息 | 需要修改什么 |
+| 报错 | 要改什么 |
 | --- | --- |
-| `agent "x" uses memory but lacks memory capability` | 把 `memory` 加入智能体的 `capabilities`，或者删掉这个列表以使用默认值。 |
-| `agent "x" references unknown memory profile "p"` | 定义 `profiles.memory.p`，或者改正名称。在 Studio 中创建的方案需要重启后智能体才能使用。 |
-| `store "s" references unknown backend "b"` | 定义 `memory.backends.b`。一旦声明了任何后端，也必须声明 `main_db`。 |
-| `profiles.memory defines "conversational", which is reserved` | 换一个名称。 |
-| `invalid retention "soon"` | 使用 `ms`、`s`、`m`、`h`、`d` 单位或 `forever`。 |
-| `... volatile backend ... grows without bound` | 在后端上设置 `max_entries`，或在存储区上设置 `retention`。 |
-| `regional topology: ... instance-local` | 把存储区迁移到共享后端；如果可以接受丢失它，则设置 `locality_ok: true`。 |
-| `recall plugin:semantic needs an embed model`（Studio） | 在方案上选择一个嵌入模型。 |
-| `a postgres backend needs a URL`（Studio） | 填写 URL，或填写指向它的 `${VAR}` / `cred:` 引用。 |
+| `agent "x" uses memory but lacks memory capability` | 把 `memory` 加进智能体的 `capabilities`，或删掉这个列表以使用默认值。 |
+| `agent "x" references unknown memory profile "p"` | 定义 `profiles.memory.p`，或修正名字。在 Studio 里建的方案要重启后智能体才能用。 |
+| `store "s" references unknown backend "b"` | 定义 `memory.backends.b`。一旦声明了任何后端，`main_db` 也必须声明。 |
+| `profiles.memory defines "conversational", which is reserved` | 换个名字。 |
+| `invalid retention "soon"` | 用 `ms`、`s`、`m`、`h`、`d` 单位，或 `forever`。 |
+| `... volatile backend ... grows without bound` | 在后端上设 `max_entries`，或在存储区上设 `retention`。 |
+| `regional topology: ... instance-local` | 把存储区挪到共享后端；如果丢了也能接受，就设 `locality_ok: true`。 |
+| `recall plugin:semantic needs an embed model`（Studio） | 在方案上选一个嵌入模型。 |
+| `a postgres backend needs a URL`（Studio） | 填上 URL，或填指向它的 `${VAR}` / `cred:` 引用。 |

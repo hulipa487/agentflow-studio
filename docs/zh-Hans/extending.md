@@ -1,10 +1,10 @@
-# 无需重新编译 Go 即可扩展 AgentFlow
+# 不重新编译 Go 也能扩展 AgentFlow
 
-AgentFlow 有四个扩展层面。前三个只涉及配置、TypeScript/JS 脚本或 Wasm 外部 API；只有最后一个会改动二进制文件。
+AgentFlow 有四个扩展面。前三个靠配置、TypeScript/JS 或 Wasm 外部 API 就能搞定；只有最后一个要改二进制。
 
 ## 1. 声明式 HTTP 工具
 
-无需脚本和 Go，就能把一个外部 API 变成模型可见的工具：
+把外部 API 变成模型可见的工具，不用写脚本，也不用碰 Go：
 
 ```yaml
 tools:
@@ -27,32 +27,32 @@ tools:
       hosts: [api.example.com]
 ```
 
-该工具注册为 `http:crm_lookup`。运行时负责：
+这个工具注册为 `http:crm_lookup`。以下这些由运行时负责：
 
 - 模型看到的 JSON Schema；
-- URL、查询参数和 JSON 请求体中的 `{arg}` 模板替换；
-- 按租户解析凭据（`auth.service`；凭据值永远不会到达模型或消息日志）；
+- URL、query 和 JSON 请求体里的 `{arg}` 模板替换；
+- 按租户解析凭据（`auth.service`，凭据值永远不会到模型或日志里）；
 - 共享的地址防护（`net.http.allow_private`）和可选的主机白名单；
-- 响应大小上限和可选的点路径选取（`customer.id`、`items[0].name`）。
+- 响应大小上限，以及可选的点路径取值（`customer.id`、`items[0].name`）。
 
-非 GET 工具默认 `needs_confirm: true`；如需改变，请显式设置。当某个值恰好是 `{arg}` 时，请求体模板会保留其 JSON 类型。
+非 GET 工具默认 `needs_confirm: true`；要改就显式设置。当某个值正好是 `{arg}` 时，请求体模板会保留它的 JSON 类型。
 
-也可以导入 OpenAPI 3 文档，而不必手写每个操作：
+也可以直接导入 OpenAPI 3 文档，不必手写每个操作：
 
 ```bash
 agentflow tools import-openapi openapi.yaml -out tools.yaml \
   -base-url https://api.example.com -auth crm -prefix crm
 ```
 
-导入器会生成一个 `tools:` 块供你审阅；它不会在运行时获取规范文档。加上 `-read-only` 则只导入 GET/HEAD。
+导入器会生成一个 `tools:` 块供你审阅，运行时并不会去拉取这份规范。加 `-read-only` 则只导入 GET/HEAD。
 
 ## 2. MCP 服务器
 
-MCP 仍然是接入任意外部工具的边界。stdio 子进程或 Streamable HTTP 端点在 `mcp.servers` 下声明；其工具显示为 `<server>/<tool>`。HTTP 服务器接受一个 `token:`，可以是字面值、`${VAR}` 或 `cred:<service>`，并且与 `http.request` 和 `builtin:fetch` 受同一地址防护约束。
+任意外部工具的边界仍然交给 MCP。stdio 子进程或 Streamable HTTP 端点在 `mcp.servers` 下声明，其工具显示为 `<server>/<tool>`。HTTP 服务器接受 `token:`，可以是字面值、`${VAR}` 或 `cred:<service>`，并与 `http.request`、`builtin:fetch` 受同一套地址防护约束。
 
-## 3. 桥接渠道
+## 3. 渠道桥接
 
-AgentFlow 未内置的聊天平台可以通过外部适配器接入。适配器把平台事件转换为下面的协议并接收回复；AgentFlow 无需改动任何 Go 代码：
+AgentFlow 没有编译进去的聊天平台，可以用外部适配器接进来。适配器把平台事件翻译成下面的协议并接收回复，AgentFlow 一行 Go 都不用改：
 
 ```yaml
 gateway:
@@ -81,11 +81,11 @@ X-Agentflow-Signature: sha256=<hex HMAC-SHA256 of the raw body>
 {"to":"C456","text":"...","attachments":[{"type":"image","mime":"image/png","handle":"media:..."}]}
 ```
 
-HMAC 是必需的。适配器被信任会如实转发平台的发送者身份，但桥接来的关联账号只记为“声明的”；关联账号仍须在渠道内完成常规的 `/link` 验证，才能获得用户资料范围。
+HMAC 是必需的。适配器被信任可以转达平台侧的发送者身份，但桥接拿到的账号只记为「声称」，要拿到资料范围仍需走正常的渠道内 `/link` 校验。
 
 ## 4. 脚本包与外部 API
 
-包是一个目录，里面是受版本约束的 TypeScript/JS 源码。先声明，再在循环中导入：
+包是一个目录，里面是带版本门禁的 TypeScript/JS 源码。声明它，然后在循环里导入：
 
 ```yaml
 packages:
@@ -104,7 +104,7 @@ function loop() {
 }
 ```
 
-包中可以包含 `manifest.yaml`：
+包里可以带 `manifest.yaml`：
 
 ```yaml
 name: greeting
@@ -113,21 +113,21 @@ prelude_api: 2
 files: [greeting.ts]
 ```
 
-没有清单文件时，`*.ts` 和 `*.js` 文件按字典序加载。包是源码层面的组合，而不是相互隔离的模块：它们共享会话的 Goja 虚拟机状态和能力集（能力集仍由智能体控制）。`package:<name>` 也可以直接用作智能体的 `loop:` 引用。编辑包会重启可能导入它的会话。对于隔离的可复用集成，请在 `apis` 下配置 TypeScript/JS 或 `wazero` Wasm 模块，并通过 `api.*` 在循环中调用。
+没有 manifest 时，`*.ts` 和 `*.js` 按字典序加载。包是源码组合，不是隔离模块：它们共用会话的 Goja VM 状态和能力集（这些仍由智能体控制）。`package:<name>` 也可以直接作为智能体的 `loop:` 引用。改动一个包会重启可能导入它的会话。需要隔离的可复用集成，就在 `apis` 下配置 TypeScript/JS 或 `wazero` Wasm 模块，循环里用 `api.*` 调用。
 
-## 5. 仍然需要 Go 的部分
+## 5. 哪些还得靠 Go
 
-编译型驱动仍需编译：新的 LLM 通信协议、新的记忆/向量后端、新的搜索引擎或 shell 提供商，以及新的原生 Go *种类*安全过滤器。基于模型的内容审核使用 `safety.classifiers`（`classifier:<name>`），自定义脚本钩子使用 `safety.script_filters`（`script:<name>`）。其他替代办法有：
+编译进去的驱动还是得编译：新的 LLM 线路协议、新的记忆/向量后端、新的搜索引擎或 Shell 提供方，以及新的一类 Go 原生安全过滤器。基于模型的审核用 `safety.classifiers`（`classifier:<name>`），脚本过滤器用 `safety.script_filters`（`script:<name>`）。其余的绕法有：
 
-- 用 OpenAI 兼容端点接入新的模型厂商（`provider: openai` + `base_url`）；
-- 用 MCP、外部 API（Goja 或 `wazero` Wasm 实现的 `apis.*`）或声明式 HTTP 工具接入新的搜索/API 提供商；
-- 用桥接接入新的聊天平台；
-- 用 TypeScript/JS 包承载共享策略；
-- 用分类器提示词加标签策略或 `safety.script_filters` 实现内容审核，无需重新编译。
+- 新型号厂商走 OpenAI 兼容端点（`provider: openai` + `base_url`）；
+- 新的搜索/API 提供方，用 MCP、外部 API（Goja 里的 `apis.*` 或 `wazero` Wasm），或声明式 HTTP 工具；
+- 新聊天平台走 bridge；
+- 共享策略写成 TypeScript/JS 包；
+- 不想重新编译又要做审核，就用分类器提示词加标签策略，或挂一个 `safety.script_filters` 钩子。
 
-## 6. 租户控制
+## 6. 租户管控
 
-四个部署级开关在不改变推理路径的前提下补齐产品层面的缺口：
+四个部署级开关就能补上产品层的缺口，完全不动推理路径：
 
 ```yaml
 runtime:
@@ -141,9 +141,9 @@ runtime:
       alice: "${ALICE_ADMIN_TOKEN}"
 ```
 
-租户生命周期端点为 `GET /admin/api/usage`、`GET /admin/api/users/{id}/export` 和 `DELETE /admin/api/users/{id}?confirm=<id>`。删除操作会移除用户资料、关联账号、令牌、凭据、用量、消息日志和文件元数据；记忆行按其存储区的保留期处理，按内容寻址的数据块由文件 GC 回收。管理 API 仍然只有一个权限级别：操作员名称用于标明操作归属，但并不区分读/写权限。
+租户生命周期端点有 `GET /admin/api/usage`、`GET /admin/api/users/{id}/export` 和 `DELETE /admin/api/users/{id}?confirm=<id>`。删除会清掉资料、账号、令牌、凭据、用量、日志和文件元数据；记忆记录按各自存储的保留期处理，内容寻址的 blob 由文件 GC 回收。管理 API 仍然只有一个权限层级：操作员名字用于归属操作，但读和写并不分级。
 
-## 7. 部署前先测试
+## 7. 部署前先测
 
 ```bash
 agentflow validate -config agentflow.yaml
@@ -151,7 +151,7 @@ agentflow loop check loops/support.ts
 agentflow loop test scenarios/refund.yaml
 ```
 
-场景就是数据：
+场景本身就是数据：
 
 ```yaml
 agent: support
@@ -165,32 +165,32 @@ messages:
 expect_contains: ["help"]
 ```
 
-`loop test` 用伪造的 LLM/工具/渠道依赖运行真实的 Actor，因此不需要凭据，也不需要网络。完整的场景结构见 `internal/looptest`。
+`loop test` 用假的 LLM/工具/渠道依赖跑真实的 actor，所以不需要凭据也不需要网络。完整的场景结构见 `internal/looptest`。
 
 ## 钩子与扩展点
 
-不存在钩子注册表。引擎自己调度三个点，其余一切都是 **脚本调用的命名约定**：插件提供一个全局变量，名字与调用方要找的一致，这就是全部契约。两者的区别决定了插件代码必须放在哪里，因此下面分别列出。
+AgentFlow 没有钩子注册表。引擎自己分发三个点，其余全靠 **脚本按约定命名全局函数**：插件提供一个全局，调用方按名字去找，这就是全部约定。两种机制决定了插件代码该放哪儿，所以这里都列出来。
 
-### 由核心调度
+### 由核心分发
 
-无论循环做什么，这些点在每个轮次都会运行。替换循环处理器无法卸载它们——前两个的意义正在于此。
+无论循环怎么写，这些每轮都会跑。替换循环处理函数也卸不掉它们 —— 前两个存在的意义正是如此。
 
-| 扩展点 | 类型 | 实现方 | 说明 |
+| 位置 | 类型 | 实现方 | 说明 |
 | --- | --- | --- | --- |
-| `safety.ingress` | 过滤器 | Go，由核心掌管 | 在循环看到消息之前运行；可以丢弃消息、跳过本轮次或改写文本。基线过滤器中只有 `affect-guard` 会丢弃消息，`classifier:<name>` 和 `script:<name>` 过滤器可以根据策略拦截或重定向。 |
-| `safety.egress` | 过滤器 | Go，由核心掌管 | 在回复到达渠道之前运行；可以丢弃回复（可附带一条由核心撰写的替代回复）。 |
-| `gateway.route` | 处理器 | 由 `gateway.route` 指定的脚本代码块，默认 `plugin:per_chat` | 每个进程一个 Goja 虚拟机。读取消息并返回一个会话地址。路由处理器只能调用 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 和 `log`；其他调用都会按名称被拒绝。 |
+| `safety.ingress` | 过滤器 | Go，核心掌管 | 在循环看到消息之前运行；可以丢弃消息、跳过本轮，或改写文本。基线过滤器里只有 `affect-guard` 会丢弃，而 `classifier:<name>` 与 `script:<name>` 过滤器可以拦截或重定向。 |
+| `safety.egress` | 过滤器 | Go，核心掌管 | 在回复送达渠道之前运行；可以丢弃回复（可附带由核心撰写的兜底文案）。 |
+| `gateway.route` | 处理器 | 由 `gateway.route` 指定的脚本文档块，默认 `plugin:per_chat` | 每个进程一个 Goja VM 状态。读取消息并返回会话地址。路由处理器只能调用 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 和 `log`，其他一律按名称拒绝。 |
 
-### 脚本调用的命名约定
+### 脚本按约定调用的名字
 
-这些是普通的全局变量，而不是引擎调用的入口点。当部署配置了相应行为时，prelude 或循环会按名称调用它们；要覆盖某个内置实现，就在 `plugins/<name>.ts` 中定义同名全局变量。
+这些是普通的全局函数，不是引擎调用的入口。部署配置启用了对应行为时，prelude 或循环会按名字调用它们；要覆写内置实现，就在 `plugins/<name>.ts` 里定义同名全局。
 
-| 配置方式 | 脚本必须定义的全局变量 | 调用方 |
+| 配置写法 | 脚本需定义的全局 | 调用方 |
 | --- | --- | --- |
 | 记忆方案 `write: plugin:routing_table` | `memory_routing_table(record)` | prelude 的 `memory.write` |
 | 记忆方案 `recall: plugin:recency` | `memory_recall_handler(query, opts)` | prelude 的 `memory.recall` |
 | 记忆方案 `recall: plugin:semantic` | `memory_semantic_recall_handler(query, opts)` | prelude 的 `memory.recall` |
-| 辅助代码块 `plugin:token_budget` | `token_budget(messages, budget)` | 循环，在需要裁剪提示词时 |
-| 循环插件 `plugin:per_chat` | `loop()` | 无——它本身*就是*一个循环，而不是辅助函数 |
+| 支持片段 `plugin:token_budget` | `token_budget(messages, budget)` | 循环，需要裁剪提示词时 |
+| 循环插件 `plugin:per_chat` | `loop()` | 无人调用 —— 它本身就是循环，不是辅助函数 |
 
-> **本节过去的说法**：它曾列出 26 个钩子——`gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等——附带类型、签名和默认值，并声称由核心调度它们。实际上并不存在调度器，所以定义了这些名称之一的插件会悄无声息地永远不被调用。其中两个指向内置实现（`shell.before_exec` 对应的 `plugin:exec_policy`，`shell.teardown` 对应的 `plugin:ttl`），它们被加载进每个会话状态，却没有任何代码调用；两者现已移除。**shell 命令仅由 `shell.exec` 能力把关——不存在命令策略过滤器。** 循环在崩溃时会重启，在文件变更时会热重载，这正是 `session.resume` 和 `core.on_reload` 想要实现的；需要在这两种情况之间保留状态的循环，请使用 `session.state.*`。
+> **本节以前写的是什么**：它列了 26 个钩子 —— `gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等 —— 还写了类型、签名和默认值，并声称由核心分发。并不存在这样的分发器，定义这些名字的插件从未被调用过。其中两个还点到了内置实现（`shell.before_exec` 对应 `plugin:exec_policy`，`shell.teardown` 对应 `plugin:ttl`），它们被加载进每个会话状态却没有任何调用方；这两个现在都已删除。**Shell 命令只受 `shell.exec` 能力约束 —— 不存在命令策略过滤器。** 循环崩溃会重启，文件变更会热重载，这才是 `session.resume` 和 `core.on_reload` 当初想要的；需要在两者之间保留状态的循环，请用 `session.state.*`。
