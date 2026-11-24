@@ -3,7 +3,7 @@
 // sent to the runtime. A port of the desktop Studio's builder.go; buildYAML
 // emits the same bytes the Go builder does for the same form.
 import type { AgentDetail, AgentJSON, Catalog, Template, TemplateSetting } from '@/api/types'
-import { t } from '@/i18n'
+import { hasMessage, t } from '@/i18n'
 import { splitList } from '@/lib/format'
 import type { ScriptDiagnostic } from '@/script'
 import type { Tone } from '@/state/ui'
@@ -322,6 +322,16 @@ export function matchingTemplateSettings(catalog: Catalog, extrasObj: Record<str
     }
   }
   return best
+}
+
+export function settingLabel(setting: Pick<TemplateSetting, 'key' | 'label'>): string {
+  const key = 'builder.setting.' + setting.key + '.label'
+  return hasMessage(key) ? t(key) : setting.label
+}
+
+export function settingDescription(setting: Pick<TemplateSetting, 'key' | 'description'>): string | undefined {
+  const key = 'builder.setting.' + setting.key + '.description'
+  return hasMessage(key) ? t(key) : setting.description
 }
 
 /** Updates one key inside form.extras JSON while keeping existing keys and deterministic sorting. */

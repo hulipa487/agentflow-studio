@@ -39,5 +39,17 @@
   "agents.forceDelete": "强制删除",
   "agents.deleted": "已删除 {name}",
   "agents.exampleLoopsTitle": "示例循环",
-  "agents.exampleLoopsHint": "来自 examples/loops/，选一个即可在构建器中查看和修改。"
+  "agents.exampleLoopsHint": "来自 examples/loops/，选一个即可在构建器中查看和修改。",
+  "agents.template.qq-group-bot-fts.title": "QQ 群聊机器人 (FTS5)",
+  "agents.template.qq-group-bot-fts.description": "支持 SQLite FTS5 关键词召回、分群共享上下文、主动 [NO_REPLY] 过滤、豆包搜索与网页抓取的 QQ 群聊机器人。",
+  "agents.template.qq-group-bot-vec.title": "QQ 群聊机器人 (Embedding)",
+  "agents.template.qq-group-bot-vec.description": "支持 bge-m3 向量语义召回、分群共享上下文、主动 [NO_REPLY] 过滤、豆包搜索与网页抓取的 QQ 群聊机器人。",
+  "agents.template.telegram-group-bot-fts.title": "Telegram 群聊机器人 (FTS5)",
+  "agents.template.telegram-group-bot-fts.description": "支持 SQLite FTS5 关键词召回、分群共享上下文、主动 [NO_REPLY] 过滤、Google/X 搜索、网页抓取与浏览器工具的 Telegram 群聊机器人。",
+  "agents.template.telegram-group-bot-vec.title": "Telegram 群聊机器人 (Embedding)",
+  "agents.template.telegram-group-bot-vec.description": "支持 bge-m3 向量语义召回、分群共享上下文、主动 [NO_REPLY] 过滤、Google/X 搜索、网页抓取与浏览器工具的 Telegram 群聊机器人。",
+  "agents.template.qq-group-bot.title": "QQ 群聊机器人",
+  "agents.template.qq-group-bot.description": "QQ 群助手：保留近期群聊上下文，响应 @ 提及、引用回复、机器人名称/别名或相关的普通群消息（无关时输出 [NO_REPLY]），并支持冷却控制。",
+  "agents.template.telegram-group-bot.title": "Telegram 群聊机器人",
+  "agents.template.telegram-group-bot.description": "Telegram 群助手：响应 @ 提及、回复或可选触发词，按群隔离上下文并支持冷却控制，其余消息保持静默。"
 }

@@ -2,11 +2,37 @@
 // Everything can be edited in the builder afterwards.
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
+import type { Template } from '@/api/types'
 import { bundledExamples, exampleSummary } from '@/docs/examples'
 import { Button, Chip, Modal } from '@/components/ui'
 import { useCatalog } from '@/state/session'
 import { useUI } from '@/state/ui'
-import { t } from '@/i18n'
+import { hasMessage, t } from '@/i18n'
+
+export const REMOVED_TEMPLATES = new Set([
+  'echo',
+  'llm-chat',
+  'tool-loop',
+  'stateless',
+  'group-chat',
+  'rag',
+  'single-turn-api',
+  'openai-passthrough',
+])
+
+export function visibleTemplates(templates: readonly Template[] | null | undefined): Template[] {
+  return (templates ?? []).filter((tpl) => !REMOVED_TEMPLATES.has(tpl.name))
+}
+
+export function templateTitle(tpl: Pick<Template, 'name' | 'title'>): string {
+  const key = 'agents.template.' + tpl.name + '.title'
+  return hasMessage(key) ? t(key) : tpl.title
+}
+
+export function templateDescription(tpl: Pick<Template, 'name' | 'description'>): string {
+  const key = 'agents.template.' + tpl.name + '.description'
+  return hasMessage(key) ? t(key) : tpl.description
+}
 
 /** The builder route for a new agent, optionally seeded from a template or example loop. */
 export function newAgentPath(template?: string, example?: string): string {
@@ -59,7 +85,9 @@ export function NewAgentDialog() {
     >
       <div className="flex flex-col gap-2">
         {card('blank', t('agents.blankTitle'), t('agents.blankTag'), 'neutral', t('agents.blankDescription'))}
-        {(catalog.templates ?? []).map((tpl) => card(`tpl:${tpl.name}`, tpl.title, tpl.name, 'accent', tpl.description, { template: tpl.name }))}
+        {visibleTemplates(catalog.templates).map((tpl) =>
+          card(`tpl:${tpl.name}`, templateTitle(tpl), tpl.name, 'accent', templateDescription(tpl), { template: tpl.name }),
+        )}
       </div>
       {examples.length > 0 && (
         <div className="mt-5">

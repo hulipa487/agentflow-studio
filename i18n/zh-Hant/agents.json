@@ -39,5 +39,17 @@
   "agents.forceDelete": "強制刪除",
   "agents.deleted": "已刪除 {name}",
   "agents.exampleLoopsTitle": "範例迴圈",
-  "agents.exampleLoopsHint": "來自 examples/loops/，選一個即可在建構器中檢視與修改。"
+  "agents.exampleLoopsHint": "來自 examples/loops/，選一個即可在建構器中檢視與修改。",
+  "agents.template.qq-group-bot-fts.title": "QQ 群組機器人 (FTS5)",
+  "agents.template.qq-group-bot-fts.description": "支援 SQLite FTS5 關鍵字召回、分群共用上下文、主動 [NO_REPLY] 過濾、豆包搜尋與網頁擷取的 QQ 群組機器人。",
+  "agents.template.qq-group-bot-vec.title": "QQ 群組機器人 (Embedding)",
+  "agents.template.qq-group-bot-vec.description": "支援 bge-m3 向量語意召回、分群共用上下文、主動 [NO_REPLY] 過濾、豆包搜尋與網頁擷取的 QQ 群組機器人。",
+  "agents.template.telegram-group-bot-fts.title": "Telegram 群組機器人 (FTS5)",
+  "agents.template.telegram-group-bot-fts.description": "支援 SQLite FTS5 關鍵字召回、分群共用上下文、主動 [NO_REPLY] 過濾、Google/X 搜尋、網頁擷取與瀏覽器工具的 Telegram 群組機器人。",
+  "agents.template.telegram-group-bot-vec.title": "Telegram 群組機器人 (Embedding)",
+  "agents.template.telegram-group-bot-vec.description": "支援 bge-m3 向量語意召回、分群共用上下文、主動 [NO_REPLY] 過濾、Google/X 搜尋、網頁擷取與瀏覽器工具的 Telegram 群組機器人。",
+  "agents.template.qq-group-bot.title": "QQ 群組機器人",
+  "agents.template.qq-group-bot.description": "QQ 群組助手：保留近期群組上下文，回應 @ 提及、引用回覆、機器人名稱／別名或相關的群組訊息（不相關時輸出 [NO_REPLY]），並支援冷卻時間限制。",
+  "agents.template.telegram-group-bot.title": "Telegram 群組機器人",
+  "agents.template.telegram-group-bot.description": "Telegram 群組助手：回應 @ 提及、回覆或可選觸發詞，依群組隔離上下文並支援冷卻時間限制，其餘訊息保持安靜。"
 }

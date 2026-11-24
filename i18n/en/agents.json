@@ -39,5 +39,17 @@
   "agents.forceDelete": "Force delete",
   "agents.deleted": "deleted {name}",
   "agents.exampleLoopsTitle": "Example loops",
-  "agents.exampleLoopsHint": "Bundled from examples/loops/. Pick one to inspect and customize in the builder."
+  "agents.exampleLoopsHint": "Bundled from examples/loops/. Pick one to inspect and customize in the builder.",
+  "agents.template.qq-group-bot-fts.title": "QQ Group Chatbot (FTS5)",
+  "agents.template.qq-group-bot-fts.description": "QQ group chatbot with SQLite FTS5 keyword recall, shared per-group context, proactive [NO_REPLY] filtering, Doubao search, and page fetch.",
+  "agents.template.qq-group-bot-vec.title": "QQ Group Chatbot (Embedding)",
+  "agents.template.qq-group-bot-vec.description": "QQ group chatbot with bge-m3 vector semantic recall, shared per-group context, proactive [NO_REPLY] filtering, Doubao search, and page fetch.",
+  "agents.template.telegram-group-bot-fts.title": "Telegram Group Chatbot (FTS5)",
+  "agents.template.telegram-group-bot-fts.description": "Telegram group chatbot with SQLite FTS5 keyword recall, shared per-group context, proactive [NO_REPLY] filtering, Google/X search, fetch, and browser tools.",
+  "agents.template.telegram-group-bot-vec.title": "Telegram Group Chatbot (Embedding)",
+  "agents.template.telegram-group-bot-vec.description": "Telegram group chatbot with bge-m3 vector semantic recall, shared per-group context, proactive [NO_REPLY] filtering, Google/X search, fetch, and browser tools.",
+  "agents.template.qq-group-bot.title": "QQ Group Chatbot",
+  "agents.template.qq-group-bot.description": "QQ group assistant: retains recent group context, answers @-mentions, quote-replies, bot names/aliases, or contextually relevant group messages ([NO_REPLY] otherwise), and enforces cooldowns.",
+  "agents.template.telegram-group-bot.title": "Telegram Group Chatbot",
+  "agents.template.telegram-group-bot.description": "Telegram group assistant: answers @-mentions, replies, or an optional trigger phrase, enforces cooldowns, keeps each group's context separate with explicit retention, and stays quiet otherwise."
 }

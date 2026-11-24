@@ -14,6 +14,8 @@ import {
   memoryOptions,
   parseExtrasObject,
   safetyOptions,
+  settingDescription,
+  settingLabel,
   toggleCheck,
   updateExtrasSetting,
   type BuilderForm,
@@ -125,14 +127,16 @@ export function ConfigTab({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {starterSettings.map((setting) => {
               const rawVal = extrasObj && setting.key in extrasObj ? extrasObj[setting.key] : setting.default
+              const label = settingLabel(setting)
+              const description = settingDescription(setting)
               if (setting.type === 'bool') {
                 return (
                   <div key={setting.key} className="sm:col-span-2">
                     <Checkbox
                       checked={Boolean(rawVal)}
                       onChange={(v) => patch({ extras: updateExtrasSetting(form.extras, setting.key, v) })}
-                      label={setting.label}
-                      hint={setting.description}
+                      label={label}
+                      hint={description}
                     />
                   </div>
                 )
@@ -140,7 +144,7 @@ export function ConfigTab({
               if (setting.type === 'number') {
                 const numStr = rawVal === undefined || rawVal === null ? '' : String(rawVal)
                 return (
-                  <Field key={setting.key} label={setting.label} hint={setting.description}>
+                  <Field key={setting.key} label={label} hint={description}>
                     <Input
                       type="number"
                       mono
@@ -159,7 +163,7 @@ export function ConfigTab({
               }
               if (setting.type === 'select') {
                 return (
-                  <Field key={setting.key} label={setting.label} hint={setting.description}>
+                  <Field key={setting.key} label={label} hint={description}>
                     <Select
                       value={rawVal === undefined || rawVal === null ? '' : String(rawVal)}
                       options={setting.options ?? []}
@@ -169,7 +173,7 @@ export function ConfigTab({
                 )
               }
               return (
-                <Field key={setting.key} label={setting.label} hint={setting.description}>
+                <Field key={setting.key} label={label} hint={description}>
                   <Input
                     mono
                     value={rawVal === undefined || rawVal === null ? '' : String(rawVal)}

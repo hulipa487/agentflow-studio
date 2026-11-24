@@ -1,7 +1,8 @@
 // Ports of the desktop builder's tests (builder_checks_test.go,
 // builder_banner_test.go) plus the document the form renders.
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { AgentDetail, Catalog, Template } from '@/api/types'
+import { useI18n } from '@/i18n'
 import {
   MEMORY_INLINE,
   memoryOptions,
@@ -19,6 +20,8 @@ import {
   matchingTemplateSettings,
   nameError,
   parseExtrasObject,
+  settingDescription,
+  settingLabel,
   toggleCheck,
   updateExtrasSetting,
 } from './model'
@@ -337,5 +340,62 @@ describe('starter settings schema and template seeding', () => {
       'cooldown_sec',
       'trigger_phrase',
     ])
+  })
+})
+
+describe('starter setting i18n helpers', () => {
+  afterEach(() => {
+    useI18n.getState().setLang('en')
+  })
+
+  const allSettingKeys = [
+    'respond_on_mention',
+    'respond_on_reply',
+    'respond_in_c2c',
+    'respond_in_guild',
+    'respond_in_dm',
+    'bot_names',
+    'trigger_phrase',
+    'reply_on_relevant',
+    'cooldown_sec',
+    'proactive_cooldown_sec',
+    'proactive_eval_cooldown_sec',
+    'proactive_min_chars',
+    'proactive_wait_turns',
+    'proactive_hourly_max',
+    'store_all_messages',
+    'retention_turns',
+    'recall_k',
+    'max_tool_rounds',
+    'timezone_offset_hours',
+  ]
+
+  it('translates all starter setting labels and descriptions across en, zh-Hans, and zh-Hant', () => {
+    for (const key of allSettingKeys) {
+      const sample = { key, label: 'raw-label', description: 'raw-desc' }
+      useI18n.getState().setLang('en')
+      const enLabel = settingLabel(sample)
+      const enDesc = settingDescription(sample)
+      expect(enLabel).not.toBe('raw-label')
+      expect(enDesc).not.toBe('raw-desc')
+
+      useI18n.getState().setLang('zh-Hans')
+      const hansLabel = settingLabel(sample)
+      const hansDesc = settingDescription(sample)
+      expect(hansLabel).not.toBe(enLabel)
+      expect(hansDesc).not.toBe(enDesc)
+
+      useI18n.getState().setLang('zh-Hant')
+      const hantLabel = settingLabel(sample)
+      const hantDesc = settingDescription(sample)
+      expect(hantLabel).not.toBe(enLabel)
+      expect(hantDesc).not.toBe(enDesc)
+    }
+  })
+
+  it('falls back to runtime label and description for unknown settings', () => {
+    useI18n.getState().setLang('zh-Hans')
+    expect(settingLabel({ key: 'custom_flag', label: 'Custom flag' })).toBe('Custom flag')
+    expect(settingDescription({ key: 'custom_flag', description: 'Runtime description' })).toBe('Runtime description')
   })
 })
