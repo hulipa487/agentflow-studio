@@ -19,7 +19,7 @@
 ```yaml
 agents:
   assistant:
-    loop: ./loops/chat.lua
+    loop: ./loops/chat.ts
     memory: conversational        # 内置方案
 ```
 
@@ -27,9 +27,9 @@ agents:
 
 在循环中：
 
-```lua
-memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text })
-local recent = memory.recall({ kind = "all" })          -- 来自 dialogue 的记录
+```ts
+memory.write({ type: "turn", id: msg.id, text: msg.text, reply: reply.text });
+const recent = memory.recall({ kind: "all" });          // 来自 dialogue 的记录
 ```
 
 智能体需要 `memory` 能力，它默认已开启。
@@ -126,18 +126,18 @@ profiles:
 
 ### 写入
 
-`write` 列出写入链。目前 `memory.write` 总是运行路由表：随附的 `plugin:routing_table`，或者当你的部署覆盖了它时运行 `plugins/routing_table.lua`。这个列表本身会以 `agent.info().memory.write` 的形式传给循环，循环可以读取它，但它并不会切换写入链。请保持为 `[plugin:routing_table]`。
+`write` 列出写入链。目前 `memory.write` 总是运行路由表：随附的 `plugin:routing_table`，或者当你的部署覆盖了它时运行 `plugins/routing_table.ts`。这个列表本身会以 `agent.info().memory.write` 的形式传给循环，循环可以读取它，但它并不会切换写入链。请保持为 `[plugin:routing_table]`。
 
 ## 为智能体提供记忆
 
 ```yaml
 agents:
   helper:
-    loop: ./loops/helper.lua
+    loop: ./loops/helper.ts
     memory: group_chat            # 一个具名方案
 
   scratch:
-    loop: ./loops/scratch.lua
+    loop: ./loops/scratch.ts
     memory:                       # 内联方案，仅供这一个智能体使用
       stores:
         dialogue: { backend: main_db, table: scratch, retention: 1h }
@@ -151,17 +151,17 @@ agents:
 
 ### 写入
 
-```lua
--- 一轮对话：路由到 "dialogue"，键为 turn:<id>。
-memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text })
+```ts
+// 一轮对话：路由到 "dialogue"，键为 turn:<id>。
+memory.write({ type: "turn", id: msg.id, text: msg.text, reply: reply.text });
 
--- 一条事实：路由到 "facts"，以 key 为键。
-memory.write({ type = "fact", key = "name:" .. msg.from, text = "Their name is Ada." })
+// 一条事实：路由到 "facts"，以 key 为键。
+memory.write({ type: "fact", key: "name:" + msg.from, text: "Their name is Ada." });
 
--- 显式目标：任意存储区、任意键，可选的 ttl（秒）。
-memory.write({ targets = {
-  { store = "notes", key = "todo:" .. msg.id, value = { text = msg.text }, ttl = 3600 },
-} })
+// 显式目标：任意存储区、任意键，可选的 ttl（秒）。
+memory.write({ targets: [
+  { store: "notes", key: "todo:" + msg.id, value: { text: msg.text }, ttl: 3600 },
+] });
 ```
 
 记录只会写入方案中声明的存储区：如果智能体的方案没有 `dialogue` 存储区，它写入的 `turn` 会被丢弃，而不会报错。
@@ -170,23 +170,23 @@ memory.write({ targets = {
 
 `memory.recall` 返回一个 `{ key, value, meta }` 列表。
 
-```lua
--- plugin:recency
-memory.recall({ kind = "all" })                                  -- dialogue
-memory.recall({ kind = "text", store = "facts", text = "name", k = 5 })
-memory.recall({ kind = "prefix", store = "notes", prefix = "todo:" })
-memory.recall({ kind = "time", store = "dialogue",
-                from = "2026-11-01T00:00:00Z", to = "2026-11-02T00:00:00Z" })
+```ts
+// plugin:recency
+memory.recall({ kind: "all" });                                  // dialogue
+memory.recall({ kind: "text", store: "facts", text: "name", k: 5 });
+memory.recall({ kind: "prefix", store: "notes", prefix: "todo:" });
+memory.recall({ kind: "time", store: "dialogue",
+                from: "2026-11-01T00:00:00Z", to: "2026-11-02T00:00:00Z" });
 
--- plugin:semantic
-memory.recall({ text = msg.text, k = 5 })                        -- 语义召回，否则读 dialogue
+// plugin:semantic
+memory.recall({ text: msg.text, k: 5 });                         // 语义召回，否则读 dialogue
 ```
 
 不指定 `store` 时，按时间读取的是 `dialogue`，所以要在 `facts` 上做文本搜索，就得写明存储区。时间范围使用 RFC3339 字符串。
 
 ### 原始表
 
-`store.put`、`store.get`、`store.query` 和 `store.delete` 按名称直接操作存储区，不经过路由，也不生成嵌入。详见 [Lua 循环](loops.md#memory)。
+`store.put`、`store.get`、`store.query` 和 `store.delete` 按名称直接操作存储区，不经过路由，也不生成嵌入。详见 [脚本循环](loops.md#memory)。
 
 ## 隔离
 

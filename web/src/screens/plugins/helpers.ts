@@ -1,11 +1,11 @@
-import type { BuiltinPlugin, LuaPackage, PackageFile, PluginsList } from '@/api/types'
+import type { BuiltinPlugin, PackageFile, PluginsList, ScriptPackage } from '@/api/types'
 
 export type Selection =
   | { kind: 'builtin'; name: string }
   | { kind: 'package'; pkg: string; file: string }
 
 export const PACKAGE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
-export const LUA_FILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.lua$/
+export const SCRIPT_FILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.(ts|js)$/
 
 export function selectionKey(sel: Selection | null): string {
   if (!sel) return ''
@@ -42,7 +42,7 @@ export function findSelectedBuiltin(list: PluginsList | undefined, sel: Selectio
 export function findSelectedPackageFile(
   list: PluginsList | undefined,
   sel: Selection | null,
-): { pkg: LuaPackage; file: PackageFile } | null {
+): { pkg: ScriptPackage; file: PackageFile } | null {
   if (!list || !sel || sel.kind !== 'package') return null
   const pkg = (list.packages ?? []).find((p) => p.name === sel.pkg)
   if (!pkg) return null
@@ -51,19 +51,23 @@ export function findSelectedPackageFile(
   return { pkg, file }
 }
 
-export function normalizeLuaFilename(raw: string): string {
+export function isValidScriptFilename(name: string): boolean {
+  return SCRIPT_FILE_NAME_RE.test(name) && !name.endsWith('.d.ts')
+}
+
+export function normalizeScriptFilename(raw: string): string {
   const trimmed = raw.trim()
   if (!trimmed) return ''
-  return trimmed.endsWith('.lua') ? trimmed : `${trimmed}.lua`
+  return trimmed.endsWith('.ts') || trimmed.endsWith('.js') ? trimmed : `${trimmed}.ts`
 }
 
 export function insertPreludeDirective(source: string, version: number): string {
-  const directive = `-- af-prelude-version: ${version > 0 ? version : 1}`
-  if (source.split('\n').some((l) => l.trim().startsWith('-- af-prelude-version:'))) return source
+  const directive = `// af-prelude-version: ${version > 0 ? version : 2}`
+  if (source.split('\n').some((l) => l.trim().startsWith('// af-prelude-version:'))) return source
   return source === '' ? `${directive}\n` : `${directive}\n${source}`
 }
 
 export function packageStarterSource(pkgName: string, version: number): string {
-  const v = version > 0 ? version : 1
-  return `-- af-prelude-version: ${v}\n-- Shared Lua package: ${pkgName}\n\nlocal M = {}\n\nreturn M\n`
+  const v = version > 0 ? version : 2
+  return `// af-prelude-version: ${v}\n// Shared package: ${pkgName}\n\nvar ${pkgName.replace(/[^A-Za-z0-9_]/g, '_')} = {};\n`
 }

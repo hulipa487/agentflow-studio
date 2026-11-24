@@ -1,9 +1,9 @@
-// Bundled example loops from the repository root examples/loops/*.lua.
+// Bundled example loops from the repository root examples/loops/*.ts.
 // Compiled in just like docs/, so developers can inspect examples offline
 // and open any example loop directly in the Builder.
 import { hasMessage, t } from '@/i18n'
 
-const rawExamples = import.meta.glob<string>('../../../examples/loops/*.lua', {
+const rawExamples = import.meta.glob<string>('../../../examples/loops/*.ts', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -23,7 +23,7 @@ function extractSummary(source: string): string {
   for (const rawLine of source.replace(/\r\n?/g, '\n').split('\n')) {
     const trimmed = rawLine.trim()
     if (trimmed === '') continue
-    if (!trimmed.startsWith('--')) break
+    if (!trimmed.startsWith('//')) break
     const body = trimmed.slice(2).trim()
     if (body === '' || body.startsWith('af-prelude-version:') || body.startsWith('af-import:')) continue
     return body.replace(/^Example loop:\s*/i, '')
@@ -36,7 +36,7 @@ const ALL_EXAMPLES: ExampleLoop[] = Object.keys(rawExamples)
   .sort()
   .map((key) => {
     const file = key.slice(ROOT.length)
-    const slug = file.replace(/\.lua$/i, '')
+    const slug = file.replace(/\.ts$/i, '')
     const source = rawExamples[key].replace(/\r\n?/g, '\n')
     return {
       slug,

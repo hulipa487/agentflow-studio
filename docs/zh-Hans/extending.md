@@ -1,10 +1,10 @@
 # 无需重新编译 Go 即可扩展 AgentFlow
 
-AgentFlow 有四个扩展层面。前三个只涉及配置或 Lua；只有最后一个会改动二进制文件。
+AgentFlow 有四个扩展层面。前三个只涉及配置、TypeScript/JS 脚本或 Wasm 外部 API；只有最后一个会改动二进制文件。
 
 ## 1. 声明式 HTTP 工具
 
-无需 Lua 和 Go，就能把一个外部 API 变成模型可见的工具：
+无需脚本和 Go，就能把一个外部 API 变成模型可见的工具：
 
 ```yaml
 tools:
@@ -83,25 +83,25 @@ X-Agentflow-Signature: sha256=<hex HMAC-SHA256 of the raw body>
 
 HMAC 是必需的。适配器被信任会如实转发平台的发送者身份，但桥接来的关联账号只记为“声明的”；关联账号仍须在渠道内完成常规的 `/link` 验证，才能获得用户资料范围。
 
-## 4. Lua 包
+## 4. 脚本包与外部 API
 
-包是一个目录，里面是受版本约束的 Lua 源码。先声明，再在循环中导入：
+包是一个目录，里面是受版本约束的 TypeScript/JS 源码。先声明，再在循环中导入：
 
 ```yaml
 packages:
   greeting: ./packages/greeting
 ```
 
-```lua
--- af-prelude-version: 1
--- af-import: greeting
+```ts
+// af-prelude-version: 2
+// af-import: greeting
 
-function loop()
-  while true do
-    local msg = session.inbox()
-    session.send(Greeting.hello(msg.text))
-  end
-end
+function loop() {
+  while (true) {
+    const msg = session.inbox();
+    session.send(Greeting.hello(msg.text));
+  }
+}
 ```
 
 包中可以包含 `manifest.yaml`：
@@ -109,21 +109,21 @@ end
 ```yaml
 name: greeting
 version: "1"
-prelude_api: 1
-files: [greeting.lua]
+prelude_api: 2
+files: [greeting.ts]
 ```
 
-没有清单文件时，`*.lua` 文件按字典序加载。包是源码层面的组合，而不是相互隔离的模块：它们共享会话的 Lua 状态和能力集（能力集仍由智能体控制）。`package:<name>` 也可以直接用作智能体的 `loop:` 引用。编辑包会重启可能导入它的会话。
+没有清单文件时，`*.ts` 和 `*.js` 文件按字典序加载。包是源码层面的组合，而不是相互隔离的模块：它们共享会话的 Goja 虚拟机状态和能力集（能力集仍由智能体控制）。`package:<name>` 也可以直接用作智能体的 `loop:` 引用。编辑包会重启可能导入它的会话。对于隔离的可复用集成，请在 `apis` 下配置 TypeScript/JS 或 `wazero` Wasm 模块，并通过 `api.*` 在循环中调用。
 
 ## 5. 仍然需要 Go 的部分
 
-编译型驱动仍需编译：新的 LLM 通信协议、新的记忆/向量后端、新的搜索引擎或 shell 提供商，以及新*种类*的安全过滤器。基于模型的内容审核和分类已不再需要 Go——声明一个 `safety.classifiers` 条目，并在方案中以 `classifier:<name>` 引用即可。用 Lua 编写的过滤器仍需要原生钩子。可行的替代办法有：
+编译型驱动仍需编译：新的 LLM 通信协议、新的记忆/向量后端、新的搜索引擎或 shell 提供商，以及新的原生 Go *种类*安全过滤器。基于模型的内容审核使用 `safety.classifiers`（`classifier:<name>`），自定义脚本钩子使用 `safety.script_filters`（`script:<name>`）。其他替代办法有：
 
 - 用 OpenAI 兼容端点接入新的模型厂商（`provider: openai` + `base_url`）；
-- 用 MCP 或声明式 HTTP 工具接入新的搜索/API 提供商；
+- 用 MCP、外部 API（Goja 或 `wazero` Wasm 实现的 `apis.*`）或声明式 HTTP 工具接入新的搜索/API 提供商；
 - 用桥接接入新的聊天平台；
-- 用 Lua 包承载共享策略；
-- 用分类器提示词加标签策略实现内容审核，无需重新编译。
+- 用 TypeScript/JS 包承载共享策略；
+- 用分类器提示词加标签策略或 `safety.script_filters` 实现内容审核，无需重新编译。
 
 ## 6. 租户控制
 
@@ -147,7 +147,7 @@ runtime:
 
 ```bash
 agentflow validate -config agentflow.yaml
-agentflow loop check loops/support.lua
+agentflow loop check loops/support.ts
 agentflow loop test scenarios/refund.yaml
 ```
 
@@ -155,7 +155,7 @@ agentflow loop test scenarios/refund.yaml
 
 ```yaml
 agent: support
-loop: ../loops/support.lua
+loop: ../loops/support.ts
 llm:
   - match: refund
     text: "I can help with that."
@@ -169,7 +169,7 @@ expect_contains: ["help"]
 
 ## 钩子与扩展点
 
-不存在钩子注册表。引擎自己调度三个点，其余一切都是 **Lua 调用的命名约定**：插件提供一个全局变量，名字与调用方要找的一致，这就是全部契约。两者的区别决定了插件代码必须放在哪里，因此下面分别列出。
+不存在钩子注册表。引擎自己调度三个点，其余一切都是 **脚本调用的命名约定**：插件提供一个全局变量，名字与调用方要找的一致，这就是全部契约。两者的区别决定了插件代码必须放在哪里，因此下面分别列出。
 
 ### 由核心调度
 
@@ -177,15 +177,15 @@ expect_contains: ["help"]
 
 | 扩展点 | 类型 | 实现方 | 说明 |
 | --- | --- | --- | --- |
-| `safety.ingress` | 过滤器 | Go，由核心掌管 | 在循环看到消息之前运行；可以丢弃消息、跳过本轮次或改写文本。五个基线过滤器中只有 `affect-guard` 会丢弃消息；`classifier:<name>` 过滤器可以根据模型输出拦截。 |
+| `safety.ingress` | 过滤器 | Go，由核心掌管 | 在循环看到消息之前运行；可以丢弃消息、跳过本轮次或改写文本。基线过滤器中只有 `affect-guard` 会丢弃消息，`classifier:<name>` 和 `script:<name>` 过滤器可以根据策略拦截或重定向。 |
 | `safety.egress` | 过滤器 | Go，由核心掌管 | 在回复到达渠道之前运行；可以丢弃回复（可附带一条由核心撰写的替代回复）。 |
-| `gateway.route` | 处理器 | 由 `gateway.route` 指定的 Lua 代码块，默认 `plugin:per_chat` | 每个进程一个 Lua 状态。读取消息并返回一个会话地址。路由处理器只能调用 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 和 `log`；其他调用都会按名称被拒绝。 |
+| `gateway.route` | 处理器 | 由 `gateway.route` 指定的脚本代码块，默认 `plugin:per_chat` | 每个进程一个 Goja 虚拟机。读取消息并返回一个会话地址。路由处理器只能调用 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 和 `log`；其他调用都会按名称被拒绝。 |
 
-### Lua 调用的命名约定
+### 脚本调用的命名约定
 
-这些是普通的全局变量，而不是引擎调用的入口点。当部署配置了相应行为时，prelude 或循环会按名称调用它们；要覆盖某个内置实现，就在 `plugins/<name>.lua` 中定义同名全局变量。
+这些是普通的全局变量，而不是引擎调用的入口点。当部署配置了相应行为时，prelude 或循环会按名称调用它们；要覆盖某个内置实现，就在 `plugins/<name>.ts` 中定义同名全局变量。
 
-| 配置方式 | Lua 必须定义的全局变量 | 调用方 |
+| 配置方式 | 脚本必须定义的全局变量 | 调用方 |
 | --- | --- | --- |
 | 记忆方案 `write: plugin:routing_table` | `memory_routing_table(record)` | prelude 的 `memory.write` |
 | 记忆方案 `recall: plugin:recency` | `memory_recall_handler(query, opts)` | prelude 的 `memory.recall` |

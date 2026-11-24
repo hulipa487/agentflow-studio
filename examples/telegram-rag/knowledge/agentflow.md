@@ -1,4 +1,4 @@
-AgentFlow is a self-hosted runtime for LLM agents. Each agent is a Lua loop
+AgentFlow is a self-hosted runtime for LLM agents. Each agent is a TypeScript loop
 that receives messages from channels, calls models and tools through
 capability-gated operations, and replies. The runtime owns safety filters, the
 audit journal and provenance, so a loop cannot remove or forge them.

@@ -22,7 +22,7 @@ models:
 
 agents:
   assistant:                   # the "model" id clients ask for
-    loop: ./loops/single_turn.lua
+    loop: ./loops/single_turn.ts
     model: default
     instructions: ./prompts/assistant.md
     capabilities: [llm.chat]

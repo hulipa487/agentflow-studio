@@ -43,13 +43,13 @@ plugins:      { ... }   # 插件目录、能力上限
 
 ### 设计理念
 
-YAML 定义*拓扑*——有哪些东西、它们如何连接。行为放在 Lua 插件中，参数放在 YAML 中。这种分离意味着一个可用的聊天机器人只需约 12 行 YAML、零代码，而流水线上的每个环节仍可被覆盖。
+YAML 定义*拓扑*——有哪些东西、它们如何连接。行为放在 TypeScript/JS 插件和 Wasm 外部 API 中，参数放在 YAML 中。这种分离意味着一个可用的聊天机器人只需约 12 行 YAML、零代码，而流水线上的每个环节仍可被覆盖。
 
 > **严格解析**：`KnownFields(true)` 意味着每个未知的键都是启动错误。不存在被“忽略”的拼写错误。
 
 ### 配置目录（`-config <dir>`）
 
-除了单个文件，也可以向 `-config <dir>` 传入一个目录来加载目录布局；只包含一个 `agentflow.yaml` 的目录（即 `agentflow init DIR` 生成的内容）会加载该文件。每个片段都按同样严格的校验解码，并且校验在合并*之后*进行，因此跨文件引用的检查方式与单文件完全相同。配置来源——文件所在目录或目录本身——是所有相对路径的解析基准（循环、指令、提示词 `file:` 路径、路由器路由、持久化、sqlite 后端路径、shell 的 `key_file`、`plugins.dir`、`media.dir`）。单文件同样如此：`agentflow run -config deploy/agentflow.yaml` 会在该文件旁边解析 `./loops/x.lua`，与 shell 的工作目录无关。
+除了单个文件，也可以向 `-config <dir>` 传入一个目录来加载目录布局；只包含一个 `agentflow.yaml` 的目录（即 `agentflow init DIR` 生成的内容）会加载该文件。每个片段都按同样严格的校验解码，并且校验在合并*之后*进行，因此跨文件引用的检查方式与单文件完全相同。配置来源——文件所在目录或目录本身——是所有相对路径的解析基准（循环、指令、提示词 `file:` 路径、路由器路由、持久化、sqlite 后端路径、shell 的 `key_file`、`plugins.dir`、`media.dir`）。单文件同样如此：`agentflow run -config deploy/agentflow.yaml` 会在该文件旁边解析 `./loops/x.ts`，与 shell 的工作目录无关。
 
 ```
 <dir>/
@@ -67,13 +67,13 @@ YAML 定义*拓扑*——有哪些东西、它们如何连接。行为放在 Lua
 
 | 键 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `vm.memory_limit` | string | — | 纯 Go Lua VM（`gopher-lua`）的每状态软内存上限（`b`/`kb`/`mb`/`gb`/`MiB`/`GiB`；留空 = 不限制）。限制超大字符串与表分配（`string.rep`、`table.concat`），超限时以 Lua 内存不足错误呈现 |
+| `vm.memory_limit` | string | — | 纯 Go JS/TS 虚拟机（`goja`）的每状态软内存上限（`b`/`kb`/`mb`/`gb`/`MiB`/`GiB`；留空 = 不限制）。限制超大字符串与集合分配，超限时以脚本内存不足错误呈现 |
 | `scheduler.workers` | int | 8 | 操作池大小。这是唯一设置它的地方 |
 | `persistence` | string | sqlite://./data/agentflow.db | 消息日志、Token 账本及其逐次调用明细，以及引擎的键值行（文件树、会话状态、路由状态、shell 句柄）存放的位置。调度器定时器*不*在这里：定时器服务在内存中，因此重启会丢失所有定时器，直到其循环重新注册 |
 | `topology` | string | single | 部署层级：`single`（单进程）或 `regional`（同一区域内共享一个 PostgreSQL 的多个实例）。未设置即为 `single`。层级决定了其他哪些设置有效；启动时会拒绝它无法满足的设置。见[拓扑](#topology) |
 | `zone` | string | "" | 区域内的可用区标签（字母、数字和 `. _ -`，最多 32 个字符）。在指标和 `/admin/api/state` 中报告；它只是一个标签，绝不用于路由决策 |
 | `shutdown_grace` | duration | 5s regional · 0 single | 关闭时先报告未就绪并继续服务多长时间再关闭监听器，以便负载均衡器排空流量、进行中的轮次得以完成。`0` 表示不等待 |
-| `sessions.idle_unload` | duration | 30m | 对话无活动这么长时间后将其卸载。其 Lua 局部变量会丢失；`session.state.*` 保留，下一条消息会重新创建会话。会话 id 不会作废，其租约会被释放。`0` 表示不卸载 |
+| `sessions.idle_unload` | duration | 30m | 对话无活动这么长时间后将其卸载。其 VM 局部变量会丢失；`session.state.*` 保留，下一条消息会重新创建会话。会话 id 不会作废，其租约会被释放。`0` 表示不卸载 |
 | `admin.cors_origins` | list | \[\] | 允许调用 `/admin/api/*` 的精确浏览器源（自定义前端或其他浏览器客户端）。Studio 不需要它：桌面应用和网页应用的本地代理都以同源方式调用 API。留空则 API 仅限同源；`"*"` 会被拒绝。预检请求在 bearer 检查之前应答 |
 | `admin.socket` | string | "" | 添加一个仅限本地的管理监听器：Unix 上为 unix 套接字路径（相对路径相对于配置目录解析），Windows 上为命名管道，例如 `\\.\pipe\agentflow-admin`。仍然需要 bearer 令牌 |
 | `admin.tcp` | bool | true | 在 HTTP 监听器（`gateway.listen`）上提供管理平面，路径为 `/admin/` 以及 `/healthz`、`/readyz` 和 `/metrics`。`false` 则只在 `admin.socket` 上提供；必须至少保留一种传输方式。没有 `admin.listen`：管理平面没有自己的端口，设置它的配置会被拒绝 |
@@ -94,7 +94,7 @@ YAML 定义*拓扑*——有哪些东西、它们如何连接。行为放在 Lua
 | `credentials.enabled` | bool | false | 加密的按租户凭据存储，为 `auth={service=...}` 提供支持 |
 | `credentials.persistence` | string | <persistence dir>/credentials.db | 凭据存储的 SQLite 路径或 PostgreSQL DSN（默认沿用 `runtime.persistence`） |
 | `credentials.master_key_env` | string | CREDENTIALS\_MASTER\_KEY | 存放主密钥的环境变量（启动时读取，绝不从文件读取） |
-| `credentials.engine_wide` | string | allow | 控制 `credential.get()`，即把原始密钥返回给 Lua 的操作。`allow`（或留空）允许智能体读取其 `credentials:` 列表中列出的项；`maintenance` 将其限制为引擎触发的轮次（启动、调度器、触发器），因此租户轮次永远看不到引擎全局密钥。按租户的路径——`http.request` 和 `tools.http` 上的 `auth = {service = ...}`——永远不会返回该值 |
+| `credentials.engine_wide` | string | allow | 控制 `credential.get()`，即把原始密钥返回给脚本的操作。`allow`（或留空）允许智能体读取其 `credentials:` 列表中列出的项；`maintenance` 将其限制为引擎触发的轮次（启动、调度器、触发器），因此租户轮次永远看不到引擎全局密钥。按租户的路径——`http.request` 和 `tools.http` 上的 `auth = {service = ...}`——永远不会返回该值 |
 | `users.enabled` | bool | false | 在网关监听器上提供公开的 `/v1/users` API（需要 `identity.enabled`） |
 | `users.registration` | string | open | `open` 或 `invite`（来自 `POST /admin/api/users/invites` 的一次性邀请码） |
 | `users.link_ttl` | duration | 10m | 渠道关联码的有效时长 |
@@ -108,7 +108,7 @@ YAML 定义*拓扑*——有哪些东西、它们如何连接。行为放在 Lua
 | `log_plane.persistence` | string | "" | 仅追加平面——消息日志和逐次调用的用量明细——所在的目录，按 UTC 日期每天写一个 JSONL 文件。留空则两者都保存在运行时存储中 |
 | `timezone_offset_hours` | float | 0 | 匹配 cron 触发器所用的 UTC 偏移（例如 `8`、`-5.5`）；不影响 `every:` |
 
-> **开启身份层会重新划定所有内容的范围**：`identity.enabled` 不是一个表面开关。开启后，每条入站消息的 `from` 都会从渠道原生发送者改写为稳定的 `user:<identity>`。个人范围随后才出现：一旦关联账号绑定到用户资料——或在首次接触时认领一份，这只在 `runtime.users.require_registration: false` 时发生——引擎就会在消息由核心拥有的 `provenance`（循环读取的字段；它永远不会写入载荷，因为委托跳转会从 Lua 重建载荷）上标记 `user_uuid`，用户范围的子系统正是依据这个标记进行解析。随后文件存储的范围从 `agent:<agent>` 变为 `user:<uuid>`，一个轮次的记忆从共享服务层移到交互层，按用户的配额也有了可计费的账户。在关联账号绑定之前，它完全没有个人范围：只有 `from` 变了。循环中凡是以 `from` 为键或用它组成自定义范围的内容，都会随之移动。
+> **开启身份层会重新划定所有内容的范围**：`identity.enabled` 不是一个表面开关。开启后，每条入站消息的 `from` 都会从渠道原生发送者改写为稳定的 `user:<identity>`。个人范围随后才出现：一旦关联账号绑定到用户资料——或在首次接触时认领一份，这只在 `runtime.users.require_registration: false` 时发生——引擎就会在消息由核心拥有的 `provenance`（循环读取的字段；它永远不会写入载荷，因为委托跳转会从脚本重建载荷）上标记 `user_uuid`，用户范围的子系统正是依据这个标记进行解析。随后文件存储的范围从 `agent:<agent>` 变为 `user:<uuid>`，一个轮次的记忆从共享服务层移到交互层，按用户的配额也有了可计费的账户。在关联账号绑定之前，它完全没有个人范围：只有 `from` 变了。循环中凡是以 `from` 为键或用它组成自定义范围的内容，都会随之移动。
 >
 >  **不会进行任何迁移，引擎也无法得知哪些内容移动了。** 在旧标识下写入的行——文件、记忆、循环自己作为键的任何内容——都不会被接管，因为无法知道昨天的 `agent:bot` 属于现在的 `user:u_xxxx` 这个人。所以请在真实流量到来之前开启身份层，或者自己编写接管逻辑：一个把旧标识的行复制到新标识的循环，在切换时运行一次。反之亦然——关闭它或解除关联账号，都会把个人范围留在原处。
 
@@ -267,7 +267,7 @@ agentflow migrate blobs ./data/media -kind media -config agentflow.yaml
 **AgentFlow Studio** 是一个用于智能体原型开发的桌面与网页应用：编写循环及其指令、校验、实时应用定义、与它对话、观察轮次的每一步，并把结果持久化到部署配置中。它位于自己的仓库 `agentflow-studio` 中——没有嵌入到二进制文件里——并使用与控制台相同的 bearer 令牌与管理 API 通信。
 
 - **智能体**——每个已配置的智能体，包括模型、能力、运行中会话数，以及它是仅存在于运行时还是已持久化。可以从模板创建（echo、LLM 聊天、工具循环、单次执行、带记忆的群聊、知识库、单轮 API）、编辑或删除。
-- **构建器**——一个用于常用字段的表单（模型、安全、记忆方案、能力、技能、历史预算、常驻标志、`can_contact`、凭据、附加字段），一个 Lua 编辑器，一个指令编辑器，以及用于其他所有内容的原始 YAML。*校验*会检查 prelude 指令、编译代码块，并运行与启动时相同的智能体校验；*应用*将其安装到运行时；*应用并保存*还会将其写入配置（一个会记住选择的拆分按钮）。编辑器旁的停靠栏中有一个**运行**面板——与正在编辑的智能体对话并查看追踪——或者是 Lua 参考（F1）；Ctrl+Enter 会把待处理的编辑实时应用并发送面板中的消息，或重复上一条消息，因此下一个轮次运行的就是屏幕上的内容。
+- **构建器**——一个用于常用字段的表单（模型、安全、记忆方案、能力、技能、历史预算、常驻标志、`can_contact`、凭据、附加字段），一个 TypeScript/JS 编辑器，一个指令编辑器，以及用于其他所有内容的原始 YAML。*校验*会检查 prelude 指令、编译代码块，并运行与启动时相同的智能体校验；*应用*将其安装到运行时；*应用并保存*还会将其写入配置（一个会记住选择的拆分按钮）。编辑器旁的停靠栏中有一个**运行**面板——与正在编辑的智能体对话并查看追踪——或者是脚本参考（F1）；Ctrl+Enter 会把待处理的编辑实时应用并发送面板中的消息，或重复上一条消息，因此下一个轮次运行的就是屏幕上的内容。
 - **演练场**——针对单个智能体的多对话聊天。每个对话都是独立的会话（`<agent>|studio:<thread>`），因此对话之间不会混杂。回复通过合成的 `studio` 渠道到达，这意味着它们走的是普通的出站路径：安全过滤器、审计记录和投递都不变。可选的*以用户身份* uuid 会标记一个租户，从而应用个人记忆范围、配额和记忆池授权；不填则轮次没有租户。
 - **追踪**——轮次的实时时间线：`turn.start`、每个 `op.start`/`op.end`（模型、工具、耗时、Token、工具调用）、安全丢弃、回复、重新加载和循环错误。文本载荷默认关闭（`studio.trace_payloads`）；元数据始终会被记录。
 - **渠道**——网关已持久化的渠道集合：添加、编辑、校验和删除 webhook、Telegram、GitHub-webhook 和 bridge 条目；密钥只能写入。保存的内容在下次启动时绑定。
@@ -284,9 +284,9 @@ agentflow migrate blobs ./data/media -kind media -config agentflow.yaml
 
 `Ctrl+K` 打开一个涵盖所有页面、智能体和操作的命令面板。
 
-**语言。** Studio 的界面提供英语（English）、简体中文和繁体中文（繁體中文）。**EN / 简体 / 繁體** 切换按钮位于每个页面的命令栏、登录页面，以及*设置 → 语言*中。更改立即生效，无需重启或重新加载，并会被记住（保存在浏览器的本地存储中，桌面应用则保存在其 webview 的本地存储中）；首次启动时跟随操作系统或浏览器的语言，否则回退到英语。这些指南也跟随同一个切换按钮，尚未翻译的指南显示英文。配置键、标识符、模型和方案名称、YAML、Lua，以及运行时返回的任何内容——包括错误消息——都完全按运行时写出的样子显示。
+**语言。** Studio 的界面提供英语（English）、简体中文和繁体中文（繁體中文）。**EN / 简体 / 繁體** 切换按钮位于每个页面的命令栏、登录页面，以及*设置 → 语言*中。更改立即生效，无需重启或重新加载，并会被记住（保存在浏览器的本地存储中，桌面应用则保存在其 webview 的本地存储中）；首次启动时跟随操作系统或浏览器的语言，否则回退到英语。这些指南也跟随同一个切换按钮，尚未翻译的指南显示英文。配置键、标识符、模型和方案名称、YAML、脚本，以及运行时返回的任何内容——包括错误消息——都完全按运行时写出的样子显示。
 
-**持久化以配置为原生形式。** 使用目录配置时，Studio 写入 `profiles/<name>.yaml`（标记为 `# managed by agentflow studio`）、`loops/<name>.lua` 和 `prompts/<name>.md`。使用单个配置文件时，它替换 `agents.<name>` 键（保留注释和其他部分），并把循环 / 提示词写到 `studio.workspace` 下；定义中保存绝对路径，因此持久化的文件不依赖于下一个进程的启动方式。无论哪种方式，更改都会立即实时应用，并在下次启动时从配置加载。不是 Studio 写入的方案会被拒绝，除非强制执行。
+**持久化以配置为原生形式。** 使用目录配置时，Studio 写入 `profiles/<name>.yaml`（标记为 `# managed by agentflow studio`）、`loops/<name>.ts` 和 `prompts/<name>.md`。使用单个配置文件时，它替换 `agents.<name>` 键（保留注释和其他部分），并把循环 / 提示词写到 `studio.workspace` 下；定义中保存绝对路径，因此持久化的文件不依赖于下一个进程的启动方式。无论哪种方式，更改都会立即实时应用，并在下次启动时从配置加载。不是 Studio 写入的方案会被拒绝，除非强制执行。
 
 **运行它。** 客户端是一个独立的 Go 模块，位于自己的仓库中：
 
@@ -445,7 +445,7 @@ profiles:
       oversample: 4                       # 取 k*4 个向量命中，重排后保留 k 个
 ```
 
-`write` 以 `agent.info().memory.write` 的形式传给循环；`memory.write` 始终运行路由表（`plugin:routing_table`，或覆盖它的 `plugins/routing_table.lua`）。
+`write` 以 `agent.info().memory.write` 的形式传给循环；`memory.write` 始终运行路由表（`plugin:routing_table`，或覆盖它的 `plugins/routing_table.ts`）。
 
 使用 `recall: plugin:semantic` 时，`memory.recall({ text = "...", k = 5 })` 会对查询进行嵌入，在向量存储上运行余弦 k-NN，并在设置了 `rerank_model` 时进行重排。不带文本的查询回退为按时间远近召回。
 
@@ -615,7 +615,7 @@ environments:
 profiles:
   agent/coder:
     model: default
-    loop: ./loop.lua
+    loop: ./loop.ts
     skills: [builtin:fs.read, builtin:fs.write]
     capabilities: [llm.chat, tools]
     can_contact: []
@@ -658,7 +658,7 @@ profiles:
 | `telegram`（`mode: auto`） | 启动时探测 `<public_url>/health`：可访问时注册 `setWebhook`，否则执行 `deleteWebhook` 并长轮询。`setWebhook` 失败时也会先清除 webhook 再轮询。需要 `gateway.public_url` |
 | `qq`（`mode: websocket`） | 默认。腾讯官方 QQ 机器人 API v2（QQ 开放平台）。运行时使用应用访问令牌（由 `app_id` + `secret` 获取，在过期前刷新）主动连接 QQ 网关，订阅其 `scenes` 所需的 intents，发送心跳，并在连接断开后恢复会话；不需要任何可从互联网访问的地址。因 intents 不被允许或机器人被封禁而关闭连接时，渠道会以错误停止 |
 | `qq`（`mode: webhook`） | 平台把事件 POST 到 `path`（默认 `/webhook/qq/<name>/`）；在控制台中把 `<public https url><path>` 设为回调地址（端口 80、443、8080 或 8443）。每个请求——包括 URL 校验握手——都必须携带有效的 Ed25519 签名，签名密钥由 `secret` 派生（否则返回 401/403，在解析前检查） |
-| `openai` | 在 `<path>chat/completions` 提供 OpenAI Chat Completions API，在 `<path>models` 提供模型列表。`model` 指向所开放的某个 `agents`，每个智能体运行自己的 `loop:`；把智能体指向 `./examples/loops/openai_passthrough.lua`，即可把客户端的消息、工具和采样参数原样转发给其模型。`auth` 可以是 `user_token`（按用户的 bearer，需要 `runtime.identity.enabled`）、`key`（来自 `keys` 的共享密钥）或 `none`（仅限回环监听器）。此类型的 `journal` 默认为 `metadata`，因此对话文本永远不会进入审计记录。见[OpenAI 兼容 API](openai-api.md) |
+| `openai` | 在 `<path>chat/completions` 提供 OpenAI Chat Completions API，在 `<path>models` 提供模型列表。`model` 指向所开放的某个 `agents`，每个智能体运行自己的 `loop:`；把智能体指向 `./examples/loops/openai_passthrough.ts`，即可把客户端的消息、工具和采样参数原样转发给其模型。`auth` 可以是 `user_token`（按用户的 bearer，需要 `runtime.identity.enabled`）、`key`（来自 `keys` 的共享密钥）或 `none`（仅限回环监听器）。此类型的 `journal` 默认为 `metadata`，因此对话文本永远不会进入审计记录。见[OpenAI 兼容 API](openai-api.md) |
 
 每个 HTTP 渠道的 `path` 都必须以 `/` 结尾（挂载一个子树）。建议使用 UUID 形式的路径段作为不可猜测的密钥前缀。两个渠道挂载相同路径是启动错误，`openai` 渠道的端点与另一个渠道的子树重叠也是如此。Telegram 的 `token` 和 `secret_token`、ghhook 的 `secret`、qq 的 `secret`、bridge 的 `secret` 和 `token`，以及 `openai` 渠道的 `keys` 都是密钥（见注册表）：在单文件路径下进行环境变量插值，在 configdir 路径下是惰性引用——无法解析时跳过该渠道并发出警告，绝不会导致启动失败。
 
@@ -816,7 +816,7 @@ net:
     allow_private: false     # 默认值；true 会停用地址防护
 ```
 
-用一个设置同时管控**两条**出站 HTTP 路径——`builtin:fetch` 工具和 Lua 的 `http.request` 操作——这样部署就不会出现一条受防护、另一条不受防护的情况。
+用一个设置同时管控**两条**出站 HTTP 路径——`builtin:fetch` 工具和脚本的 `http.request` 操作——这样部署就不会出现一条受防护、另一条不受防护的情况。
 
 防护会拒绝连接到回环地址、RFC 1918、运营商级 NAT、链路本地地址（包括位于 `169.254.169.254` 的云元数据端点）、唯一本地地址、组播，以及保留 / 特殊用途地址段。它安装在**拨号器**中，而不是在解析 URL 时检查，这个位置正是关键所在：检查在 DNS 解析之后、建立连接之前立即运行，因此看到的是实际拨号的地址。解析时的检查会被 DNS 重绑定绕过——名称只被判断一次，等到建立连接时已经解析到别处——而且每一跳重定向都会建立自己的连接，因此每一跳天然都会被检查。
 
@@ -849,7 +849,7 @@ media:
     secret_key: ${S3_SECRET_KEY}
 ```
 
-选择统一的媒体存储平面，集中存放来自渠道、LLM 输出（`reply.media`）、MCP 工具以及 Lua 边界的媒体字节。无论使用哪种后端，对象都按内容寻址（`media:<sha256>` 句柄），因此切换后端时循环和审计记录的形态都不会改变；只有句柄穿过 Lua 桥，出站目标（模型与渠道）按需物化为字节或签名 URL，并自动完成图片转码与派生变体缓存。访问控制通过运行时存储中的授权记录按引擎盖章的作用域（`user:<uuid>` 或 `agent:<name>`）强制隔离，同时保留内容去重，删除用户时会一并清除其所有授权。`s3` 后端直接使用 SigV4（不依赖 SDK）：重复写入相同字节时会在 PUT 之前先 HEAD 去重，密钥永远不会出现在任何错误中。开启 `temp_url.enabled: true`（需配置 `gateway.public_url`）后，运行时会在 `temp_url.path` 下提供短期 HMAC-SHA256 签名链接，使 QQ 等仅支持 URL 的渠道在本地 `fs` 存储下无需 S3 也能运行。
+选择统一的媒体存储平面，集中存放来自渠道、LLM 输出（`reply.media`）、MCP 工具以及脚本边界的媒体字节。无论使用哪种后端，对象都按内容寻址（`media:<sha256>` 句柄），因此切换后端时循环和审计记录的形态都不会改变；只有句柄穿过脚本桥，出站目标（模型与渠道）按需物化为字节或签名 URL，并自动完成图片转码与派生变体缓存。访问控制通过运行时存储中的授权记录按引擎盖章的作用域（`user:<uuid>` 或 `agent:<name>`）强制隔离，同时保留内容去重，删除用户时会一并清除其所有授权。`s3` 后端直接使用 SigV4（不依赖 SDK）：重复写入相同字节时会在 PUT 之前先 HEAD 去重，密钥永远不会出现在任何错误中。开启 `temp_url.enabled: true`（需配置 `gateway.public_url`）后，运行时会在 `temp_url.path` 下提供短期 HMAC-SHA256 签名链接，使 QQ 等仅支持 URL 的渠道在本地 `fs` 存储下无需 S3 也能运行。
 
 ### `files`——用户范围的文件存储
 
@@ -868,7 +868,7 @@ files:
   gc_grace: 24h               # blob GC 宽限期；0 = 停用 GC
 ```
 
-为 `files.*` Lua 操作（能力 `files`）提供支持：带有引擎原生快照版本控制的用户范围项目树，外加每个会话的临时空间。默认情况下，当 `files` 未显式设置 `backend`、`dir` 或 `s3` 块时，它与 `media` 共用同一个 blob 存储，并由一次统一的每小时标记-清除 GC 保护 `files_meta` 引用与有效媒体授权的并集（超过 `gc_grace` 后才回收）；若显式设置了 `files.backend`、`files.dir` 或 `files.s3`，则保持独立的 blob 存储，同时仍允许 `media` 将其作为句柄读取回退源。
+为 `files.*` 脚本操作（能力 `files`）提供支持：带有引擎原生快照版本控制的用户范围项目树，外加每个会话的临时空间。默认情况下，当 `files` 未显式设置 `backend`、`dir` 或 `s3` 块时，它与 `media` 共用同一个 blob 存储，并由一次统一的每小时标记-清除 GC 保护 `files_meta` 引用与有效媒体授权的并集（超过 `gc_grace` 后才回收）；若显式设置了 `files.backend`、`files.dir` 或 `files.s3`，则保持独立的 blob 存储，同时仍允许 `media` 将其作为句柄读取回退源。
 
 文件字节与媒体完全一样在 blob 存储中按内容寻址；快照元数据存放在运行时存储的 `files_meta` 表中（普通 sqlite，可检查）。S3 兼容端点需要真正的 SigV4 密钥对——bearer 令牌无法用于 S3。无法解析的一对凭据会停用该存储并在启动时警告（之后这些操作会如实失败），绝不会导致启动失败。
 
@@ -915,14 +915,14 @@ tools:
 
 覆盖项在启动时一次性写入注册表，时机是所有工具（内置、法律、shell、MCP）注册完成之后、任何智能体工具集开放之前。`params` 中指定了 schema 未声明的参数的条目会被跳过并发出警告，绝不会报错。策略字段按工具生效；`permission: forbidden` 会把该工具从所有开放的工具集中移除——这也是其中唯一真正起作用的字段。`cost_level`、`user_visible` 和 `autonomous` 会被接受、复制到工具上，但不会被任何东西读取；`tools.policy.write` 同样会被解析但不使用。设置其中任何一个时，引擎都会在启动时警告。
 
-**作用于 Lua 声明的工具**：覆盖项也可以指定循环用 `tool.def` 声明的工具——见下文。这些条目不会在启动时写入（代码块加载之前该工具并不存在）；它们在循环构建工具列表时，根据实时的提示词注册表解析，因此编辑基于 `file:` 的提示词后，下一次 `tools.list()` 就会体现出来。拼错的*提示词键*对这两类工具来说仍然是启动错误。既未注册、也没有被任何已加载循环声明的工具名称无法在启动时发现，因此它会在启动时被记录一次，标为等待 Lua 声明（一行列出这些名称的信息日志，这样在任何智能体开始轮次之前就能看到拼写错误），之后在某个循环首次声明其工具却没有认领该名称时，对每个名称警告一次。
+**作用于脚本声明的工具**：覆盖项也可以指定循环用 `tool.def` 声明的工具——见下文。这些条目不会在启动时写入（代码块加载之前该工具并不存在）；它们在循环构建工具列表时，根据实时的提示词注册表解析，因此编辑基于 `file:` 的提示词后，下一次 `tools.list()` 就会体现出来。拼错的*提示词键*对这两类工具来说仍然是启动错误。既未注册、也没有被任何已加载循环声明的工具名称无法在启动时发现，因此它会在启动时被记录一次，标为等待脚本声明（一行列出这些名称的信息日志，这样在任何智能体开始轮次之前就能看到拼写错误），之后在某个循环首次声明其工具却没有认领该名称时，对每个名称警告一次。
 
 ### `agents`
 
 ```
 agents:
   bot:
-    loop: ./loop.lua
+    loop: ./loop.ts
     model: default
     instructions: ./prompts/bot.md     # 或 {prompt: assistant_system}——见 prompts:
     capabilities: [llm.chat, memory, tools, agent.send, shell.exec, net.mail]
@@ -945,7 +945,7 @@ agents:
 
 **能力上限**：`plugins.allow_capabilities`（全局）⊇ `agents.<name>.capabilities`（按智能体）⊇ 派生规格授予的能力（子智能体）。你无法委托自己没有的能力。如果智能体省略 `capabilities`，它会得到默认值 `[llm.chat, memory, tools, agent.send, net.http, users]`——注意 `net.mail`、`shell.exec` 和 `session.state` *不是*默认值，必须显式声明。
 
-**能力在运行时强制执行**，而不仅仅是在启动时校验。每项能力把守其背后的 Lua 操作：`llm.chat` → `llm.*`，`memory` → `store.*`，`tools` → `tools.*`，`shell.exec` → `shell.*`，`net.http` → `http.request` 和 `os.env`，`net.mail` → `mail.*`，`files` → `files.*`。缺少某项能力的智能体会被拒绝，并给出指明操作、智能体和所缺能力的消息——操作仍然可以寻址，并明确地失败，而不是消失成 *"attempt to call a nil value"*。`agent.send`、`agent.request` 和 `agent.spawn` 一直是这样强制执行的；其余的现在也与之一致。`runtime.*` 和 `credential.get` 有意不加把守——前者是每个智能体都需要的循环机制，后者已经由智能体自身的凭据列表限定了范围。启动时的警告会准确列出每个智能体和方案被扣留了哪些能力。只有在需要让依赖“每个智能体都拥有所有操作”的配置继续运行时，才设置 `plugins.enforce_capabilities: false`（默认 `true`）。
+**能力在运行时强制执行**，而不仅仅是在启动时校验。每项能力把守其背后的脚本操作：`llm.chat` → `llm.*`，`memory` → `store.*`，`tools` → `tools.*`，`apis` → `api.*`，`shell.exec` → `shell.*`，`net.http` → `http.request` 和 `os.env`，`net.mail` → `mail.*`，`files` → `files.*`。缺少某项能力的智能体会被拒绝，并给出指明操作、智能体和所缺能力的消息——操作仍然可以寻址，并明确地失败，而不是消失成未定义属性错误。`agent.send`、`agent.request` 和 `agent.spawn` 一直是这样强制执行的；其余的现在也与之一致。`runtime.*` 和 `credential.get` 有意不加把守——前者是每个智能体都需要的循环机制，后者已经由智能体自身的凭据列表限定了范围。启动时的警告会准确列出每个智能体和方案被扣留了哪些能力。只有在需要让依赖“每个智能体都拥有所有操作”的配置继续运行时，才设置 `plugins.enforce_capabilities: false`（默认 `true`）。
 
 **`builtin:` 是工具的命名空间。** 过去有四套词汇都用它来拼写——循环 / 插件名称、工具名称、记忆提供商名称，以及内置记忆方案——而字符串本身并不能说明一个名称属于哪一套。现在每套都有自己的写法，因此这个前缀只有一个含义：
 
@@ -976,7 +976,7 @@ prompts:
     inline: "[Knowledge base — recalled facts with provenance]"
 ```
 
-系统提示词、工具提示词、注入提示词和提炼文本都集中在一处，因此不会硬编码在 Lua 中，也不会在多个文件中重复。每个条目*只能*指定 `file:`、`inline:` 或 `text:`（`inline:` 的别名）中的一个；无法读取的 `file:` 会导致启动失败，方案或工具覆盖项引用了未定义的键也会导致启动失败——缺失的提示词绝不会降级为一个静默的空字符串。提示词文件在加载时读取（并在其变化时重新读取），相对于 configdir 解析（单文件配置则相对于配置文件本身解析）。解析后的文本以 `agent.config().prompts`（未声明提示词时为空表）的形式只读地提供给每个循环，键名与此相同。
+系统提示词、工具提示词、注入提示词和提炼文本都集中在一处，因此不会硬编码在脚本中，也不会在多个文件中重复。每个条目*只能*指定 `file:`、`inline:` 或 `text:`（`inline:` 的别名）中的一个；无法读取的 `file:` 会导致启动失败，方案或工具覆盖项引用了未定义的键也会导致启动失败——缺失的提示词绝不会降级为一个静默的空字符串。提示词文件在加载时读取（并在其变化时重新读取），相对于 configdir 解析（单文件配置则相对于配置文件本身解析）。解析后的文本以 `agent.config().prompts`（未声明提示词时为空对象）的形式只读地提供给每个循环，键名与此相同。
 
 **引用提示词**：智能体或派生方案上的 `instructions` 既接受文件路径（与以前一样），也接受 `{prompt: <key>}`，后者会把注册表中的文本作为该智能体的系统提示词。工具覆盖项的描述也接受同样的形式：除了已有的字面字符串，还可以写 `description: {prompt: <key>}`。基于 `file:` 的条目是*实时*的：编辑文件会把其文本重新发布到每个循环的 `agent.config().prompts`，并就地刷新来源于该键的所有智能体的系统提示词，无需重启会话（文件无法读取时会警告，并保留已发布的文本）。`prompts:` 块本身不是实时的——添加键、把某个键改指向另一个文件，或把条目在 `inline:` 和 `file:` 之间切换，仍然需要重启。
 
@@ -1000,7 +1000,7 @@ plugins:
   enforce_capabilities: true    # 默认值；false 恢复强制执行之前的行为
 ```
 
-`plugins.dir` 还会**按名称覆盖内置项**：文件 `<dir>/<name>.lua`（例如 `./plugins/recency.lua`）会在所有地方替换同名的内嵌内置项——循环 / 路由引用（`loop: plugin:recency`，包括热重载的监视路径）以及加载到每个会话中的辅助代码块。覆盖文件会被监视：被覆盖的辅助代码块在每次会话启动时（首次启动以及每次重新加载后的重启）重新读取，编辑会重启所有运行中的会话，因此无需重启进程即可生效。未被覆盖的代码块是内嵌的，没有可编辑的文件。
+`plugins.dir` 还会**按名称覆盖内置项**：文件 `<dir>/<name>.ts`（或 `.js`，例如 `./plugins/recency.ts`）会在所有地方替换同名的内嵌内置项——循环 / 路由引用（`loop: plugin:recency`，包括热重载的监视路径）以及加载到每个会话中的辅助代码块。覆盖文件会被监视：被覆盖的辅助代码块在每次会话启动时（首次启动以及每次重新加载后的重启）重新读取，编辑会重启所有运行中的会话，因此无需重启进程即可生效。未被覆盖的代码块是内嵌的，没有可编辑的文件。
 
 ### `triggers`——定时与事件任务
 

@@ -55,7 +55,7 @@ export function ExampleViewer({
         <IconButton icon={X} label={t('docs.closeEsc')} onClick={onClose} />
       </div>
       {exampleSummary(example) && <p className="shrink-0 text-sm text-muted">{exampleSummary(example)}</p>}
-      <CodeEditor value={example.source} language="lua" readOnly className="min-h-0 flex-1" />
+      <CodeEditor value={example.source} language="typescript" readOnly className="min-h-0 flex-1" />
     </div>
   )
 }

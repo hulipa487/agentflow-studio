@@ -1,15 +1,15 @@
 # AgentFlow
 
-A pure-Go, single-binary, self-hosted LLM agent runtime with embedded Lua loops. Configure the ordinary; program the exceptional.
+A pure-Go, single-binary, self-hosted LLM agent runtime with embedded TypeScript/JS loops and Wasm External APIs. Configure the ordinary; program the exceptional.
 
 ## What it is
 
-AgentFlow runs LLM-powered agents that can remember, use tools, execute shell commands, schedule background work, talk to other agents, and serve users through webhooks, Telegram, QQ, and OpenAI-compatible clients. Every agent is defined declaratively in YAML; all behavior beyond the defaults comes from hot-reloadable Lua plugins that hook into versioned interfaces exposed by the core.
+AgentFlow runs LLM-powered agents that can remember, use tools, execute shell commands, schedule background work, talk to other agents, and serve users through webhooks, Telegram, QQ, and OpenAI-compatible clients. Every agent is defined declaratively in YAML; all behavior beyond the defaults comes from hot-reloadable TypeScript/JS plugins that hook into versioned interfaces exposed by the core.
 
 ## Design principles
 
 - **Core provides capabilities; plugins provide behavior; YAML provides wiring.**
-- **One Lua state per session** — actor model, message-passing only.
+- **One VM state per session** — actor model, message-passing only.
 - **Failure defaults to truthful** — unavailable tools return structured errors, never fabricated results.
 - **Builtins are plugins** — shipped in the binary, shadowable by name, same contract as user plugins.
 - **The capability boundary is a message protocol** — not a language API.
@@ -19,8 +19,8 @@ AgentFlow runs LLM-powered agents that can remember, use tools, execute shell co
 | Decision | Choice | Rationale |
 | --- | --- | --- |
 | Runtime | Go (`CGO_ENABLED=0`) | Pure-Go single binary; goroutine-per-actor; trivial cross-compilation |
-| Script | Lua 5.1 (`gopher-lua`) | Pure Go (no cgo); native coroutines; instruction-budgeted sandbox |
-| Concurrency | Actors + worker pool | Lua coroutines park on async ops; no OS threads burned |
+| Script & External APIs | TypeScript/JS (`goja`) + Wasm (`wazero`) | Pure Go (no cgo); TypeScript loops & extensions; isolated Wasm External API modules |
+| Concurrency | Actors + worker pool | Script VM states park on async ops; no OS threads burned |
 | UI & Docs | AgentFlow Studio | Headless runtime serves `/admin/api/`; Studio provides the desktop/web workbench and offline docs |
 
 > **Current status**: The core runtime (actors, memory, tools, shell, multi-agent, scheduler, budgets, safety, metrics) is implemented and tested. Storage backends: SQLite, Redis and PostgreSQL for key/value and document rows, an in-memory volatile store, and vector search through pgvector, Qdrant, Redis Stack/RediSearch, PostgreSQL with the vector extension, or SQLite's capped brute-force scan — never a silent empty result. LLM providers cover four chat API shapes (Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, Gemini Interactions) plus a `rerank` provider, each pointed at an official host or any compatible endpoint via `base_url`; per-model `server_tools` enable provider-native tools such as Google Search grounding. Channels are webhook (sync or async), GitHub webhook (`ghhook`), Telegram (polling, webhook, or self-configuring `auto`), QQ Bot, `openai` (Chat Completions), and `bridge`, an HMAC-signed adapter protocol that lets an out-of-process service connect any other chat platform. They all mount on one shared HTTP listener with a built-in `/health` probe. Beyond that the runtime ships a unified media/files store, a core-owned audit journal, embeddings and reranking for semantic memory, the identity and user layer (profiles, channel linking, OIDC, per-user quotas), tenancy (groups, memberships, shared memory pools and grants), a user-scoped file store with snapshot versioning, an encrypted credential store, engine-fired scheduled triggers, config directories, the append-only log plane, single and regional deployment tiers, MCP servers over stdio or Streamable HTTP, declarative HTTP tools, and the headless admin API (`/admin/api/`) that AgentFlow Studio connects to.
@@ -61,16 +61,16 @@ Cross-compiling works natively with Go's standard environment variables (for exa
 
 ### Verify the install
 
-Save a minimal echo loop as `echo.lua` (the first line is the prelude API contract — a chunk without it is refused):
+Save a minimal echo loop as `echo.ts` (the first line is the prelude API contract — a chunk without it is refused):
 
 ```
--- af-prelude-version: 1
-function loop()
-  while true do
-    local msg = session.inbox()
-    session.send("echo: " .. (msg.text or ""))
-  end
-end
+// af-prelude-version: 2
+function loop() {
+  while (true) {
+    const msg = session.inbox();
+    session.send("echo: " + (msg.text || ""));
+  }
+}
 ```
 
 and a no-model config that wires it to a webhook as `agentflow.yaml`:
@@ -79,7 +79,7 @@ and a no-model config that wires it to a webhook as `agentflow.yaml`:
 version: "1"
 agents:
   echo:
-    loop: ./echo.lua
+    loop: ./echo.ts
 gateway:
   listen: ":8080"
   channels:
@@ -108,7 +108,7 @@ curl http://127.0.0.1:8080/health    # the channel listener's own probe -> {"ok"
 
 | Symptom | Fix |
 | --- | --- |
-| `Nothing to be done for 'all'` after switching branches | The Makefile tracks Go sources and embedded Lua files, so this is rare. If the binary still looks stale, run `make clean && make` or `go build ./cmd/agentflow`. |
+| `Nothing to be done for 'all'` after switching branches | The Makefile tracks Go sources and embedded script files, so this is rare. If the binary still looks stale, run `make clean && make` or `go build ./cmd/agentflow`. |
 | Tests fail with SQLite / database locked | Run tests serially (`go test -p 1 ./...`) or remove stale `data/` directory between runs. |
 
 ### Updating

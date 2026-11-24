@@ -1,10 +1,10 @@
 # 不重新編譯 Go 也能擴充 AgentFlow
 
-AgentFlow 有四個擴充層面。前三個只需組態或 Lua；只有最後一個會改動二進位檔。
+AgentFlow 有四個擴充層面。前三個只需組態、TypeScript/JS 指令碼或 Wasm 外部 API；只有最後一個會改動二進位檔。
 
 ## 1. 宣告式 HTTP 工具
 
-外部 API 不必寫 Lua 或 Go，就能成為模型可見的工具：
+外部 API 不必寫指令碼或 Go，就能成為模型可見的工具：
 
 ```yaml
 tools:
@@ -83,25 +83,25 @@ X-Agentflow-Signature: sha256=<hex HMAC-SHA256 of the raw body>
 
 HMAC 是必要的。執行環境信任配接器轉送平台的寄件者身分，但橋接的連結帳號會記錄為「自稱」；連結帳號仍須通過一般的頻道內 `/link` 驗證挑戰，才能取得使用者資料範圍。
 
-## 4. Lua 套件
+## 4. 指令碼套件與外部 API
 
-套件是一個存放依版本控管的 Lua 原始碼的資料夾。先宣告，再從迴圈匯入：
+套件是一個存放依版本控管的 TypeScript/JS 原始碼的資料夾。先宣告，再從迴圈匯入：
 
 ```yaml
 packages:
   greeting: ./packages/greeting
 ```
 
-```lua
--- af-prelude-version: 1
--- af-import: greeting
+```ts
+// af-prelude-version: 2
+// af-import: greeting
 
-function loop()
-  while true do
-    local msg = session.inbox()
-    session.send(Greeting.hello(msg.text))
-  end
-end
+function loop() {
+  while (true) {
+    const msg = session.inbox();
+    session.send(Greeting.hello(msg.text));
+  }
+}
 ```
 
 套件可以包含 `manifest.yaml`：
@@ -109,21 +109,21 @@ end
 ```yaml
 name: greeting
 version: "1"
-prelude_api: 1
-files: [greeting.lua]
+prelude_api: 2
+files: [greeting.ts]
 ```
 
-沒有 manifest 時，`*.lua` 檔案依字典順序載入。套件是原始碼層級的組合，不是隔離的模組：它們共用工作階段的 Lua 狀態與能力集合（能力仍由代理控制）。代理的 `loop:` 參照也可直接使用 `package:<name>`。編輯套件會重新啟動可能匯入它的工作階段。
+沒有 manifest 時，`*.ts` 與 `*.js` 檔案依字典順序載入。套件是原始碼層級的組合，不是隔離的模組：它們共用工作階段的 Goja 虛擬機器狀態與能力集合（能力仍由代理控制）。代理的 `loop:` 參照也可直接使用 `package:<name>`。編輯套件會重新啟動可能匯入它的工作階段。若需要隔離的可重用整合，請在 `apis` 下設定 TypeScript/JS 或 `wazero` Wasm 模組，並透過 `api.*` 從迴圈呼叫。
 
 ## 5. 仍然需要 Go 的部分
 
-編譯式驅動程式仍需編譯：新的 LLM 傳輸協定、新的記憶／向量後端、新的搜尋引擎或 shell 供應商，以及新*種類*的安全過濾器。以模型為基礎的內容審核與分類已不再需要 Go——宣告一筆 `safety.classifiers` 項目，並在設定檔中以 `classifier:<name>` 參照即可。以 Lua 撰寫的過濾器仍需要原生掛鉤。替代做法如下：
+編譯式驅動程式仍需編譯：新的 LLM 傳輸協定、新的記憶／向量後端、新的搜尋引擎或 shell 供應商，以及新的原生 Go *種類*安全過濾器。以模型為基礎的內容審核使用 `safety.classifiers`（`classifier:<name>`），自訂指令碼掛鉤則使用 `safety.script_filters`（`script:<name>`）。替代做法如下：
 
 - 新的模型廠商使用 OpenAI 相容端點（`provider: openai` + `base_url`）；
-- 新的搜尋／API 供應商使用 MCP 或宣告式 HTTP 工具；
+- 新的搜尋／API 供應商使用 MCP、外部 API（以 Goja 或 `wazero` Wasm 實作的 `apis.*`）或宣告式 HTTP 工具；
 - 新的聊天平台使用橋接；
-- 共用原則使用 Lua 套件；
-- 不重新編譯就做內容審核：使用分類器提示詞加上標籤原則。
+- 共用原則使用 TypeScript/JS 套件；
+- 不重新編譯就做內容審核：使用分類器提示詞加上標籤原則，或 `safety.script_filters` 掛鉤。
 
 ## 6. 租戶控制
 
@@ -147,7 +147,7 @@ runtime:
 
 ```bash
 agentflow validate -config agentflow.yaml
-agentflow loop check loops/support.lua
+agentflow loop check loops/support.ts
 agentflow loop test scenarios/refund.yaml
 ```
 
@@ -155,7 +155,7 @@ agentflow loop test scenarios/refund.yaml
 
 ```yaml
 agent: support
-loop: ../loops/support.lua
+loop: ../loops/support.ts
 llm:
   - match: refund
     text: "I can help with that."
@@ -169,7 +169,7 @@ expect_contains: ["help"]
 
 ## 掛鉤與擴充點
 
-沒有掛鉤登錄表。引擎本身只分派三個點，其餘都是**由 Lua 呼叫的命名慣例**：外掛提供一個全域變數，名稱就是呼叫端要找的名稱，這就是全部的約定。兩者的差別決定了外掛程式碼必須放在哪裡，所以這裡兩種都列出來。
+沒有掛鉤登錄表。引擎本身只分派三個點，其餘都是**由指令碼呼叫的命名慣例**：外掛提供一個全域變數，名稱就是呼叫端要找的名稱，這就是全部的約定。兩者的差別決定了外掛程式碼必須放在哪裡，所以這裡兩種都列出來。
 
 ### 由核心分派
 
@@ -177,15 +177,15 @@ expect_contains: ["help"]
 
 | 點 | 種類 | 實作者 | 說明 |
 | --- | --- | --- | --- |
-| `safety.ingress` | 過濾器 | Go，由核心擁有 | 在迴圈看到訊息之前執行；可以捨棄訊息、略過這一輪，或改寫文字。五個基準過濾器中只有 `affect-guard` 會捨棄訊息；`classifier:<name>` 過濾器可依模型輸出加以封鎖。 |
+| `safety.ingress` | 過濾器 | Go，由核心擁有 | 在迴圈看到訊息之前執行；可以捨棄訊息、略過這一輪，或改寫文字。基準過濾器中只有 `affect-guard` 會捨棄訊息，`classifier:<name>` 與 `script:<name>` 過濾器可依原則封鎖或重新導向。 |
 | `safety.egress` | 過濾器 | Go，由核心擁有 | 在回覆送達頻道之前執行；可以捨棄回覆（並可附上由核心撰寫的替代回覆）。 |
-| `gateway.route` | 處理常式 | 由 `gateway.route` 指定的 Lua 程式碼區塊，預設為 `plugin:per_chat` | 每個行程一個 Lua 狀態。讀取訊息並傳回工作階段位址。路由處理常式只能呼叫 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 與 `log`；其他呼叫都會依名稱被拒絕。 |
+| `gateway.route` | 處理常式 | 由 `gateway.route` 指定的指令碼程式碼區塊，預設為 `plugin:per_chat` | 每個行程一個 Goja 虛擬機器。讀取訊息並傳回工作階段位址。路由處理常式只能呼叫 `inbox`、`deliver`、`runtime.triggers`、`router.state.*` 與 `log`；其他呼叫都會依名稱被拒絕。 |
 
-### 由 Lua 呼叫的命名慣例
+### 由指令碼呼叫的命名慣例
 
-這些是一般的全域變數，不是引擎會呼叫的進入點。當部署設定了對應行為時，prelude 或迴圈會依名稱呼叫它們；要遮蔽內建項目，就在 `plugins/<name>.lua` 中定義同名的全域變數。
+這些是一般的全域變數，不是引擎會呼叫的進入點。當部署設定了對應行為時，prelude 或迴圈會依名稱呼叫它們；要遮蔽內建項目，就在 `plugins/<name>.ts` 中定義同名的全域變數。
 
-| 設定方式 | Lua 必須定義的全域變數 | 呼叫者 |
+| 設定方式 | 指令碼必須定義的全域變數 | 呼叫者 |
 | --- | --- | --- |
 | 記憶設定檔 `write: plugin:routing_table` | `memory_routing_table(record)` | prelude 的 `memory.write` |
 | 記憶設定檔 `recall: plugin:recency` | `memory_recall_handler(query, opts)` | prelude 的 `memory.recall` |

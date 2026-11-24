@@ -49,7 +49,7 @@ profiles:
     # The template every reviewer is spawned from.
     code_reviewer:
       model: default
-      loop: ./loops/code_reviewer.lua
+      loop: ./loops/code_reviewer.ts
       instructions: ./prompts/reviewer.md
       shell: review
       capabilities: [llm.chat, tools, net.http, files, shell.exec]
@@ -59,7 +59,7 @@ profiles:
 
 agents:
   pr_dispatcher:
-    loop: ./loops/pr_dispatcher.lua
+    loop: ./loops/pr_dispatcher.ts
     capabilities: [agent.spawn, agent.send]
 
 gateway:

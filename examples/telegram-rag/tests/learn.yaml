@@ -3,7 +3,7 @@
 # agent's extras, which the harness does not load; the ingest webhook and
 # extras.editors are what grant it in a deployment.)
 agent: rag
-loop: ../loops/rag.lua
+loop: ../loops/rag.ts
 messages:
   - from: user:telegram:7
     text: "/learn Something sneaky."

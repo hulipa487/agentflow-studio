@@ -38,7 +38,7 @@ profiles:
 
 agents:
   group_bot:
-    loop: ./loops/group_chat.lua
+    loop: ./loops/group_chat.ts
     model: default
     instructions: ./prompts/persona.md
     memory: group

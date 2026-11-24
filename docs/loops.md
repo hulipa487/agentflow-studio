@@ -1,12 +1,12 @@
-# Coding Lua loops
+# Coding script loops
 
-A practical guide to writing AgentFlow session loops in Lua 5.1: the execution
-model, the whole Lua API, worked patterns, and the mistakes that are easy to
-make.
+A practical guide to writing AgentFlow session loops in TypeScript / JavaScript:
+the execution model, the whole script API, worked patterns, and the mistakes that
+are easy to make.
 
 Runnable versions of the patterns live in [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops).
 
-The bundled Lua type definitions are at [lua/af.d.lua](lua/af.d.lua); open them from this page to inspect the API surface in an editor.
+The bundled TypeScript declarations are at [ts/af.d.ts](ts/af.d.ts); open them from this page to inspect the API surface in an editor.
 
 ## Contents
 
@@ -28,18 +28,19 @@ The bundled Lua type definitions are at [lua/af.d.lua](lua/af.d.lua); open them 
 
 ## 1. The smallest loop
 
-A session loop is a Lua chunk that defines a global function `loop()`. The
-runtime loads one fresh Lua state per session and calls `loop()`; the function
-runs for the lifetime of that session.
+A session loop is a TypeScript / JavaScript module that defines a global or
+exported `loop()` function. The runtime creates one fresh isolated Goja VM state
+per session and calls `loop()`; the function runs for the lifetime of that
+session.
 
-```lua
--- af-prelude-version: 1
-function loop()
-  while true do
-    local msg = session.inbox()      -- parks until the next message
-    session.send("echo: " .. (msg.text or ""))
-  end
-end
+```ts
+// af-prelude-version: 2
+function loop() {
+  while (true) {
+    const msg = session.inbox();      // parks until the next message
+    session.send("echo: " + (msg.text || ""));
+  }
+}
 ```
 
 Point an agent at the file:
@@ -47,7 +48,7 @@ Point an agent at the file:
 ```yaml
 agents:
   echo:
-    loop: ./examples/loops/echo.lua
+    loop: ./examples/loops/echo.ts
 ```
 
 Run the runtime and send it a message (the example config has a webhook
@@ -63,24 +64,26 @@ curl -X POST localhost:8080/webhook/local/ \
 
 ### The one required line
 
-Every chunk — loop, support chunk, or route handler — must declare the prelude
-API version in its leading comment block:
+Every script chunk — loop, support chunk, or route handler — must declare the
+prelude API version in its leading comment block:
 
-```lua
--- af-prelude-version: 1
+```ts
+// af-prelude-version: 2
 ```
 
 A chunk with no directive, or with another version, is refused **before it
-runs**. There is no compatibility window: the prelude and the Lua that uses it
-move together. The version is `vm.PreludeVersion` in the source and is shown by
-`GET /admin/api/studio/catalog`; the current value is **1**.
+runs**. There is no compatibility window: the prelude and the scripts that use
+it move together. The version is `vm.PreludeVersion` in the source (visible to
+scripts as `af.version`) and is shown by `GET /admin/api/studio/catalog`; the
+current value is **2**.
 
 ### Validate before you run
 
 The Studio app (`/admin/api/studio/*`) validates a loop by checking the
-directive and compiling the chunk, then applies it live. `POST
-/admin/api/studio/agents/validate` is the same check without side effects. A
-plain compile check is also available from Go (`vm.CompileCheck`).
+directive, stripping TypeScript annotations, and compiling the chunk, then
+applies it live. `POST /admin/api/studio/agents/validate` is the same check
+without side effects. A plain compile check is also available from Go
+(`vm.CompileCheck`).
 
 A compile check proves syntax, not behavior: a loop that references a missing
 global, calls a disabled capability, or does the wrong thing at runtime fails
@@ -92,100 +95,102 @@ on the first turn and shows up in the Studio trace.
 
 Each session is an **actor**:
 
-- one goroutine, one mailbox, one Lua state, one loop coroutine;
+- one actor goroutine, one mailbox, one isolated Goja VM state + worker goroutine;
 - messages are processed one at a time, in order;
 - the loop never runs concurrently with itself.
 
-The only native primitive exposed to Lua is `__af_op(json_request)`. It yields
-the coroutine; Go executes the request (inline for cheap ops, on a worker pool
-for blocking ones), then resumes with `(json_response, ok)`. The prelude wraps
-this as `op(req)` and raises the response as a Lua error when `ok` is false.
-Because every blocking call yields, a parked session costs no OS thread.
+The core native primitive exposed to JS is `__af_op(json_request)`. When a
+script calls an op, the VM worker goroutine parks on a Go channel; Go executes
+the request (inline for fast ops, on a worker pool for blocking ones), then
+resumes the VM with `[json_response, ok]`. The prelude wraps this as `op(req)`
+and throws an `Error` when `ok` is false. Because parked session goroutines wait
+on Go channels, a parked session costs no OS thread.
 
-```lua
--- conceptually, what the prelude does for you:
-local resp, ok = __af_op(json.encode(req))
-if not ok then error(resp, 0) end
-return json.decode(resp)
+```ts
+// conceptually, what the prelude does for you:
+const [resp, ok] = __af_op(json.encode(req));
+if (!ok) throw new Error(String(resp));
+return json.decode(resp);
 ```
 
 ### Park points and restarts
 
-`session.inbox()` is the park point. While the coroutine is parked the session
-is idle and cheap. There is no need for `time.sleep` polling loops — never write
-`while true do ... time.sleep(0.1) ... end` to look for work; the mailbox is the
-work queue.
+`session.inbox()` is the park point. While the session VM is parked waiting for
+the next mailbox item, the session is idle and cheap. There is no need for
+`time.sleep` polling loops — never write `while (true) { ... time.sleep(0.1); ... }`
+to look for work; the mailbox is the work queue.
 
 What happens around `loop()`:
 
 | Event | Result |
 |---|---|
 | `session.inbox()` | parks until a message arrives |
-| `session.send` / `push` / `llm.chat` / `tools.run` / `store.*` / `shell.*` / `http.*` / `mail.*` / `agent.*` | yields; resumes with the result |
-| `log.*`, `agent.info`, `agent.config`, `json.*` | inline; no yield |
+| `session.send` / `push` / `llm.chat` / `tools.run` / `api.*` / `store.*` / `shell.*` / `http.*` / `mail.*` / `agent.*` | yields across the Go bridge; resumes with the result |
+| `log.*`, `agent.info`, `agent.config`, `json.*` | fast host calls; no pool offload needed |
 | `loop()` returns | the loop is **restarted** immediately (a finished loop is not an exited session) |
-| a Lua error escapes `loop()` | the loop crashes and is restarted after ~1s, forever |
-| `session.exit()` | the session ends; the coroutine is never resumed; timers/requests are reaped |
+| an unhandled JS error escapes `loop()` | the loop crashes and is restarted after ~1s, forever |
+| `session.exit()` | the session ends; the VM is torn down; timers/requests are reaped |
 
 Two consequences worth internalizing:
 
 - **To end a session, call `session.exit()`.** Returning from `loop()` restarts it.
-- **Wrap fallible work in `pcall`.** An uncaught provider error is a crash loop,
-  not a single failed turn.
+- **Wrap fallible work in `try { ... } catch (err) { ... }`.** An uncaught
+  provider error is a crash loop, not a single failed turn.
 
-**Lua locals are a cache, not storage.** A turn may start with a fresh Lua
-state: hot reload, failover, a lost lease, or the idle unload
+**In-memory JS variables are a cache, not storage.** A turn may start with a
+fresh Goja VM state: hot reload, failover, a lost lease, or the idle unload
 (`runtime.sessions.idle_unload`, default 30m) all restart the loop from the top.
 Anything a correct loop needs to remember between turns belongs in
-`session.state.*`, memory or the store — a local that survives today's restart
-may not survive the next one. A loop that keeps its cursor in a local is correct
-only until the conversation goes 30 idle minutes without a message.
+`session.state.*`, memory or the store — a module variable that survives today's
+restart may not survive the next one. A loop that keeps its cursor in a JS
+variable is correct only until the conversation goes 30 idle minutes without a
+message.
 
 ### Hot reload
 
-An edit to the loop file restarts the session's coroutine from a fresh Lua state
-at its next park point. Instructions and file-backed prompts reload in place;
-a route handler rebuilds between messages; a shadowed support chunk restarts
-every live session. A new version that does not compile leaves the running
-version in place. Each session is one conversation: a single edit can restart
-every instance's copy of that session, and the restart loses all Lua state that
+An edit to the loop file restarts the session's VM from a fresh state at its
+next park point. Instructions and file-backed prompts reload in place; a route
+handler rebuilds between messages; a shadowed support chunk restarts every live
+session. A new version that does not compile leaves the running version in
+place. Each session is one conversation: a single edit can restart every
+instance's copy of that session, and the restart loses all JS memory state that
 was not in `session.state`, memory, the store, or files.
 
 ### One op at a time
 
-Keep op calls on the loop coroutine. Do not call `session.inbox`, `llm.chat`,
-`store.*` or any other yielding op from a nested `coroutine.create` coroutine:
-the actor drives the loop coroutine, and the bridge expects its yields to come
-from there. Plain Lua coroutines are fine for pure computation; anything that
-crosses the bridge belongs in the main loop.
+Each session runs a single-threaded Goja runtime driven one op at a time by the
+session actor (there is no `setTimeout` / `setInterval` event loop). Helper
+functions and `tool.def` handlers run synchronously on that same VM goroutine
+when called and may invoke host ops sequentially, returning control normally
+when finished.
 
 ---
 
 ## 3. Messages
 
-`session.inbox()` returns a table like this:
+`session.inbox()` returns an object like this:
 
-```lua
+```ts
 {
-  id = "msg-...",                 -- stable message id (audit joins on it)
-  type = "user",                  -- user | agent | timer | cron | boot | system
-  from = "webhook:alice",         -- core-stamped sender
-  text = "hello",                 -- channel text; may be empty
-  channel = "webhook",            -- origin channel (absent on timer/cron/boot)
-  reply_to = "...",               -- channel-specific recipient for a reply
-  ts = 1730000000,                -- Unix seconds
-  payload = { ... },              -- op-specific data (see below)
-  attachments = { ... },          -- media part descriptors, when present
-  provenance = {                  -- CORE-STAMPED; never loop-controlled
-    kind = "channel",             -- channel | agent | timer | scheduler | system | studio
-                                  -- timer = a session.scheduler.* fire, scoped to the
-                                  -- tenant that scheduled it; scheduler = an engine
-                                  -- trigger and the only maintenance timer provenance
-    principal = "webhook:alice",
-    parent = "...",               -- parent session id (agent messages)
-    request_id = "...",           -- correlation id (agent.request / agent.reply)
-    user_uuid = "u_...",          -- tenant this turn acts for, or nil
-    membership_uuid = "...",      -- group context, when one was validated
+  id: "msg-...",                 // stable message id (audit joins on it)
+  type: "user",                  // user | agent | timer | cron | boot | system
+  from: "webhook:alice",         // core-stamped sender
+  text: "hello",                 // channel text; may be empty
+  channel: "webhook",            // origin channel (absent on timer/cron/boot)
+  reply_to: "...",               // channel-specific recipient for a reply
+  ts: 1730000000,                // Unix seconds
+  payload: { ... },              // op-specific data (see below)
+  attachments: [ ... ],          // media part descriptors, when present
+  provenance: {                  // CORE-STAMPED; never loop-controlled
+    kind: "channel",             // channel | agent | timer | scheduler | system | studio
+                                 // timer = a session.scheduler.* fire, scoped to the
+                                 // tenant that scheduled it; scheduler = an engine
+                                 // trigger and the only maintenance timer provenance
+    principal: "webhook:alice",
+    parent: "...",               // parent session id (agent messages)
+    request_id: "...",           // correlation id (agent.request / agent.reply)
+    user_uuid: "u_...",          // tenant this turn acts for, or null/undefined
+    membership_uuid: "...",      // group context, when one was validated
   },
 }
 ```
@@ -195,8 +200,8 @@ crosses the bridge belongs in the main loop.
 | `type` | Where it comes from | `payload` |
 |---|---|---|
 | `user` | a channel or the Studio playground | channel-specific (`chat_id`, `text`, ...) |
-| `agent` | `agent.send` / `agent.request` / `agent.spawn` traffic | the sender's payload table |
-| `timer` | `scheduler.every/after/cron` | `{ timer_id = "..." }` |
+| `agent` | `agent.send` / `agent.request` / `agent.spawn` traffic | the sender's payload object |
+| `timer` | `scheduler.every/after/cron` | `{ timer_id: "..." }` |
 | `shell.result` | a `shell.start` job ending | the job: `{ id, state, exit_code, stdout, stderr, changed, ... }` |
 | `cron` | an engine `every:` / `cron:` trigger | the trigger's `payload:` copied verbatim |
 | `boot` | the supervisor, for `persistent: true` agents | none |
@@ -225,24 +230,24 @@ A loop cannot widen a tenant by putting a UUID in a payload.
 
 When a channel ingested media, the message carries small descriptors:
 
-```lua
+```ts
 {
-  type = "image", mime = "image/png",
-  handle = "media:<sha256>", name = "photo.png",
+  type: "image", mime: "image/png",
+  handle: "media:<sha256>", name: "photo.png",
 }
 ```
 
-Forward them unchanged into `llm.chat` (`parts = msg.attachments`) or
-`session.send` (`{ attachments = msg.attachments }`). Raw bytes never enter Lua;
-the runtime resolves handles at the provider/channel boundary.
+Forward them unchanged into `llm.chat` (`parts: msg.attachments`) or
+`session.send` (`{ attachments: msg.attachments }`). Raw bytes never enter the
+JS VM; the runtime resolves handles at the provider/channel boundary.
 
 ### Sending
 
-```lua
-session.send(text)                              -- reply to the active message
-session.send(text, { attachments = parts })     -- with media
-session.push(channel, reply_to, text)           -- proactive egress; cap channel.push
-session.push_user(uuid, text)                   -- by identity uuid; cap channel.push
+```ts
+session.send(text);                              // reply to the active message
+session.send(text, { attachments: parts });      // with media
+session.push(channel, reply_to, text);           // proactive egress; cap channel.push
+session.push_user(uuid, text);                   // by identity uuid; cap channel.push
 ```
 
 `session.send` and `session.push` pass through the core-owned safety egress
@@ -258,7 +263,7 @@ thing you need to survive.
 
 | Mechanism | Scope | Survives hot reload | Survives restart | Multi-instance | Use for |
 |---|---|---|---|---|---|
-| Lua locals | this coroutine | **no** | no | no | scratch within one turn |
+| JS local variables | this VM state | **no** | no | no | scratch within one turn |
 | `session.state` | one session | yes | yes (runtime store) | yes, follows the session | cursors, counters, timer ids |
 | memory profile (`memory.*`) | one agent (per user/key scope) | yes | yes | yes | conversational history, facts |
 | `store.*` | a named table, with scopes | yes | yes | yes | raw key/value or vector data |
@@ -269,11 +274,11 @@ thing you need to survive.
 A small durable key/value store for one session. It requires the
 `session.state` capability (not in the default set).
 
-```lua
-session.state.set(key, value)   -- value is any JSON-encodable Lua value
-session.state.get(key)          -- nil when never set
-session.state.delete(key)
-session.state.list()            -- { key = value }
+```ts
+session.state.set(key, value);   // value is any JSON-encodable JS value
+session.state.get(key);          // null/undefined when never set
+session.state.delete(key);
+session.state.list();            // { [key]: value }
 ```
 
 Limits: keys up to 128 characters from letters, digits, `. _ - :`; values up to
@@ -287,20 +292,20 @@ a step count — not for conversation history.
 the profile's recall handler (`plugin:recency` by default, or
 `plugin:semantic`).
 
-```lua
--- A turn record: routed to the "dialogue" store by the default chain.
+```ts
+// A turn record: routed to the "dialogue" store by the default chain.
 memory.write({
-  type = "turn",
-  id = msg.id,
-  text = msg.text,
-  reply = reply.text,
-})
+  type: "turn",
+  id: msg.id,
+  text: msg.text,
+  reply: reply.text,
+});
 
--- A fact: routed to the "facts" store.
-memory.write({ type = "fact", key = "name:" .. msg.from, value = { text = "..." } })
+// A fact: routed to the "facts" store.
+memory.write({ type: "fact", key: "name:" + msg.from, value: { text: "..." } });
 
--- Explicit targets bypass the routing table.
-memory.write({ targets = { { store = "dialogue", key = "custom:" .. msg.id, value = "..." } } })
+// Explicit targets bypass the routing table.
+memory.write({ targets: [{ store: "dialogue", key: "custom:" + msg.id, value: "..." }] });
 ```
 
 `memory.recall` returns a **list** of records, each `{ key, value, meta }` — not
@@ -308,12 +313,12 @@ a `{ records }` wrapper. The query shape depends on the handler:
 
 | Handler | Query |
 |---|---|
-| `plugin:recency` (default) | `{ store?, kind = "all" \| "prefix" \| "text" \| "time", prefix?, text?, k?, from?, to? }` |
+| `plugin:recency` (default) | `{ store?, kind: "all" \| "prefix" \| "text" \| "time", prefix?, text?, k?, from?, to? }` |
 | `plugin:semantic` | `{ text, store?, k? }` (needs an `embed_model` on the profile) |
 
 Without a `store`, recency reads `dialogue`, so name the store for a text
-search on `facts` (`{ kind = "text", store = "facts", text = "...", k = 5 }`).
-A time window is `kind = "time"` with RFC3339 `from` and `to`. Recall returns
+search on `facts` (`{ kind: "text", store: "facts", text: "...", k: 5 }`).
+A time window is `kind: "time"` with RFC3339 `from` and `to`. Recall returns
 whatever the handler returns; recency and semantic both return the record
 list. The [Memory](memory.md) guide covers profiles, stores and isolation.
 
@@ -323,15 +328,15 @@ list. The [Memory](memory.md) guide covers profiles, stores and isolation.
 and scoped by the engine (a private store keys rows per user, plus the service
 and pre-upgrade rows; a pool-bound store is governed by tenancy grants).
 
-```lua
-store.put("table", "key", value, { ttl = 3600, vector = { ... } })
-store.get("table", "key")                 -- { value, found }
-store.query("table", { kind = "all" })    -- { records = { { key, value, meta }, ... } }
-store.delete("table", "key")
+```ts
+store.put("table", "key", value, { ttl: 3600, vector: [...] });
+store.get("table", "key");                 // { value, found }
+store.query("table", { kind: "all" });     // { records: [{ key, value, meta }, ...] }
+store.delete("table", "key");
 ```
 
-Query kinds: `all`, `prefix` (`prefix = "..."`), `text` (`text = "...", k = n`),
-`vector` (`vector = {...}, k = n`), `time_range` (`from`, `to` as RFC3339).
+Query kinds: `all`, `prefix` (`prefix: "..."`), `text` (`text: "...", k: n`),
+`vector` (`vector: [...], k: n`), `time_range` (`from`, `to` as RFC3339).
 The backend must support the kind: a store that declares `requires: ["vector"]`
 (or `["text_search"]`) fails at boot when its backend cannot. Passing a vector
 to a backend without the `vector` feature is an explicit error, never a silent
@@ -343,34 +348,35 @@ The user-scoped file store (`files` capability) holds project trees with
 engine-native snapshot versioning. Bytes stay engine-side; `put` takes text or
 base64, `read` returns metadata and a handle.
 
-```lua
-files.put("notes", "inbox/1.md", msg.text)
-files.list("notes", "inbox/")
-files.commit("notes", { ref = "main", message = "note " .. msg.id })
-files.checkout("notes", "main")
+```ts
+files.put("notes", "inbox/1.md", msg.text);
+files.list("notes", "inbox/");
+files.commit("notes", { ref: "main", message: "note " + msg.id });
+files.checkout("notes", "main");
 ```
 
 Scratch is per-session and TTL'd:
 
-```lua
-files.scratch.put("page.html", body)
-files.scratch.read("page.html")
-files.scratch.list()
+```ts
+files.scratch.put("page.html", body);
+files.scratch.read("page.html");
+files.scratch.list();
 ```
 
 ---
 
 ## 5. Capabilities
 
-Capabilities gate the Lua surface at runtime. A refused op raises a clear error
-naming the op, the agent and the missing capability — it does not disappear into
-`attempt to call a nil value`.
+Capabilities gate the script surface at runtime. A refused op throws a clear
+`Error` naming the op, the agent and the missing capability — it does not vanish
+into an undefined-property error.
 
 | Capability | Gates |
 |---|---|
-| `llm.chat` | `llm.chat`, `llm.stream`, `llm.embed`, `llm.rerank` |
+| `llm.chat` | `llm.chat`, `llm.stream`, `llm.forward`, `llm.embed`, `llm.rerank`, `openai.request` |
 | `memory` | `memory.*`, `store.*` |
 | `tools` | `tools.list`, `tools.run` (declared tools follow visibility rules) |
+| `apis` | `api.list`, `api.call`, `api.batch`, `api.<pkg>.<action>` |
 | `agent.send` | `agent.send` (`agent.reply` is authorized by request ownership, `agent.list` is contact-scoped and ungated) |
 | `agent.request` | `agent.request` |
 | `agent.spawn` | `agent.spawn` |
@@ -383,8 +389,8 @@ naming the op, the agent and the missing capability — it does not disappear in
 | `channel.push` | `session.push`, `session.push_user` |
 
 Defaults when an agent omits `capabilities`: `llm.chat`, `memory`, `tools`,
-`agent.send`, `net.http`, `users`. Declare `net.mail`, `shell.exec`, `files`,
-`session.state` and `channel.push` explicitly.
+`apis`, `agent.send`, `net.http`, `users`. Declare `net.mail`, `shell.exec`,
+`files`, `session.state` and `channel.push` explicitly.
 
 Not gated by this table:
 
@@ -402,35 +408,35 @@ old configurations. Do not rely on it.
 
 ## 6. API reference
 
-All signatures below are the prelude's. Failures raise a Lua error; use
-`pcall` where a failure should not crash the loop.
+All signatures below are the prelude's. Failures throw an `Error`; use
+`try { ... } catch (err) { ... }` where a failure should not crash the loop.
 
 ### 6.1 `session`
 
-```lua
-session.inbox() -> Message                  -- parks
-session.send(text, opts?)                   -- reply to the active message
-session.send(text, { attachments = parts })
-session.push(channel, reply_to, text, opts?) -- cap: channel.push
-session.push_user(uuid, text)                -- cap: channel.push; identity layer
-session.exit()                               -- end the session (never resumes)
-session.state.set(key, value)                -- cap: session.state
-session.state.get(key) -> value | nil
+```ts
+session.inbox() -> Message                  // parks
+session.send(text, opts?)                   // reply to the active message
+session.send(text, { attachments: parts })
+session.push(channel, reply_to, text, opts?) // cap: channel.push
+session.push_user(uuid, text)                // cap: channel.push; identity layer
+session.exit()                               // end the session (never resumes)
+session.state.set(key, value)                // cap: session.state
+session.state.get(key) -> value | null | undefined
 session.state.delete(key)
-session.state.list() -> { key = value }
+session.state.list() -> { [key]: value }
 ```
 
 ### 6.2 Logging and time
 
-```lua
+```ts
 log.debug(msg) / log.info(msg) / log.warn(msg) / log.error(msg)
-time.sleep(seconds)       -- yields; the session is idle while parked
-os.time() -> Unix seconds -- UTC; takes no arguments
-os.date([format,] t?) -> date table | string
-os.env(name) -> string    -- engine env var; "" when unset
+time.sleep(seconds)       // yields; the session is idle while parked
+os.time() -> Unix seconds // UTC; takes no arguments
+os.date([format,] t?) -> date object | string
+os.env(name) -> string    // engine env var; "" when unset
 ```
 
-`os.date` returns a table by default: `{ year, month, day, hour, min, sec, wday,
+`os.date` returns an object by default: `{ year, month, day, hour, min, sec, wday,
 yday, isdst }`, `wday` 1 = Sunday, all UTC. Pass a strftime string for text:
 `os.date("%Y-%m-%d %H:%M:%S", t)`. Supported directives: `%Y %y %m %d %e %H %I
 %M %S %p %A %a %B %b %j %w %u %Z %%`. There is no local timezone; a leading `!`
@@ -439,26 +445,26 @@ is accepted as a no-op. Cron triggers, by contrast, match in
 
 ### 6.3 `agent`
 
-```lua
+```ts
 agent.info() -> {
   name, session_id, address, model, instructions,
   history_budget,
-  memory = { stores = { [name] = { backend, table, features, locality } },
-             recall, embed_model, rerank_model, oversample },
+  memory: { stores: { [name]: { backend, table, features, locality } },
+            recall, embed_model, rerank_model, oversample },
   shell, skills, capabilities,
-  agent_model, instructions_append, ...          -- per-user overrides
+  agent_model, instructions_append, ...          // per-user overrides
 }
 agent.config() -> {
   name, model, instructions_path | instructions_prompt,
-  prompts = { key = "text" },
-  goal = { type, success_signal, max_turns, on_goal_met }?,
-  extras = { ... }
+  prompts: { [key]: "text" },
+  goal?: { type, success_signal, max_turns, on_goal_met },
+  extras: { ... }
 }
-agent.send(address, payload)                    -- cap: agent.send
-agent.request(address, payload, timeout_s?) -> Message  -- cap: agent.request
-agent.reply(request_id, payload)                -- authorized by the request owner
-agent.list() -> [ { session_id, agent, parent_id } ]   -- contact-scoped
-agent.spawn(profile, spec?) -> { address, session_id, agent } -- cap: agent.spawn
+agent.send(address, payload)                    // cap: agent.send
+agent.request(address, payload, timeout_s?) -> Message  // cap: agent.request
+agent.reply(request_id, payload)                // authorized by the request owner
+agent.list() -> [ { session_id, agent, parent_id } ]    // contact-scoped
+agent.spawn(profile, spec?) -> { address, session_id, agent } // cap: agent.spawn
 ```
 
 - `agent.info().instructions` is the system prompt after any per-user layer is
@@ -471,7 +477,7 @@ agent.spawn(profile, spec?) -> { address, session_id, agent } -- cap: agent.spaw
   A single-instance deployment may use one deliberately, and a regional cell
   must set `locality_ok: true` on a durable store to do so.
 - `agent.config()` is the deployment profile as data. Secret references render
-  as opaque markers `{env="VAR"}` / `{cred="service"}`; resolved values never
+  as opaque markers `{env: "VAR"}` / `{cred: "service"}`; resolved values never
   cross the bridge.
 - Addresses: `agent:<name>` for a configured static agent, `session:<id>` for a
   live session (and for a spawned child — use `spawn_result.address`). `:new`
@@ -486,18 +492,18 @@ agent.spawn(profile, spec?) -> { address, session_id, agent } -- cap: agent.spaw
 
 ### 6.4 `scheduler`
 
-```lua
+```ts
 scheduler.every(interval_s) -> { id }
 scheduler.after(delay_s) -> { id }
 scheduler.cron(expr) -> { id }
 scheduler.cancel(id)
 ```
 
-Timers deliver `Message{ type = "timer", payload = { timer_id = id } }` into the
+Timers deliver `Message{ type: "timer", payload: { timer_id: id } }` into the
 same session. They are in memory and session-scoped: a restart forgets them, and
 a hot reload restarts the loop **without** clearing timers, so re-registering
 blindly duplicates them. Cancel the remembered id first (see
-[`scheduled.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/scheduled.lua)).
+[`scheduled.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/scheduled.ts)).
 
 `scheduler.cron` is a subset: `*/N * * * *` and fixed forms like `30 9 * * *`;
 day-of-month, month and weekday must be `*`, and a `*/N` minute cannot be paired
@@ -505,57 +511,58 @@ with a fixed hour. Use `every`/`after` (or engine triggers) for richer schedules
 
 ### 6.5 `llm`
 
-```lua
+```ts
 llm.chat(messages, opts?) -> {
   text, thinking, thinking_blocks, usage, tool_calls
 }
-llm.stream(messages, opts?) -> next_delta, close
+llm.stream(messages, opts?) -> Iterable<string>
 llm.embed(inputs, opts?) -> { vectors, usage }
-llm.rerank(query, documents, opts?) -> { results = [ { index, score } ] }
+llm.rerank(query, documents, opts?) -> { results: [ { index, score } ] }
 ```
 
-`messages` is an array of `{ role, content }` turns, or `{ role, parts = {...} }`
+`messages` is an array of `{ role, content }` turns, or `{ role, parts: [...] }`
 for multimodal turns. Tool history uses `tool_calls`, `tool_call_id`, and
-`tool_result`/`content` on a `role = "tool"` turn. Replay `thinking_blocks` on
+`tool_result`/`content` on a `role: "tool"` turn. Replay `thinking_blocks` on
 the assistant turn when continuing an Anthropic tool loop with thinking on.
 
 `opts` for `llm.chat`:
 
-```lua
+```ts
 {
-  model = "default",          -- a models: entry; "" = agent default
-  temperature = 0.7,
-  max_tokens = 4096,
-  thinking = "off"|"low"|"medium"|"high"|"xhigh"|"max",
-  tools = tools.list(),       -- model-visible tool specs
-  tool_choice = "auto"|"none",
+  model: "default",          // a models: entry; "" = agent default
+  temperature: 0.7,
+  max_tokens: 4096,
+  thinking: "off"|"low"|"medium"|"high"|"xhigh"|"max",
+  tools: tools.list(),       // model-visible tool specs
+  tool_choice: "auto"|"none",
 }
 ```
 
 `usage` is `{ input, output, cached, cache_write, reasoning }` where the
 provider reports them.
 
-**Streaming.** Call `next_delta` directly; a generic `for` is refused because the
-iterator yields across the bridge. The iterator closes itself at done; call
-`close()` after an early exit. It returns text deltas only — use `llm.chat` for
-usage and tool calls. See [`stream.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/stream.lua).
+**Streaming.** `llm.stream` returns a standard ES6 iterable. Iterate it with
+`for (const delta of llm.stream(messages, opts))`; breaking out early triggers
+`return()`, closing the underlying stream automatically (or call `iter.next()` /
+`iter.close()` manually). It yields text deltas only — use `llm.chat` for usage
+and tool calls. See [`stream.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/stream.ts).
 
 **Embeddings.** `llm.embed` takes a single string, an array of strings, or a
-mixed array of strings and part tables (`{type="image", handle=..., url=...}`);
-`merged = true` folds everything into one vector (a Jina content group).
+mixed array of strings and part objects (`{ type: "image", handle: ..., url: ... }`);
+`merged: true` folds everything into one vector (a Jina content group).
 `llm.rerank` returns 0-based indexes into `documents`.
 
 ### 6.6 `memory` and `store`
 
-```lua
+```ts
 memory.write(record) -> true
 memory.recall(query, opts?) -> [ { key, value, meta } ]
 
-store.put(table, key, value, opts?)   -- opts: { ttl = seconds, vector = {...} }
+store.put(table, key, value, opts?)   // opts: { ttl: seconds, vector: [...] }
 store.get(table, key) -> { value, found }
-store.query(table, query) -> { records = [ { key, value, meta } ] }
+store.query(table, query) -> { records: [ { key, value, meta } ] }
 store.delete(table, key)
-store.scopes(table) -> [ "user:<uuid>", ... ]   -- maintenance provenance only
+store.scopes(table) -> [ "user:<uuid>", ... ]   // maintenance provenance only
 ```
 
 The memory record and query shapes are in [Memory](#memory). `store.scopes` is
@@ -565,31 +572,31 @@ enumerates user scopes without reading one user's turn.
 
 ### 6.7 `tools` and `tool.def`
 
-```lua
-tools.list() -> [ { type = "function", ["function"] = { name, description, parameters } } ]
+```ts
+tools.list() -> [ { type: "function", function: { name, description, parameters } } ]
 tools.run(name, args, opts?) -> result
--- opts: { confirmed = true, confirm_id = "..." }
+// opts: { confirmed: true, confirm_id: "..." }
 ```
 
-Declare a model-visible tool in Lua at chunk top level, before `loop()`:
+Declare a model-visible tool in TypeScript/JS at top level, before `loop()`:
 
-```lua
+```ts
 tool.def({
-  name = "lua:shout",
-  description = "Uppercase the text and return it.",
-  params = {
-    type = "object",
-    properties = { text = { type = "string" } },
-    required = { "text" },
+  name: "script:shout",
+  description: "Uppercase the text and return it.",
+  params: {
+    type: "object",
+    properties: { text: { type: "string" } },
+    required: ["text"],
   },
-  handler = function(args)
-    return { ok = true, shouted = string.upper(args.text or "") }
-  end,
-})
+  handler: function(args) {
+    return { ok: true, shouted: String(args.text || "").toUpperCase() };
+  },
+});
 ```
 
 Declared tools merge into `tools.list()` and dispatch in `tools.run`; a handler
-that raises returns `{ ok = false, error = ... }` instead of killing the loop.
+that throws returns `{ ok: false, error: ... }` instead of killing the loop.
 Visibility follows the agent's `skills` and `tools.policy.default` exactly as
 Go-registered tools do — a hidden declared tool is not listed and not
 dispatchable. The Go policy (`forbidden`, `needs_confirm`) does not gate the
@@ -597,32 +604,32 @@ loop's own declared handlers.
 
 If a tool (Go or declared through an override) has `needs_confirm: true`, the
 runtime intercepts the first `tools.run`, asks the user, and re-invokes with
-`confirmed = true`; the loop sees only the final result. The prompt wait is
+`confirmed: true`; the loop sees only the final result. The prompt wait is
 bounded (ten minutes).
 
 ### 6.8 `shell`
 
-```lua
+```ts
 shell.run(command, opts?)   -> { ok, exit_code, stdout, stderr, duration_ms, timed_out,
                                  truncated, changed, deleted, conflicts, skipped }
-shell.start(command, opts?) -> { id, state = "running" }   -- result arrives in the inbox
+shell.start(command, opts?) -> { id, state: "running" }   // result arrives in the inbox
 shell.status(job_id) / shell.cancel(job_id)
 
--- opts: { project, environment, workdir, env, timeout }   -- timeout in seconds
+// opts: { project, environment, workdir, env, timeout }   // timeout in seconds
 ```
 
 Each call is one command in one sandbox on one project from the files store.
 What the command writes in the project is stored when it ends; nothing else
 survives to the next call, and the next call can run on any instance. A non-zero
-exit code is a result; a job that could not run raises. `shell.spawn`,
+exit code is a result; a job that could not run throws an error. `shell.spawn`,
 `shell.exec`, `shell.write` and `shell.destroy` still exist: for an SSH
-connection to a remote machine (`provider = "ssh"`), and as a compatibility
-shim for older loops. Needs `shell.exec`. The full rules are in the Loop API
-reference.
+connection to a remote machine (`provider: "ssh"`), and as a compatibility
+shim for older loops. Needs `shell.exec`. The full rules are in the Script
+Plugin Development reference.
 
 ### 6.9 `http` and `os`
 
-```lua
+```ts
 http.request(opts) -> {
   ok, status, headers, body,
   truncated?, saved?, save_error?
@@ -630,17 +637,17 @@ http.request(opts) -> {
 http.get(url, opts?)
 http.post(url, body, opts?)
 
--- opts: {
---   method, url, headers, body, json, query, timeout,
---   auth = { service = "..." },      -- stored credential, resolved by Go
---   save_to = "name",                -- body also lands in files scratch
--- }
+// opts: {
+//   method, url, headers, body, json, query, timeout,
+//   auth: { service: "..." },      // stored credential, resolved by Go
+//   save_to: "name",               // body also lands in files scratch
+// }
 ```
 
 Any HTTP status is a successful request result (`ok` says the request
 completed; `status` says what the server said). The body is capped at 10 MiB
-(`truncated` is set when it was cut); `save_to` keeps a large body out of Lua
-and returns `saved = { name, handle, size }`. Private, loopback, link-local and
+(`truncated` is set when it was cut); `save_to` keeps a large body out of JS
+and returns `saved: { name, handle, size }`. Private, loopback, link-local and
 reserved destinations are refused in the dialer. Needs `net.http` (which also
 gates `os.env`).
 
@@ -652,15 +659,15 @@ request.
 
 ### 6.10 `mail`
 
-```lua
+```ts
 mail.imap_fetch(opts) -> { ok, mailbox, count, messages }
--- opts: { host, port = 993, user, mailbox = "INBOX", unseen = false,
---         limit = 10, auth = { service = "..." } }
--- messages: [ { seq, uid, flags, subject, from, to, date, body } ]
+// opts: { host, port: 993, user, mailbox: "INBOX", unseen: false,
+//         limit: 10, auth: { service: "..." } }
+// messages: [ { seq, uid, flags, subject, from, to, date, body } ]
 
 mail.smtp_send(opts) -> { ok, sent }
--- opts: { host, port = 465, user, from, to = { ... }, subject,
---         text_body, auth = { service = "..." } }
+// opts: { host, port: 465, user, from, to: [...], subject,
+//         text_body, auth: { service: "..." } }
 ```
 
 The password is resolved from the credential store at call time and never
@@ -669,16 +676,16 @@ Needs `net.mail`.
 
 ### 6.11 `files`
 
-```lua
-files.put(project, path, text | { data = base64, handle = "media:...", mime = "..." }, opts?) -> { ok, entry }
+```ts
+files.put(project, path, text | { data: base64, handle: "media:...", mime: "..." }, opts?) -> { ok, entry }
 files.read(project, path) -> { ok, entry }
 files.list(project, prefix?) -> { ok, entries }
-files.delete(project, path) -> { ok = true }
+files.delete(project, path) -> { ok: true }
 files.projects() -> { ok, projects }
-files.commit(project, { ref = "main", message = "..." }?) -> { ok, commit }
+files.commit(project, { ref: "main", message: "..." }?) -> { ok, commit }
 files.checkout(project, ref | commit_id) -> { ok, manifest }
 
-files.scratch.put(name, text | { data = base64, mime = "..." }) -> { ok, entry }
+files.scratch.put(name, text | { data: base64, mime: "..." }) -> { ok, entry }
 files.scratch.read(name) -> { ok, entry }
 files.scratch.list() -> { ok, entries }
 ```
@@ -689,13 +696,13 @@ named ref — versioning is engine-native, not a git server. Needs `files`.
 
 ### 6.12 `user`
 
-```lua
+```ts
 user.current() -> { ok, registered, id, display_name, identities }
 user.usage() -> { ok, input, output, cached, reasoning, calls, failed,
                   billable, used, limit, remaining, unlimited, in_flight }
 user.has_credential(service) -> { ok, service, present }
-user.get(id) -> profile          -- maintenance provenance only
-user.list() -> [ profile ]       -- maintenance provenance only
+user.get(id) -> profile          // maintenance provenance only
+user.list() -> [ profile ]       // maintenance provenance only
 ```
 
 Read-only facts about the person the turn serves. `has_credential` answers
@@ -704,13 +711,13 @@ engine-fired maintenance turns.
 
 ### 6.13 `runtime` and `credential`
 
-```lua
+```ts
 runtime.triggers() -> {
   ok,
-  triggers = [ {
+  triggers: [ {
     name, kind, run_on_boot,
-    target = { profile }, payload,
-    event = { channel, match } | cron | every,
+    target: { profile }, payload,
+    event: { channel, match } | cron | every,
   } ]
 }
 
@@ -724,20 +731,36 @@ value should never be sent to a user.
 
 ### 6.14 `json`
 
-```lua
+```ts
 json.encode(value) -> string
 json.decode(text) -> value
 ```
 
 Everything crossing the bridge is JSON-encoded. Consequences:
 
-- an **empty table encodes as `{}`**, not `[]`; to send an empty array, omit the
-  field or use a different signal;
-- an array must be a dense 1..n sequence; mixed or non-numeric keys make it an
-  object;
-- functions, userdata and cyclic tables cannot cross;
-- `nil` fields disappear; `NaN`/`±Inf` encode as `null`;
-- `json.decode` requires a string and raises on malformed input.
+- JS distinguishes empty arrays `[]` from empty objects `{}` natively; arrays
+  serialize as JSON arrays and plain objects serialize as JSON objects;
+- functions, symbols, and cyclic objects cannot cross;
+- `undefined` properties are omitted, while `undefined` array slots and
+  `NaN`/`±Infinity` encode as `null`;
+- `json.decode` requires a string and throws on malformed input.
+
+### 6.15 `api` (External APIs)
+
+```ts
+api.list() -> [ { name, version, description, runtime: "script" | "wasm", actions } ]
+api.call(pkg, action, args?) -> result
+api.batch(calls) -> [ { ok, data?, error? } ]   // calls: [{ api, action, args }]
+api.<pkg>.<action>(args?) -> result              // Proxy shorthand for api.call
+```
+
+External APIs are standalone TypeScript (`goja`) or WebAssembly (`wazero`)
+packages configured under `apis:` (`apis` capability, in the default set). Each
+package runs in its own isolated runtime under its own permissions and timeout.
+`api.call` and `api.<pkg>.<action>` throw on error, while `api.batch` returns
+per-call `{ ok, data, error }` results. Actions marked `expose_as_tool: true`
+also appear as `api:<pkg>.<action>` tools when the agent has both `apis` and
+`tools`.
 
 ---
 
@@ -747,40 +770,41 @@ Each pattern below has a runnable file in `examples/loops/`. For whole deploymen
 
 ### 7.1 Request/response
 
-[`echo.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/echo.lua) — the smallest loop.
+[`echo.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/echo.ts) — the smallest loop.
 
-```lua
-function loop()
-  while true do
-    local msg = session.inbox()
-    session.send("echo: " .. (msg.text or ""))
-  end
-end
+```ts
+// af-prelude-version: 2
+function loop() {
+  while (true) {
+    const msg = session.inbox();
+    session.send("echo: " + (msg.text || ""));
+  }
+}
 ```
 
 ### 7.2 Conversational agent with memory
 
-[`chat.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/chat.lua) recalls recent turns, builds the
+[`chat.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/chat.ts) recalls recent turns, builds the
 prompt, trims it to the history budget, replies, and records the turn.
 
-```lua
-local info = agent.info()
-local messages = {
-  { role = "system", content = info.instructions or "You are a helpful assistant." },
+```ts
+const info = agent.info();
+let messages = [
+  { role: "system", content: info.instructions || "You are a helpful assistant." },
+];
+const hits = memory.recall({ store: "dialogue", kind: "text", text: msg.text, k: 5 });
+for (const hit of hits) {
+  const v = hit.value;
+  if (v && typeof v === "object") {
+    if (v.text) messages.push({ role: "user", content: v.text });
+    if (v.reply) messages.push({ role: "assistant", content: v.reply });
+  }
 }
-local hits = memory.recall({ store = "dialogue", kind = "text", text = msg.text, k = 5 })
-for _, hit in ipairs(hits) do
-  local v = hit.value
-  if type(v) == "table" then
-    if v.text then table.insert(messages, { role = "user", content = v.text }) end
-    if v.reply then table.insert(messages, { role = "assistant", content = v.reply }) end
-  end
-end
-table.insert(messages, { role = "user", content = msg.text or "" })
-messages = token_budget(messages, info.history_budget or 6000)
-local reply = llm.chat(messages)
-session.send(reply.text or "")
-memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text })
+messages.push({ role: "user", content: msg.text || "" });
+messages = token_budget(messages, info.history_budget || 6000);
+const reply = llm.chat(messages);
+session.send(reply.text || "");
+memory.write({ type: "turn", id: msg.id, text: msg.text, reply: reply.text });
 ```
 
 `token_budget` is a support chunk loaded into every session; it keeps the system
@@ -791,61 +815,60 @@ provider accepts.
 
 ### 7.3 Streaming
 
-[`stream.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/stream.lua) — direct iterator, `close()` on an
-early exit. Remember: text deltas only; a generic `for` does not work.
+[`stream.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/stream.ts) — iterate with `for (const delta of llm.stream(messages, opts))`; breaking early triggers `return()` to close the stream automatically (or call `.close()` manually). Remember: text delta strings only.
 
 ### 7.4 Multi-round tool loop
 
-[`tool_loop.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/tool_loop.lua) — the full shape:
+[`tool_loop.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/tool_loop.ts) — the full shape:
 
-1. send the user turn with `tools = tools.list()`;
+1. send the user turn with `tools: tools.list()`;
 2. if the reply has `tool_calls`, append the **assistant** turn (including its
    tool calls and thinking blocks);
-3. run each call, append a `role = "tool"` turn with `tool_call_id`;
+3. run each call, append a `role: "tool"` turn with `tool_call_id`;
 4. ask again — and keep looping, because the model may request another tool;
 5. stop at a final text reply or a round cap.
 
 A loop that runs tools but never sends their results back, or never asks again,
 produces a model that appears to ignore its tools.
 
-### 7.5 Declaring a tool in Lua
+### 7.5 Declaring a tool in TypeScript/JS
 
-Use `tool.def` at chunk top level (see the API reference). The handler runs on
-the loop coroutine and may call any op; a raised error becomes
-`{ ok = false, error = ... }`.
+Use `tool.def` at top level (see the API reference). The handler runs on the
+session VM and may call any op; a thrown error becomes
+`{ ok: false, error: ... }`.
 
 ### 7.6 Timers and periodic work
 
-[`scheduled.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/scheduled.lua) registers timers
+[`scheduled.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/scheduled.ts) registers timers
 idempotently and distinguishes them by `payload.timer_id`. Timer turns have no
 channel; do not `session.send` from one.
 
 ### 7.7 Daemon agents
 
-[`daemon.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/daemon.lua) handles the synthetic `boot`
+[`daemon.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/daemon.ts) handles the synthetic `boot`
 message a `persistent: true` agent receives at startup, then serves user
 messages and its own timer ticks. A daemon is one session; in a fleet exactly
 one instance owns it.
 
 ### 7.8 Multi-agent delegation
 
-[`delegate.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/delegate.lua) spawns a child from a
+[`delegate.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/delegate.ts) spawns a child from a
 `profiles.agent` template and waits for a request/reply:
 
-```lua
-local child = agent.spawn("researcher")
-local answer = agent.request(child.address, { question = msg.text }, 120)
+```ts
+const child = agent.spawn("researcher");
+const answer = agent.request(child.address, { question: msg.text }, 120);
 ```
 
 On the worker side, answer a request with the core-stamped id:
 
-```lua
-if msg.type == "agent" then
-  local rid = msg.provenance and msg.provenance.request_id
-  if rid then agent.reply(rid, { answer = "..." }) end
-elseif msg.type == "user" then
-  session.send("...")
-end
+```ts
+if (msg.type === "agent") {
+  const rid = msg.provenance && msg.provenance.request_id;
+  if (rid) agent.reply(rid, { answer: "..." });
+} else if (msg.type === "user") {
+  session.send("...");
+}
 ```
 
 A static peer can be addressed as `agent:<name>` (subject to `can_contact`).
@@ -854,50 +877,50 @@ opted out with `inherit_user: false`.
 
 ### 7.9 Files and snapshots
 
-[`files.lua`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/files.lua) writes a note, lists the project,
+[`files.ts`](https://github.com/hulipa487/agentflow-studio/blob/main/examples/loops/files.ts) writes a note, lists the project,
 and commits a snapshot. Use `files.checkout` to restore a tree, or
-`shell.run("make", { project = "..." })` to run a command on the working tree.
+`shell.run("make", { project: "..." })` to run a command on the working tree.
 
 ### 7.10 HTTP with a stored credential
 
-```lua
-local r = http.request({
-  url = "https://api.example.com/v1/items",
-  headers = { ["Accept"] = "application/json" },
-  auth = { service = "example_api" },   -- resolved by Go; never in Lua
-  query = { limit = 10 },
-  timeout = 20,
-})
-if r.status == 200 then
-  local data = json.decode(r.body)
-  session.send("found " .. tostring(#(data.items or {})) .. " items")
-else
-  session.send("upstream said " .. tostring(r.status))
-end
+```ts
+const r = http.request({
+  url: "https://api.example.com/v1/items",
+  headers: { Accept: "application/json" },
+  auth: { service: "example_api" },   // resolved by Go; never in JS
+  query: { limit: 10 },
+  timeout: 20,
+});
+if (r.status === 200) {
+  const data = json.decode(r.body);
+  session.send("found " + String((data.items || []).length) + " items");
+} else {
+  session.send("upstream said " + String(r.status));
+}
 ```
 
-For a large body, add `save_to = "response.json"` and read it with
+For a large body, add `save_to: "response.json"` and read it with
 `files.scratch.read`. Destinations are address-guarded unless the deployment
 opts out with `net.http.allow_private`.
 
 ### 7.11 Mail
 
-```lua
-local inbox = mail.imap_fetch({
-  host = "imap.example.com", user = "bot@example.com",
-  mailbox = "INBOX", unseen = true, limit = 5,
-  auth = { service = "mail_password" },
-})
+```ts
+const inbox = mail.imap_fetch({
+  host: "imap.example.com", user: "bot@example.com",
+  mailbox: "INBOX", unseen: true, limit: 5,
+  auth: { service: "mail_password" },
+});
 ```
 
 ### 7.12 Maintenance loops
 
 A `system`/`scheduler`-provenance turn may enumerate scopes and profiles:
 
-```lua
-for _, scope in ipairs(store.scopes("dialogue")) do
-  -- scope is "user:<uuid>"; read and write with scope-explicit keys
-end
+```ts
+for (const scope of store.scopes("dialogue")) {
+  // scope is "user:<uuid>"; read and write with scope-explicit keys
+}
 ```
 
 Engine-fired work (nightly compaction, a distiller) is the intended use.
@@ -909,12 +932,13 @@ Channel turns are denied, so one user can never enumerate another's scopes.
 
 ### Catch failures per turn
 
-```lua
-local ok, err = pcall(handler, msg)
-if not ok then
-  log.error("turn failed: " .. tostring(err))
-  session.send("Sorry — that turn failed.")
-end
+```ts
+try {
+  handler(msg);
+} catch (err) {
+  log.error("turn failed: " + String(err));
+  session.send("Sorry — that turn failed.");
+}
 ```
 
 An uncaught error crashes the loop and it restarts every second; a user-facing
@@ -922,18 +946,20 @@ error is almost always better than a crash loop.
 
 ### Retry with backoff
 
-```lua
-local function with_retry(fn, attempts)
-  for i = 1, attempts do
-    local ok, res = pcall(fn)
-    if ok then return true, res end
-    if i < attempts then time.sleep(0.5 * i) end
-  end
-  return false, "retries exhausted"
-end
+```ts
+function withRetry(fn: () => unknown, attempts: number): [boolean, unknown] {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return [true, fn()];
+    } catch (_) {
+      if (i < attempts) time.sleep(0.5 * i);
+    }
+  }
+  return [false, "retries exhausted"];
+}
 ```
 
-`time.sleep` yields; it does not block a thread.
+`time.sleep` yields to Go; it does not block an OS thread.
 
 ### Idempotency
 
@@ -954,15 +980,15 @@ eventually hold a session forever.
 
 A reliable prompt shape:
 
-```lua
-local info = agent.info()
-local messages = {
-  { role = "system", content = info.instructions or "" },
-}
--- recalled history (oldest → newest)
--- current user turn
-messages = token_budget(messages, info.history_budget or 6000)
-local reply = llm.chat(messages, { model = info.model })
+```ts
+const info = agent.info();
+let messages = [
+  { role: "system", content: info.instructions || "" },
+];
+// recalled history (oldest -> newest)
+// current user turn
+messages = token_budget(messages, info.history_budget || 6000);
+const reply = llm.chat(messages, { model: info.model });
 ```
 
 - `info.instructions` already includes any per-user instruction layer.
@@ -993,7 +1019,8 @@ local reply = llm.chat(messages, { model = info.model })
 
 1. Start the runtime and connect Studio (`runtime.studio.enabled`, default on).
 2. Edit the loop in the builder and press **Validate** — it checks the prelude
-   directive, compiles the chunk, and validates the agent definition.
+   directive, strips TypeScript annotations, compiles the chunk, and validates
+   the agent definition.
 3. **Apply** and open the playground. Each turn streams a trace:
    `turn.start`, `op.start`/`op.end` (model, tool, duration, tokens), safety
    decisions, replies, and loop errors.
@@ -1015,30 +1042,31 @@ view (`/admin/api/logs` SSE) is the same feed.
 Save the loop file; the running session restarts from a fresh state at its next
 park point. If the new file does not compile or declares the wrong prelude
 version, the running version stays in place. `session.state`, memory, stores and
-files survive the restart; Lua locals do not.
+files survive the restart; JS local variables do not.
 
 ### Example loops
 
-Every file under `examples/loops/` is checked by
-`TestExampleLoopsCompile` — it must declare the current prelude version and
-compile. Use them as starting points, then point an agent's `loop:` at your
-copy.
+Every file under `examples/loops/` is checked by the test suite
+(`examples.test.ts` and `vm.CompileCheck`) — it must declare the current
+prelude version and compile cleanly. Use them as starting points, then point an
+agent's `loop:` at your copy.
 
 ---
 
 ## 11. Gotchas
 
-- **No directive, no run.** `-- af-prelude-version: N` in the leading comment
+- **No directive, no run.** `// af-prelude-version: N` in the leading comment
   block is mandatory. A mismatch is a hard refusal, not a warning.
 - **Returning from `loop()` restarts it.** Call `session.exit()` to end a
   session.
-- **An uncaught error is a crash loop.** Wrap turns in `pcall`.
+- **An uncaught error is a crash loop.** Wrap turns in `try { ... } catch (err) { ... }`.
 - **`session.send` needs an active inbound message.** On `timer`, `cron` and
   `boot` turns it fails; use `push`/`push_user` or keep state.
 - **Timers duplicate across hot reloads.** Cancel the remembered id before
   registering again; timers are in memory and lost on restart.
-- **`llm.stream`: no generic `for`.** Call `next_delta()` directly and `close()`
-  on an early exit. It yields text only.
+- **`llm.stream` yields text deltas only.** Iterate with
+  `for (const delta of llm.stream(...))`; breaking early triggers `return()` to
+  close the stream automatically (or call `iter.close()` manually).
 - **The tool loop needs the second round.** Append the assistant tool-call turn
   and each tool result; then ask again. `token_budget` does not count tool
   results.
@@ -1050,17 +1078,20 @@ copy.
 - **`memory.recall` returns a list**, while `store.query` returns `{ records }`.
 - **Scopes are enforced engine-side.** `store.scopes` and `user.get/list` are
   maintenance-only; a channel turn is denied.
-- **`os` is not the real Lua os.** Only `os.env`, `os.time`, and `os.date`
-  exist, all UTC. There is no `io`, no `debug`, no socket library.
-- **Empty tables encode as `{}`.** Arrays must be dense; functions and cyclic
-  tables cannot cross the bridge.
-- **Capabilities are enforced, not advisory.** A withheld op raises a refusal
+- **`os` is not a full Node/Lua `os` library.** Only `os.env`, `os.time`, and
+  `os.date` exist, all UTC. There is no `require`, `fs`, `process`, `fetch`,
+  `setTimeout`, or socket library.
+- **Values crossing the bridge are JSON-encoded.** Empty arrays `[]` and empty
+  objects `{}` preserve distinct JSON types, while functions, symbols, and
+  cyclic objects cannot cross the bridge.
+- **Capabilities are enforced, not advisory.** A withheld op throws a refusal
   naming the capability; declare `files`, `net.mail`, `shell.exec`,
-  `session.state` and `channel.push` explicitly.
-- **No hooks.** The engine dispatches only `safety.ingress`, `safety.egress`
-  and `gateway.route`; everything else is a naming convention called by the
-  prelude or your loop (`memory_routing_table`, `memory_recall_handler`,
-  `token_budget`, ...).
+  `session.state` and `channel.push` explicitly (`apis` is in defaults).
+- **Hooks.** The engine dispatches only `safety.script_filters`,
+  `safety.ingress`, `safety.egress`, `gateway.route`, and configured External API
+  (`apis`) actions directly; everything else inside a session VM is a global
+  convention called by the prelude or your loop (`memory_routing_table`,
+  `memory_recall_handler`, `token_budget`, ...).
 - **`scheduler.cron` is a subset.** Use `every`/`after` or engine triggers for
   day/month/weekday schedules.
 - **`http.request` refuses private destinations** in the dialer (redirect hops
@@ -1088,6 +1119,7 @@ copy.
 | `llm.chat` / `stream` / `embed` / `rerank` | `llm.chat` | yes | metered/budgeted |
 | `memory.*` / `store.*` | `memory` | yes | scoped |
 | `tools.list` / `run` | `tools` | yes | confirm interception |
+| `api.*` | `apis` | yes | external TS/Wasm packages |
 | `shell.*` | `shell.exec` | yes | one-off sandbox jobs; SSH handles |
 | `http.*` / `os.env` | `net.http` | yes | address guard |
 | `mail.*` | `net.mail` | yes | no address guard |
@@ -1115,50 +1147,54 @@ loop may call:
 | `plugin:semantic` | `memory_semantic_recall_handler(query, opts)` | `memory.recall` |
 
 To replace one, put a same-named file in `plugins.dir` (e.g.
-`plugins/recency.lua`). It shadows the builtin for the whole deployment; the
+`plugins/recency.ts`). It shadows the builtin for the whole deployment; the
 shadow is watched, and it is loaded on every session start, so an edit takes
 effect without a process restart. A shadow is still version-gated.
 
 ### Route handlers
 
-`gateway.route` (default `plugin:per_chat`) is a different surface: one Lua
+`gateway.route` (default `plugin:per_chat`) is a different surface: one Goja VM
 state per process, outside any session. Its `loop()` receives
-`{ message = Message, agent = "..." }` items and decides where a message goes:
+`{ message: Message, agent: "..." }` items and decides where a message goes:
 
-```lua
-function loop()
-  while true do
-    local item = session.inbox()
-    local msg = item.message
+```ts
+function loop() {
+  while (true) {
+    const item = session.inbox();
+    const msg = item.message;
     af.op({
-      type = "deliver",
-      agent = item.agent,
-      key = (msg.channel or "?") .. ":" .. (msg.from or "?"),
-      message = msg,
-    })
-  end
-end
+      type: "deliver",
+      agent: item.agent,
+      key: (msg.channel || "?") + ":" + (msg.from || "?"),
+      message: msg,
+    });
+  }
+}
 ```
 
 `deliver` takes `{ agent, key, message, identity_group?, kind? }`. With no
 `kind`, the message goes to the conversation session for `key`, created on the
-first message and kept. `kind = "ephemeral"` gives the message a session of its
+first message and kept. `kind: "ephemeral"` gives the message a session of its
 own that serves exactly one turn and is gone: it takes no lease, writes no inbox
 row and its id is never retired, so it is the right choice for stateless
 traffic. Give it a key that is unique per request; the built-in handler does
 this for the [OpenAI-compatible channel](openai-api.md):
 
-```lua
-if msg.payload and msg.payload.api == "openai.chat" then
-  local conv = msg.payload.conversation_id
-  if conv ~= nil and conv ~= "" then
-    af.op({ type = "deliver", agent = item.agent, message = msg,
-            key = "conv:" .. msg.channel .. ":" .. tostring(conv) })
-  else
-    af.op({ type = "deliver", agent = item.agent, message = msg, kind = "ephemeral",
-            key = "req:" .. tostring(msg.payload.request_id) })
-  end
-end
+```ts
+if (msg.payload && msg.payload.api === "openai.chat") {
+  const conv = msg.payload.conversation_id;
+  if (conv !== null && conv !== undefined && conv !== "") {
+    af.op({
+      type: "deliver", agent: item.agent, message: msg,
+      key: "conv:" + msg.channel + ":" + String(conv),
+    });
+  } else {
+    af.op({
+      type: "deliver", agent: item.agent, message: msg, kind: "ephemeral",
+      key: "req:" + String(msg.payload.request_id),
+    });
+  }
+}
 ```
 
 An unknown `kind` is refused and the message is not delivered, and an ephemeral
@@ -1184,7 +1220,7 @@ different policy, but the engine-side validation is not optional.
 
 - [Full config reference](configuration.md) —
   agents, memory, capabilities, triggers, MCP, channels.
-- [Lua plugin development](loops-reference.md) — the
+- [Script plugin development](loops-reference.md) — the
   embedded docs' API tables and multimodal matrix.
 - [`examples/loops/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/loops) — every runnable pattern above.
 - [`agentflow.yaml`](https://github.com/hulipa487/agentflow/blob/main/agentflow.yaml) — the example deployment (the repo

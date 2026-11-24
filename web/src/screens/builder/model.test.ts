@@ -28,11 +28,11 @@ const catalog: Catalog = {
   safety_profiles: ['default', 'none', 'strict'],
   memory_profiles: [],
   prompt_keys: [],
-  prelude_version: 1,
+  prelude_version: 2,
   templates: [],
 }
 
-const echo: Template = { name: 'echo', title: 'Echo', description: '', loop: '-- af-prelude-version: 1\nfunction loop() end\n' }
+const echo: Template = { name: 'echo', title: 'Echo', description: '', loop: '// af-prelude-version: 2\nfunction loop() {}\n' }
 
 function detailOf(agent: Partial<AgentDetail['agent']>, over: Partial<AgentDetail> = {}): AgentDetail {
   return {
@@ -127,9 +127,9 @@ describe('initialForm', () => {
 
 describe('buildYAML', () => {
   it('renders a new agent like the desktop builder', () => {
-    expect(buildYAML(initialForm('', null, null, catalog), null)).toBe('loop: "./agent.lua"\nsafety: "default"\nhistory_budget: 6000\n')
+    expect(buildYAML(initialForm('', null, null, catalog), null)).toBe('loop: "./agent.ts"\nsafety: "default"\nhistory_budget: 6000\n')
     const f = { ...initialForm('', null, echo, catalog), name: ' echo2 ' }
-    expect(buildYAML(f, null)).toBe('loop: "./echo2.lua"\nsafety: "default"\nhistory_budget: 6000\ncapabilities: ["llm.chat","tools"]\n')
+    expect(buildYAML(f, null)).toBe('loop: "./echo2.ts"\nsafety: "default"\nhistory_budget: 6000\ncapabilities: ["llm.chat","tools"]\n')
   })
 
   it('writes every key in order and omits the empty ones', () => {
@@ -147,7 +147,7 @@ describe('buildYAML', () => {
       extras: '{"z": 1, "a": "<b>&"}',
     }
     expect(buildYAML(f, null)).toBe(
-      'loop: "./a.lua"\n' +
+      'loop: "./a.ts"\n' +
         'model: "fast"\n' +
         'safety: "strict"\n' +
         'history_budget: 4000\n' +
@@ -162,27 +162,27 @@ describe('buildYAML', () => {
   })
 
   it('keeps the loop path of a loaded definition', () => {
-    const d = detailOf({ loop: '/srv/loops/a.lua' })
-    expect(buildYAML(initialForm('a', d, null, catalog), d)).toBe('loop: "/srv/loops/a.lua"\nsafety: "default"\nhistory_budget: 6000\n')
+    const d = detailOf({ loop: '/srv/loops/a.ts' })
+    expect(buildYAML(initialForm('a', d, null, catalog), d)).toBe('loop: "/srv/loops/a.ts"\nsafety: "default"\nhistory_budget: 6000\n')
   })
 
   it('leaves out a history budget that is not a positive integer', () => {
     for (const history of ['', '0', '-5', '6k', '1.5']) {
-      expect(buildYAML({ ...initialForm('a', null, null, catalog), history }, null)).toBe('loop: "./a.lua"\nsafety: "default"\n')
+      expect(buildYAML({ ...initialForm('a', null, null, catalog), history }, null)).toBe('loop: "./a.ts"\nsafety: "default"\n')
     }
   })
 
   it('writes the memory profile after the shell, and keeps an inline one as it is', () => {
     const f = { ...initialForm('a', null, null, catalog), shell: 'sandbox', memory: 'group_chat' }
-    expect(buildYAML(f, null)).toBe('loop: "./a.lua"\nsafety: "default"\nhistory_budget: 6000\nshell: "sandbox"\nmemory: "group_chat"\n')
+    expect(buildYAML(f, null)).toBe('loop: "./a.ts"\nsafety: "default"\nhistory_budget: 6000\nshell: "sandbox"\nmemory: "group_chat"\n')
     const inline = { stores: { facts: { backend: 'main_db', table: 'notes' } }, recall: 'plugin:recency' }
     const d = detailOf({ memory_inline: inline })
     const g = initialForm('a', d, null, catalog)
     expect(g.memory).toBe(MEMORY_INLINE)
     expect(buildYAML(g, d)).toBe(
-      'loop: "./a.lua"\nsafety: "default"\nhistory_budget: 6000\nmemory: {"recall":"plugin:recency","stores":{"facts":{"backend":"main_db","table":"notes"}}}\n',
+      'loop: "./a.ts"\nsafety: "default"\nhistory_budget: 6000\nmemory: {"recall":"plugin:recency","stores":{"facts":{"backend":"main_db","table":"notes"}}}\n',
     )
-    expect(buildYAML({ ...g, memory: '' }, d)).toBe('loop: "./a.lua"\nsafety: "default"\nhistory_budget: 6000\n')
+    expect(buildYAML({ ...g, memory: '' }, d)).toBe('loop: "./a.ts"\nsafety: "default"\nhistory_budget: 6000\n')
   })
 
   it('rejects extras that are not JSON', () => {
@@ -194,7 +194,7 @@ describe('helpers', () => {
   it('encodes like encoding/json', () => {
     expect(goJSON('a\u2028b')).toBe('"a\\u2028b"')
     expect(goJSON({ b: [{ d: 1, c: null }], a: true })).toBe('{"a":true,"b":[{"c":null,"d":1}]}')
-    expect(goJSON('C:\\loops\\a.lua')).toBe('"C:\\\\loops\\\\a.lua"')
+    expect(goJSON('C:\\loops\\a.ts')).toBe('"C:\\\\loops\\\\a.ts"')
   })
 
   it('parses integers like strconv.Atoi', () => {

@@ -1,6 +1,5 @@
-// The Loop tab: the Lua 5.1 editor with its language intelligence, a one-line
-// verdict beside the title, and the issues as a list that jumps to the line.
-// Diagnostics are also drawn in the editor itself by the lua extension.
+// The Loop tab: the TypeScript/JS editor with language intelligence, a one-line
+// verdict beside the title, and issues as a clickable list that jumps to the line.
 import { useEffect, useRef, useState } from 'react'
 import type { Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
@@ -9,7 +8,7 @@ import { ChevronDown, ChevronRight, List, Plus } from 'lucide-react'
 import { Button, Chip, CopyButton, Dot, IconButton, cx, toneText, type Tone } from '@/components/ui'
 import { CodeEditor } from '@/components/ui/CodeEditor'
 import { t } from '@/i18n'
-import type { LuaDiagnostic, Severity } from '@/lua'
+import type { ScriptDiagnostic, Severity } from '@/script'
 import { EditorFrame } from './EditorFrame'
 import { loopStatus } from './model'
 
@@ -30,7 +29,7 @@ export function LoopTab({
   source: string
   onChange: (text: string) => void
   extensions: Extension[]
-  diagnostics: LuaDiagnostic[]
+  diagnostics: ScriptDiagnostic[]
   /** True while an edit is waiting for the next analysis pass. */
   checking: boolean
   /** Set when the analyzer itself failed. */
@@ -53,7 +52,7 @@ export function LoopTab({
     v.focus()
   }, [active])
 
-  const jump = (d: LuaDiagnostic) => {
+  const jump = (d: ScriptDiagnostic) => {
     const v = view.current
     if (!v) return
     // The list can be one debounce behind the document; stay inside it.
@@ -138,7 +137,7 @@ export function LoopTab({
       }
     >
       <CodeEditor
-        language="lua"
+        language="typescript"
         value={source}
         onChange={onChange}
         extensions={extensions}

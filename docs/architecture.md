@@ -1,6 +1,6 @@
 ## Architecture
 
-A request moves down through a short stack. A channel driver turns platform bytes into a `session.Message`. The optional identity layer resolves who sent it, and the router's Lua handler picks a session key. The supervisor finds or creates the session actor, which runs one Lua loop. The loop calls capability-backed ops through the async bridge, and drivers reach external systems. The core owns the safety filters, the audit journal and provenance. They sit on the path itself, so a loop cannot remove or forge them.
+A request moves down through a short stack. A channel driver turns platform bytes into a `session.Message`. The optional identity layer resolves who sent it, and the router's script handler picks a session key. The supervisor finds or creates the session actor, which runs one TypeScript/JS loop in a Goja VM. The loop calls capability-backed ops through the async bridge (and configured Goja or `wazero` Wasm External APIs), and drivers reach external systems. The core owns the safety filters, the audit journal and provenance. They sit on the path itself, so a loop cannot remove or forge them.
 
 ```
 ┌─ Channels (bytes in / replies out) ─────────────────────────────────────────┐
@@ -15,7 +15,7 @@ A request moves down through a short stack. A channel driver turns platform byte
 │  handle → user:<uuid> · /link codes consumed here · unregistered allow|reject │
 └───────────┬──────────────────────────────────────────────────────────────────┘
             ▼
-┌─ Router (one Lua service state per process) ────────────────────────────────┐
+┌─ Router (one Goja service VM per process) ──────────────────────────────────┐
 │  audit journal (inbound) ──► gateway.route handler (default plugin:per_chat)  │
 │  computes the session key, may propose a group; router.state.* is durable     │
 └───────────┬──────────────────────────────────────────────────────────────────┘
@@ -28,7 +28,7 @@ A request moves down through a short stack. A channel driver turns platform byte
 └───────────┬──────────────────────────────────────────────────────────────────┘
             │ one mailbox per session
             ▼
-┌─ Actor (1 goroutine + 1 Lua state per session) ─────────────────────────────┐
+┌─ Actor (1 goroutine + 1 Goja VM per session) ───────────────────────────────┐
 │  session.inbox() ──► safety ingress ──► loop() continues                      │
 │  llm.* / memory.* / tools.run / shell.* / http.* / files.* / agent.* / …      │
 │  __af_op(json) yields ── inline op, or worker pool (fair-share per tenant)    │
@@ -56,7 +56,7 @@ A request moves down through a short stack. A channel driver turns platform byte
 user ─► [channel driver]
           │ normalize → session.Message{from, text, attachments}
           ▼
-       identity sink (optional) ─► router: journal "routed" ─► gateway.route (Lua)
+       identity sink (optional) ─► router: journal "routed" ─► gateway.route (script)
           │                                          (per_chat → session key)
           ▼
        supervisor.Deliver ◄──────────────────────────┘
@@ -76,7 +76,7 @@ user ─► [channel driver]
        safety egress ─► journal "delivered" ─► gateway.Send ─► channel ─► user
 ```
 
-A loop decides when and how to call tools. There is no `on_tool_call` hook: a loop reads `reply.tool_calls` from `llm.chat` and calls `tools.run` itself (see `examples/loops/tool_loop.lua`). A `tools.run` that answers `needs_confirm` parks the coroutine while the actor asks the user, then resumes it.
+A loop decides when and how to call tools. There is no `on_tool_call` hook: a loop reads `reply.tool_calls` from `llm.chat` and calls `tools.run` itself (see `examples/loops/tool_loop.ts`). A `tools.run` that answers `needs_confirm` parks the script execution while the actor asks the user, then resumes it.
 
 ---
 
@@ -110,12 +110,12 @@ project launch: user ──► main ──[directive: start_project]──► ag
 | --- | --- | --- |
 | channels | Transport | Normalize raw platform bytes into the shared `session.Message` and deliver replies back out. `studio` is a synthetic channel registered for the playground. |
 | identity | Who | Optional. Resolves a channel handle to `user:<uuid>`, consumes `/link` codes, and refuses unregistered senders when `runtime.users.unregistered: reject`. |
-| router | Routing | Journals the inbound, then runs the `gateway.route` Lua handler in one service state per process to compute a session key (and, optionally, propose a group identity). Hot-reloadable. |
+| router | Routing | Journals the inbound, then runs the `gateway.route` script handler in one Goja service VM per process to compute a session key (and, optionally, propose a group identity). Hot-reloadable. |
 | supervisor | Authority | Session lookup and spawn, provenance stamping, group-membership validation, per-tenant session caps, `can_contact` on agent hops, spawn/request/reply, fleet hand-off through the session hub. |
-| actor | Execution | One goroutine + one Lua state per session. Drives the loop, parks on `__af_op`, resumes on results, runs safety ingress at `session.inbox()` and safety egress on every send. |
-| capabilities | Ops | Lua-facing tables (`llm`, `memory`, `store`, `tools`, `shell`, `http`, `mail`, `files`, `agent`, `scheduler`, `session.state`, `user`, `credential`) over the single async-bridge primitive. Each agent gets only the handlers its `capabilities` grant. |
-| drivers | I/O | Reach real systems: LLM providers, storage and vector backends, shell providers, MCP servers, search engines, the browser, mail, S3. |
-| safety | Guard | Core-owned filter chain (`profiles.safety`, model-backed `safety.classifiers`) that runs inside the actor on ingress and egress regardless of the loop. Cannot be uninstalled from Lua. |
+| actor | Execution | One goroutine + one Goja VM per session. Drives the loop, parks on `__af_op`, resumes on results, runs safety ingress at `session.inbox()` and safety egress on every send. |
+| capabilities | Ops | Script-facing APIs (`llm`, `memory`, `store`, `tools`, `api`, `shell`, `http`, `mail`, `files`, `agent`, `scheduler`, `session.state`, `user`, `credential`) over the single async-bridge primitive. Each agent gets only the handlers its `capabilities` grant. |
+| drivers | I/O | Reach real systems: LLM providers, storage and vector backends, shell providers, MCP servers, `wazero` Wasm External API modules, search engines, the browser, mail, S3. |
+| safety | Guard | Core-owned filter chain (`profiles.safety`, model-backed `safety.classifiers`, `safety.script_filters`) that runs inside the actor on ingress and egress regardless of the loop. Cannot be uninstalled from a loop script. |
 | admin plane | Operators | `/healthz`, `/readyz`, `/metrics`, the `/admin/api/*` JSON API used by Studio and the browser console, over TCP and/or a local socket or pipe. |
 
 ## Deployment: two tiers
@@ -256,9 +256,9 @@ validator refuses a log-plane directory there. Retention stays per plane:
 
 ### Invariants a deployment has to keep
 
-- **Route handlers keep their state in the store, not in Lua.** The router is
-  one Lua state per process, and whichever instance receives an inbound runs it
-  — so a handler that remembers anything in a Lua global gives each instance its
+- **Route handlers keep their state in the store, not in script globals.** The router is
+  one Goja VM per process, and whichever instance receives an inbound runs it
+  — so a handler that remembers anything in a module global gives each instance its
   own answer, and a restart forgets. `router.state.*` is the place for it
   instead: durable, deployment-wide, the same value on every instance, and it
   survives a failover.

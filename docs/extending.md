@@ -1,11 +1,11 @@
 # Extending AgentFlow without rebuilding Go
 
-AgentFlow has four extension planes. The first three are configuration or Lua;
+AgentFlow has four extension planes. The first three are configuration, TypeScript/JS, or Wasm External APIs;
 only the last one changes the binary.
 
 ## 1. Declarative HTTP tools
 
-An external API becomes a model-visible tool with no Lua and no Go:
+An external API becomes a model-visible tool with no custom script and no Go:
 
 ```yaml
 tools:
@@ -97,9 +97,9 @@ The HMAC is required. The adapter is trusted to relay the platform's sender
 identity, but bridge handles are recorded as asserted; linking still requires
 the normal in-channel `/link` challenge before a handle gets a profile scope.
 
-## 4. Lua packages
+## 4. Script packages & External APIs
 
-A package is a directory of version-gated Lua source. Declare it and import it
+A package is a directory of version-gated TypeScript/JS source. Declare it and import it
 from a loop:
 
 ```yaml
@@ -107,16 +107,16 @@ packages:
   greeting: ./packages/greeting
 ```
 
-```lua
--- af-prelude-version: 1
--- af-import: greeting
+```ts
+// af-prelude-version: 2
+// af-import: greeting
 
-function loop()
-  while true do
-    local msg = session.inbox()
-    session.send(Greeting.hello(msg.text))
-  end
-end
+function loop() {
+  while (true) {
+    const msg = session.inbox();
+    session.send(Greeting.hello(msg.text));
+  }
+}
 ```
 
 A package may contain `manifest.yaml`:
@@ -124,30 +124,30 @@ A package may contain `manifest.yaml`:
 ```yaml
 name: greeting
 version: "1"
-prelude_api: 1
-files: [greeting.lua]
+prelude_api: 2
+files: [greeting.ts]
 ```
 
-Without a manifest, `*.lua` files load in lexical order. Packages are source
-composition, not isolated modules: they share the session's Lua state and
+Without a manifest, `*.ts` and `*.js` files load in lexical order. Packages are source
+composition, not isolated modules: they share the session's Goja VM state and
 capability set (which the agent still controls). `package:<name>` is also
 accepted directly as an agent's `loop:` reference. Editing a package restarts
-the sessions that may import it.
+the sessions that may import it. For isolated reusable integrations, configure
+TypeScript/JS or `wazero` Wasm modules under `apis` and call them from loops via `api.*`.
 
 ## 5. What still needs Go
 
 Compiled drivers remain compiled: a new LLM wire protocol, a new memory/vector
-backend, a new search engine or shell provider, and new *kinds* of safety
-filter. Model-backed moderation and classification no longer need Go — declare
-a `safety.classifiers` entry and reference it as `classifier:<name>` in a
-profile. Lua-coded filters would still need a native hook. The workarounds are:
+backend, a new search engine or shell provider, and new native Go *kinds* of safety
+filter. Model-backed moderation uses `safety.classifiers` (`classifier:<name>`), and
+scripted filters use `safety.script_filters` (`script:<name>`). The other workarounds are:
 
 - OpenAI-compatible endpoints for a new model vendor (`provider: openai` +
   `base_url`);
-- MCP or a declarative HTTP tool for a new search/API provider;
+- MCP, External APIs (`apis.*` in Goja or `wazero` Wasm), or a declarative HTTP tool for a new search/API provider;
 - the bridge for a new chat platform;
-- Lua packages for shared policy;
-- a classifier prompt plus label policy for moderation without recompiling.
+- TypeScript/JS packages for shared policy;
+- a classifier prompt plus label policy or a `safety.script_filters` hook for moderation without recompiling.
 
 ## 6. Tenant controls
 
@@ -179,7 +179,7 @@ permissions.
 
 ```bash
 agentflow validate -config agentflow.yaml
-agentflow loop check loops/support.lua
+agentflow loop check loops/support.ts
 agentflow loop test scenarios/refund.yaml
 ```
 
@@ -187,7 +187,7 @@ A scenario is data:
 
 ```yaml
 agent: support
-loop: ../loops/support.lua
+loop: ../loops/support.ts
 llm:
   - match: refund
     text: "I can help with that."
@@ -203,7 +203,7 @@ scenario shape.
 
 ## Hooks and extension points
 
-There is no hook registry. The engine dispatches three points itself, and everything else is a **naming convention the Lua calls**: a plugin contributes a global with the name its caller looks for, and that is the whole contract. The difference decides where a plugin's code has to live, so both are listed here.
+There is no hook registry. The engine dispatches three points itself, and everything else is a **naming convention the script calls**: a plugin contributes a global with the name its caller looks for, and that is the whole contract. The difference decides where a plugin's code has to live, so both are listed here.
 
 ### Dispatched by the core
 
@@ -211,15 +211,15 @@ These run on every turn whatever the loop does. Replacing the loop handler canno
 
 | Point | Kind | Implemented by | Notes |
 | --- | --- | --- | --- |
-| `safety.ingress` | filter | Go, core-owned | Runs before the loop sees a message; may drop it, skip the turn, or rewrite the text. Of the five baseline filters only `affect-guard` ever drops; `classifier:<name>` filters can block on model output. |
+| `safety.ingress` | filter | Go, core-owned | Runs before the loop sees a message; may drop it, skip the turn, or rewrite the text. Of the baseline filters only `affect-guard` drops, while `classifier:<name>` and `script:<name>` filters can block or redirect. |
 | `safety.egress` | filter | Go, core-owned | Runs before the reply reaches the channel; may drop it (with an optional core-authored fallback). |
-| `gateway.route` | handler | a Lua chunk named by `gateway.route`, default `plugin:per_chat` | One Lua state per process. Reads the message and returns a session address. A route handler may call only `inbox`, `deliver`, `runtime.triggers`, `router.state.*` and `log`; anything else is refused by name. |
+| `gateway.route` | handler | a script chunk named by `gateway.route`, default `plugin:per_chat` | One Goja VM state per process. Reads the message and returns a session address. A route handler may call only `inbox`, `deliver`, `runtime.triggers`, `router.state.*` and `log`; anything else is refused by name. |
 
-### Naming conventions the Lua calls
+### Naming conventions the script calls
 
-These are ordinary globals, not entry points the engine invokes. The prelude or the loop calls them by name when the deployment configures that behaviour, and shadowing a builtin means defining the same global in `plugins/<name>.lua`.
+These are ordinary globals, not entry points the engine invokes. The prelude or the loop calls them by name when the deployment configures that behaviour, and shadowing a builtin means defining the same global in `plugins/<name>.ts`.
 
-| Configured as | Global the Lua must define | Called by |
+| Configured as | Global the script must define | Called by |
 | --- | --- | --- |
 | memory profile `write: plugin:routing_table` | `memory_routing_table(record)` | the prelude's `memory.write` |
 | memory profile `recall: plugin:recency` | `memory_recall_handler(query, opts)` | the prelude's `memory.recall` |

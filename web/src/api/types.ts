@@ -365,7 +365,7 @@ export interface SafetyProfile {
   agents: string[] | null
   spawn_profiles: string[] | null
   classifiers: string[] | null
-  lua_filters?: string[] | null
+  script_filters?: string[] | null
   live: boolean
 }
 
@@ -406,7 +406,7 @@ export interface SafetyClassifier extends SafetyClassifierDraft {
   live: boolean
 }
 
-export interface SafetyLuaFilterDraft {
+export interface SafetyScriptFilterDraft {
   name: string
   source?: string
   file?: string
@@ -419,7 +419,7 @@ export interface SafetyLuaFilterDraft {
   fallback?: string
 }
 
-export interface SafetyLuaFilter extends SafetyLuaFilterDraft {
+export interface SafetyScriptFilter extends SafetyScriptFilterDraft {
   used_by: string[] | null
   live: boolean
 }
@@ -435,7 +435,7 @@ export interface SafetyList {
   builtin_filters: string[] | null
   profiles: SafetyProfile[] | null
   classifiers: SafetyClassifier[] | null
-  lua_filters?: SafetyLuaFilter[] | null
+  script_filters?: SafetyScriptFilter[] | null
   models: string[] | null
   prompts: string[] | null
   note: string
@@ -447,11 +447,11 @@ export interface SafetyProfileDraft {
 }
 
 export interface SafetyValidateRequest {
-  kind: 'profile' | 'classifier' | 'lua_filter'
+  kind: 'profile' | 'classifier' | 'script_filter'
   creating: boolean
   profile?: SafetyProfileDraft
   classifier?: SafetyClassifierDraft
-  lua_filter?: SafetyLuaFilterDraft
+  script_filter?: SafetyScriptFilterDraft
 }
 
 export interface MemoryStoreDraft {
@@ -832,7 +832,7 @@ export interface PoolDraft {
   retention_days: number
 }
 
-// ---- shared & built-in Lua plugins -----------------------------------------
+// ---- shared & built-in TypeScript/JS plugins --------------------------------
 
 export interface BuiltinPlugin {
   name: string
@@ -852,7 +852,7 @@ export interface PackageFile {
   source: string
 }
 
-export interface LuaPackage {
+export interface ScriptPackage {
   name: string
   dir: string
   managed: boolean
@@ -868,7 +868,7 @@ export interface PluginsList {
   plugin_dir_configured: boolean
   prelude_version: number
   builtins: BuiltinPlugin[] | null
-  packages: LuaPackage[] | null
+  packages: ScriptPackage[] | null
   note?: string
 }
 

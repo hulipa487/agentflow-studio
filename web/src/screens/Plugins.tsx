@@ -1,6 +1,6 @@
-// Shared & built-in Lua plugins workbench: shadow built-in support/route
+// Shared & built-in TypeScript/JS plugins workbench: shadow built-in support/route
 // chunks in plugins.dir and manage shared packages (`packages:`) with live
-// Lua 5.1 analysis, boot-compatible compile checks, and instant hot-reload.
+// Prelude v2 analysis, boot-compatible compile checks, and instant hot-reload.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EditorView } from '@codemirror/view'
@@ -41,7 +41,7 @@ import { Split } from '@/components/ui/Split'
 import { copyText } from '@/lib/format'
 import { useAlive, useAsync, useDebounced, useScreenActions, useUnsavedGuard } from '@/lib/hooks'
 import { t, useLang } from '@/i18n'
-import { analyze, luaSupport, type LuaDiagnostic } from '@/lua'
+import { analyze, scriptSupport, type ScriptDiagnostic } from '@/script'
 import { SKIP_GUARD } from '@/lib/hooks'
 import { useCatalog, useClient, useSession } from '@/state/session'
 import { confirm, toast } from '@/state/ui'
@@ -142,15 +142,15 @@ export default function Plugins() {
   }, [list, selected, loadedKey, dirty])
 
   const editable = list?.editable ?? false
-  const preludeVersion = list?.prelude_version || catalog?.prelude_version || 1
+  const preludeVersion = list?.prelude_version || catalog?.prelude_version || 2
   const requireLoop = Boolean(selectedBuiltin && selectedBuiltin.kind === 'route')
 
   const debouncedSource = useDebounced(source, 220)
   const extensions = useMemo(
-    () => [luaSupport({ preludeVersion, capabilities: null, requireLoop })],
+    () => [scriptSupport({ preludeVersion, capabilities: null, requireLoop })],
     [preludeVersion, requireLoop],
   )
-  const diagnostics = useMemo<LuaDiagnostic[]>(() => {
+  const diagnostics = useMemo<ScriptDiagnostic[]>(() => {
     if (!loadedKey) return []
     return analyze(debouncedSource, { preludeVersion, capabilities: null, requireLoop })
   }, [loadedKey, debouncedSource, preludeVersion, requireLoop])
@@ -298,7 +298,7 @@ export default function Plugins() {
   }
 
   const handleCreatePackage = async (name: string, file: string) => {
-    const next = await client.createLuaPackage(name, file, packageStarterSource(name, preludeVersion))
+    const next = await client.createScriptPackage(name, file, packageStarterSource(name, preludeVersion))
     if (!alive.current) return
     setNotice(null)
     applyListUpdate(next, { kind: 'package', pkg: name, file })
@@ -327,7 +327,7 @@ export default function Plugins() {
     setBusy('delete')
     setNotice(null)
     try {
-      const next = await client.deleteLuaPackage(pkgName)
+      const next = await client.deleteScriptPackage(pkgName)
       if (!alive.current) return
       const nextSel = selected?.kind === 'package' && selected.pkg === pkgName ? defaultSelection(next) : selected
       setLoadedKey('')
@@ -373,7 +373,7 @@ export default function Plugins() {
     }
   }
 
-  const jumpToIssue = (d: LuaDiagnostic) => {
+  const jumpToIssue = (d: ScriptDiagnostic) => {
     const v = viewRef.current
     if (!v) return
     const len = v.state.doc.length
@@ -396,7 +396,7 @@ export default function Plugins() {
       : ''
 
   const activePath = selectedBuiltin
-    ? (selectedBuiltin.path || `${list?.plugin_dir || './plugins'}/${selectedBuiltin.name}.lua`)
+    ? (selectedBuiltin.path || `${list?.plugin_dir || './plugins'}/${selectedBuiltin.name}.ts`)
     : (selectedPkgFile?.file.path ?? '')
 
   const newFileTargetPkg = useMemo(() => {
@@ -524,7 +524,7 @@ export default function Plugins() {
         >
           <CodeEditor
             key={loadedKey}
-            language="lua"
+            language="typescript"
             value={source}
             readOnly={!editable}
             onChange={setSource}
@@ -645,7 +645,7 @@ export default function Plugins() {
                   ) : (
                     <div className="space-y-3">
                       {(list.packages ?? []).map((pkg) => {
-                        const directive = `-- af-import: ${pkg.name}`
+                        const directive = `// af-import: ${pkg.name}`
                         return (
                           <div key={pkg.name} className="rounded-ctl border border-line/70 bg-bg/40 p-2">
                             <div className="flex items-center gap-1.5">

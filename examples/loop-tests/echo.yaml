@@ -1,5 +1,5 @@
 agent: echo
-loop: ../loops/echo.lua
+loop: ../loops/echo.ts
 messages:
   - from: alice
     text: hello

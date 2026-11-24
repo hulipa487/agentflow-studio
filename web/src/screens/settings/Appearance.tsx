@@ -25,7 +25,7 @@ function PalettePreview({ palette, theme }: { palette: Palette; theme: 'light' |
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-md border border-line bg-surface p-2">
           <span className="text-xs font-semibold leading-none text-text">assistant</span>
-          <span className="font-mono text-xs leading-none text-muted">loops/chat.lua</span>
+          <span className="font-mono text-xs leading-none text-muted">loops/chat.ts</span>
           <span className="mt-0.5 flex items-center gap-1">
             <span className="rounded bg-accent px-1.5 text-xs font-semibold leading-4 text-on-primary">{t('common.apply')}</span>
             <span className="rounded bg-tone-accent px-1.5 font-mono text-xs leading-4 text-accent">llm.chat</span>

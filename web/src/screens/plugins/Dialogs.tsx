@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Banner, Button, Field, Input, Modal } from '@/components/ui'
 import { t } from '@/i18n'
-import { LUA_FILE_NAME_RE, PACKAGE_NAME_RE, normalizeLuaFilename } from './helpers'
+import { PACKAGE_NAME_RE, isValidScriptFilename, normalizeScriptFilename } from './helpers'
 
 export function NewPackageDialog({
   open,
@@ -15,13 +15,13 @@ export function NewPackageDialog({
   onCreate: (name: string, file: string) => Promise<void>
 }) {
   const [name, setName] = useState('')
-  const [file, setFile] = useState('init.lua')
+  const [file, setFile] = useState('init.ts')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
   const submit = async () => {
     const pkg = name.trim()
-    const luaFile = normalizeLuaFilename(file || 'init.lua')
+    const scriptFile = normalizeScriptFilename(file || 'init.ts')
     if (!PACKAGE_NAME_RE.test(pkg)) {
       setError(t('plugins.packageNameInvalid'))
       return
@@ -30,16 +30,16 @@ export function NewPackageDialog({
       setError(t('plugins.packageExists', { name: pkg }))
       return
     }
-    if (!LUA_FILE_NAME_RE.test(luaFile)) {
+    if (!isValidScriptFilename(scriptFile)) {
       setError(t('plugins.fileNameInvalid'))
       return
     }
     setBusy(true)
     setError('')
     try {
-      await onCreate(pkg, luaFile)
+      await onCreate(pkg, scriptFile)
       setName('')
-      setFile('init.lua')
+      setFile('init.ts')
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -117,19 +117,19 @@ export function NewFileDialog({
   const [busy, setBusy] = useState(false)
 
   const submit = async () => {
-    const luaFile = normalizeLuaFilename(file)
-    if (!LUA_FILE_NAME_RE.test(luaFile)) {
+    const scriptFile = normalizeScriptFilename(file)
+    if (!isValidScriptFilename(scriptFile)) {
       setError(t('plugins.fileNameInvalid'))
       return
     }
-    if (existingFiles.includes(luaFile)) {
-      setError(t('plugins.fileExists', { file: luaFile }))
+    if (existingFiles.includes(scriptFile)) {
+      setError(t('plugins.fileExists', { file: scriptFile }))
       return
     }
     setBusy(true)
     setError('')
     try {
-      await onCreate(luaFile)
+      await onCreate(scriptFile)
       setFile('')
       onClose()
     } catch (err) {

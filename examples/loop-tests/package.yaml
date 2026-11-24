@@ -1,5 +1,5 @@
 agent: package_demo
-loop: ../loops/package_demo.lua
+loop: ../loops/package_demo.ts
 packages:
   greeting: ../packages/greeting
 messages:

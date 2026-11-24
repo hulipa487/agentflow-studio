@@ -6,18 +6,16 @@ const host = '127.0.0.1'
 const port = Number(process.env.MOCK_ADMIN_PORT || 18089)
 const expectedToken = process.env.MOCK_ADMIN_TOKEN || 'test-admin-token'
 
-const SAMPLE_LOOP = `-- af-prelude-version: 1
-local msg = af.input()
-local res, err = af.llm.chat({
-  messages = {
-    { role = "user", content = msg.text or "" },
-  },
-})
-if err then
-  af.send("Error: " .. tostring(err))
-  return
-end
-af.send(res.text or "")
+const SAMPLE_LOOP = `// af-prelude-version: 2
+function loop() {
+  while (true) {
+    const msg = session.inbox();
+    const res = llm.chat([
+      { role: "user", content: msg.text || "" },
+    ]);
+    session.send(res.text || "");
+  }
+}
 `
 
 const SAMPLE_YAML = `model: gpt-4o-mini
@@ -43,7 +41,7 @@ const safetyState = {
     },
   ],
   classifiers: [],
-  lua_filters: [],
+  script_filters: [],
   models: ['gpt-4o-mini'],
   prompts: [],
 }
@@ -57,7 +55,7 @@ function safetyPayload(savedNote = '') {
       agents: p.agents || [],
       spawn_profiles: p.spawn_profiles || [],
       classifiers: filters.filter((f) => f.startsWith('classifier:')).map((f) => f.slice('classifier:'.length)),
-      lua_filters: filters.filter((f) => f.startsWith('lua:')).map((f) => f.slice('lua:'.length)),
+      script_filters: filters.filter((f) => f.startsWith('script:')).map((f) => f.slice('script:'.length)),
       live: Boolean(p.live),
     }
   })
@@ -66,9 +64,9 @@ function safetyPayload(savedNote = '') {
     ...c,
     used_by: usedBy('classifier:', c.name),
   }))
-  const lua_filters = safetyState.lua_filters.map((lf) => ({
-    ...lf,
-    used_by: usedBy('lua:', lf.name),
+  const script_filters = safetyState.script_filters.map((sf) => ({
+    ...sf,
+    used_by: usedBy('script:', sf.name),
   }))
   return {
     ok: true,
@@ -81,7 +79,7 @@ function safetyPayload(savedNote = '') {
     builtin_filters: safetyState.builtin_filters,
     profiles,
     classifiers,
-    lua_filters,
+    script_filters,
     models: safetyState.models,
     prompts: safetyState.prompts,
   }
@@ -214,7 +212,7 @@ const server = http.createServer(async (req, res) => {
           self: true,
         },
       ],
-      agents: [{ name: 'helper', model: 'gpt-4o-mini', loop: 'loops/helper.lua', persistent: false }],
+      agents: [{ name: 'helper', model: 'gpt-4o-mini', loop: 'loops/helper.ts', persistent: false }],
       channels: [],
       sessions: [],
       sessions_active: 0,
@@ -254,7 +252,7 @@ const server = http.createServer(async (req, res) => {
         safety_profiles: ['default', 'strict', 'none'],
         memory_profiles: ['conversational'],
         prompt_keys: ['system'],
-        prelude_version: 1,
+        prelude_version: 2,
         templates: [],
       },
     })
@@ -267,7 +265,7 @@ const server = http.createServer(async (req, res) => {
         {
           name: 'helper',
           model: 'gpt-4o-mini',
-          loop: 'loops/helper.lua',
+          loop: 'loops/helper.ts',
           spawn: false,
           persistent: false,
           capabilities: ['llm'],
@@ -286,7 +284,7 @@ const server = http.createServer(async (req, res) => {
       source: SAMPLE_YAML,
       agent_yaml: SAMPLE_YAML,
       agent: {
-        loop: 'loops/helper.lua',
+        loop: 'loops/helper.ts',
         model: 'gpt-4o-mini',
         history_budget: 20,
         safety: 'default',
@@ -302,7 +300,7 @@ const server = http.createServer(async (req, res) => {
       files: {
         mode: 'directory',
         profile_path: '/mock/agents/helper.yaml',
-        loop_path: '/mock/loops/helper.lua',
+        loop_path: '/mock/loops/helper.ts',
         instructions_path: '/mock/prompts/helper.md',
         managed: true,
         mtime: 1,
@@ -391,7 +389,7 @@ const server = http.createServer(async (req, res) => {
       result: {
         ok: true,
         agent,
-        loop: 'loops/helper.lua',
+        loop: 'loops/helper.ts',
         model: 'gpt-4o-mini',
         duration_ms: 24,
         sends: [`Replay output for ${agent}`],
@@ -424,11 +422,11 @@ const server = http.createServer(async (req, res) => {
   if (p === '/admin/api/studio/safety/validate' && req.method === 'POST') {
     const body = await readBody(req)
     const errors = []
-    if (body.kind === 'lua_filter') {
-      const lf = body.lua_filter || {}
-      if (!lf.name) errors.push('lua filter name is required')
-      if (!lf.source && !lf.file) errors.push('lua source or file is required')
-      if (lf.source && /\bos\.execute\b/.test(lf.source)) errors.push('forbidden global os')
+    if (body.kind === 'script_filter') {
+      const sf = body.script_filter || {}
+      if (!sf.name) errors.push('script filter name is required')
+      if (!sf.source && !sf.file) errors.push('script source or file is required')
+      if (sf.source && /\brequire\b/.test(sf.source)) errors.push('forbidden global require')
     } else if (body.kind === 'profile') {
       const pr = body.profile || {}
       if (!pr.name) errors.push('profile name is required')
@@ -436,32 +434,32 @@ const server = http.createServer(async (req, res) => {
     sendJSON(res, 200, { ok: errors.length === 0, errors })
     return
   }
-  if (p === '/admin/api/studio/safety/lua-filters' && req.method === 'POST') {
+  if (p === '/admin/api/studio/safety/script-filters' && req.method === 'POST') {
     const body = await readBody(req)
-    const lf = body.lua_filter || {}
-    safetyState.lua_filters = [...safetyState.lua_filters.filter((x) => x.name !== lf.name), { ...lf, live: false }]
+    const sf = body.script_filter || {}
+    safetyState.script_filters = [...safetyState.script_filters.filter((x) => x.name !== sf.name), { ...sf, live: false }]
     safetyState.mtime++
     sendJSON(res, 200, safetyPayload('Saved to /mock/safety.yaml (restart to apply)'))
     return
   }
-  if (p.startsWith('/admin/api/studio/safety/lua-filters/') && req.method === 'PUT') {
-    const name = decodeURIComponent(p.slice('/admin/api/studio/safety/lua-filters/'.length))
+  if (p.startsWith('/admin/api/studio/safety/script-filters/') && req.method === 'PUT') {
+    const name = decodeURIComponent(p.slice('/admin/api/studio/safety/script-filters/'.length))
     const body = await readBody(req)
-    const lf = { ...(body.lua_filter || {}), name, live: false }
-    safetyState.lua_filters = safetyState.lua_filters.map((x) => (x.name === name ? lf : x))
+    const sf = { ...(body.script_filter || {}), name, live: false }
+    safetyState.script_filters = safetyState.script_filters.map((x) => (x.name === name ? sf : x))
     safetyState.mtime++
     sendJSON(res, 200, safetyPayload('Saved to /mock/safety.yaml (restart to apply)'))
     return
   }
-  if (p.startsWith('/admin/api/studio/safety/lua-filters/') && req.method === 'DELETE') {
-    const name = decodeURIComponent(p.slice('/admin/api/studio/safety/lua-filters/'.length))
-    if (safetyState.profiles.some((pr) => (pr.filters || []).includes('lua:' + name))) {
-      sendJSON(res, 400, { ok: false, error: `lua filter "${name}" is still in use` })
+  if (p.startsWith('/admin/api/studio/safety/script-filters/') && req.method === 'DELETE') {
+    const name = decodeURIComponent(p.slice('/admin/api/studio/safety/script-filters/'.length))
+    if (safetyState.profiles.some((pr) => (pr.filters || []).includes('script:' + name))) {
+      sendJSON(res, 400, { ok: false, error: `script filter "${name}" is still in use` })
       return
     }
-    safetyState.lua_filters = safetyState.lua_filters.filter((x) => x.name !== name)
+    safetyState.script_filters = safetyState.script_filters.filter((x) => x.name !== name)
     safetyState.mtime++
-    sendJSON(res, 200, safetyPayload('Lua filter deleted'))
+    sendJSON(res, 200, safetyPayload('Script filter deleted'))
     return
   }
   if (p === '/admin/api/studio/safety/profiles' && req.method === 'POST') {

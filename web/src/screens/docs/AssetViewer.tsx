@@ -11,7 +11,8 @@ import { toast } from '@/state/ui'
 const MIME: Record<DocAsset['language'], string> = {
   yaml: 'application/yaml',
   json: 'application/json',
-  lua: 'text/plain',
+  typescript: 'text/plain',
+  javascript: 'text/plain',
   text: 'text/plain',
 }
 

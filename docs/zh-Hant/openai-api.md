@@ -2,16 +2,16 @@
 
 AgentFlow 可以把代理公開為 OpenAI **chat completions** 端點。任何使用 Chat Completions API 的用戶端，無論是代理框架、程式設計助理、聊天前端，或單純的 SDK 程式碼，都只需要一個基底 URL 與一把 API 金鑰。不需要安裝轉換層，也沒有第二個連接埠：這個頻道和其他所有頻道一樣，掛載在同一個 `gateway.listen` 上。
 
-這個端點是一個**頻道**，不是代理伺服器。它負責認證、解析、對應回覆，並以 SSE 傳送。它不對內容含義做任何判斷：由路由處理常式選擇工作階段，由代理的迴圈決定請求是什麼。使用內建路由與直通迴圈（`examples/loops/openai_passthrough.lua`）時，每個請求都會得到自己的單輪次工作階段，並原封不動地轉送給代理的模型；所以本身就是代理的用戶端（有自己的系統提示詞、自己的工具、自己的對話）拿到的，就恰好是一個模型。
+這個端點是一個**頻道**，不是代理伺服器。它負責認證、解析、對應回覆，並以 SSE 傳送。它不對內容含義做任何判斷：由路由處理常式選擇工作階段，由代理的迴圈決定請求是什麼。使用內建路由與直通迴圈（`examples/loops/openai_passthrough.ts`）時，每個請求都會得到自己的單輪次工作階段，並原封不動地轉送給代理的模型；所以本身就是代理的用戶端（有自己的系統提示詞、自己的工具、自己的對話）拿到的，就恰好是一個模型。
 
 ## 快速入門
 
-當代理的迴圈以 `llm.forward()` 轉送請求時（範例位於 `examples/loops/openai_passthrough.lua`），代理就以其模型的身分回答。頻道不會替你選擇迴圈：列在 `agents` 下的代理，執行的是它自己的 `loop:` 所指定的迴圈。
+當代理的迴圈以 `llm.forward()` 轉送請求時（範例位於 `examples/loops/openai_passthrough.ts`），代理就以其模型的身分回答。頻道不會替你選擇迴圈：列在 `agents` 下的代理，執行的是它自己的 `loop:` 所指定的迴圈。
 
 ```yaml
 agents:
   coder:
-    loop: ./examples/loops/openai_passthrough.lua
+    loop: ./examples/loops/openai_passthrough.ts
     model: default
     capabilities: [llm.chat]      # llm.forward 與 openai.request 受它管控
 
@@ -122,16 +122,16 @@ gateway:
 
 ## 迴圈收到什麼
 
-請求本文不會跨過 Lua 橋接。大型的程式設計請求留在 Go 中，訊息只帶有中繼資料與一個控制代碼：
+請求本文不會跨過指令碼橋接。大型的程式設計請求留在 Go 中，訊息只帶有中繼資料與一個控制代碼：
 
-```lua
+```ts
 {
-  api = "openai.chat",
-  request_id = "…", request_ref = "…",
-  model = "coder", stream = true,
-  message_count = 12, has_tools = true, bytes = 48211,
-  conversation_id = nil,          -- 來自標頭或 metadata，不受信任
-  user = "…", metadata = { … },   -- 不受信任
+  api: "openai.chat",
+  request_id: "…", request_ref: "…",
+  model: "coder", stream: true,
+  message_count: 12, has_tools: true, bytes: 48211,
+  conversation_id: null,          // 來自標頭或 metadata，不受信任
+  user: "…", metadata: { … },   // 不受信任
 }
 ```
 
@@ -139,7 +139,7 @@ gateway:
 
 | 呼叫 | 用途 |
 | --- | --- |
-| `openai.request()` | 以資料表形式取得完整請求：`{ model, stream, messages, tools, tool_choice, params, user, metadata }`。JSON 超過 4 MiB 時拒絕 |
+| `openai.request()` | 以物件形式取得完整請求：`{ model, stream, messages, tools, tool_choice, params, user, metadata }`。JSON 超過 4 MiB 時拒絕 |
 | `llm.forward(opts?)` | 不具體化請求，直接把該輪次的請求轉送給模型。回傳 `{ text, tool_calls, finish_reason, usage, thinking, thinking_blocks }` |
 | `session.reply(t)` | 以結構化的回答結束該輪次：`{ text, tool_calls, finish_reason, usage, reasoning }` |
 | `session.send_delta(text)` | 送出回答的一段文字片段 |
@@ -149,17 +149,17 @@ gateway:
 
 ## 直通迴圈
 
-`examples/loops/openai_passthrough.lua` 只有四行：
+`examples/loops/openai_passthrough.ts` 只有幾行：
 
-```lua
--- af-prelude-version: 1
-function loop()
-  while true do
-    local msg = session.inbox()
-    local reply = llm.forward()
-    session.reply(reply)
-  end
-end
+```ts
+// af-prelude-version: 2
+function loop() {
+  while (true) {
+    session.inbox();
+    const reply = llm.forward();
+    session.reply(reply);
+  }
+}
 ```
 
 不帶引數的 `llm.forward()` 會把用戶端自己的訊息、工具、工具選擇與取樣參數，送給該輪次所使用的模型：代理的 `model`，或使用者有設定時則為使用者資料中的模型。它走的計量路徑與所有模型呼叫相同：使用者的配額、代理的預算與用量帳本都適用，帳本資料列的 kind 為 `forward`。
@@ -176,33 +176,32 @@ end
 
 頻道本身不附加任何政策；迴圈可以豐富請求內容，或改以助理而非模型的身分回答。以下是一個會在前面加上已記住事實的直通迴圈：
 
-```lua
-function loop()
-  while true do
-    local msg = session.inbox()
-    local facts = memory.recall({ store = "facts", kind = "text", text = msg.text or "", k = 5 })
-    local opts = nil
-    if facts and #facts > 0 then
-      local lines = {}
-      for _, hit in ipairs(facts) do lines[#lines + 1] = "- " .. tostring(hit.value.text or "") end
-      opts = { prepend = { { role = "system", content = table.concat(lines, "\n") } } }
-    end
-    session.reply(llm.forward(opts))
-  end
-end
+```ts
+function loop() {
+  while (true) {
+    const msg = session.inbox();
+    const facts = memory.recall({ store: "facts", kind: "text", text: msg.text || "", k: 5 });
+    let opts = undefined;
+    if (facts && facts.length > 0) {
+      const lines = facts.map((hit) => "- " + String(hit.value.text || ""));
+      opts = { prepend: [{ role: "system", content: lines.join("\n") }] };
+    }
+    session.reply(llm.forward(opts));
+  }
+}
 ```
 
-`agentflow-studio` 儲存庫中的 `examples/loops/openai_memory.lua` 是這個模式的完整版本。
+`agentflow-studio` 儲存庫中的 `examples/loops/openai_memory.ts` 是這個模式的完整版本。
 
 `llm.forward` 的選項：`model`（另一個 `models:` 項目）、`messages`（取代用戶端的訊息）、`prepend` / `append`（在前後加入輪次）、`tools`（在用戶端的工具之外加入定義）、`params`（覆寫取樣參數：`temperature`、`max_tokens`、`top_p`、`stop`、`seed`、`response_format`、`parallel_tool_calls`、`tool_choice`、`thinking`），以及 `max_tokens_cap`（限制用戶端 `max_tokens` 的上限）。
 
 迴圈自行處理回覆時，有三件事要知道：
 
-- 回覆中的工具呼叫同時有 `args`（資料表，供讀取）與 `arguments`（模型自己的 JSON 文字）。`session.reply` 在 `arguments` 存在時會送出它，因為 Lua 資料表無法分辨 `[]` 與 `{}`，否則回傳的會是不同的呼叫。如果你修改了某個呼叫的 `args`，請將它的 `arguments` 設為 `nil`。
+- 回覆中的工具呼叫同時有 `args`（物件，供讀取）與 `arguments`（模型自己的 JSON 文字）。`session.reply` 在 `arguments` 存在時會原樣送出它，以保留模型輸出的原始 JSON 文字。如果你修改了某個呼叫的 `args`，請將它的 `arguments` 設為 `undefined` 或 `null`。
 - 迴圈先以 `session.send_delta` 送出片段，再以完整文字回覆時，文字只會送出一次：回覆只會補上片段尚未包含的部分。
 - 迴圈沒有呼叫 `session.reply` 就結束輪次，仍然會回答：它用 `session.send` 或 `session.send_delta` 送出的內容就是回答內容，並帶有 `finish_reason: "stop"`。沒有產生任何內容的輪次，會是一則空的助理訊息。
 
-不要把需要持久保存的狀態放在 Lua 區域變數中。單輪次工作階段沒有狀態需要保存，而對話工作階段在閒置時會被卸載（參見 [`runtime.sessions.idle_unload`](configuration.md)）；請使用 `session.state.*`、記憶或儲存區。
+不要把需要持久保存的狀態放在指令碼區域變數中。單輪次工作階段沒有狀態需要保存，而對話工作階段在閒置時會被卸載（參見 [`runtime.sessions.idle_unload`](configuration.md)）；請使用 `session.state.*`、記憶或儲存區。
 
 ## 供應商
 

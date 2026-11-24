@@ -376,19 +376,19 @@ export class Client {
     return this.json('DELETE', `/admin/api/studio/safety/classifiers/${enc(name)}${query({ mtime })}`)
   }
 
-  saveSafetyLuaFilter(
+  saveSafetyScriptFilter(
     name: string,
     create: boolean,
-    luaFilter: T.SafetyLuaFilterDraft,
+    scriptFilter: T.SafetyScriptFilterDraft,
     mtime: T.Mtime | undefined,
   ): Promise<T.SafetyList> {
-    const body = { lua_filter: luaFilter, mtime }
-    if (create) return this.json('POST', '/admin/api/studio/safety/lua-filters', body)
-    return this.json('PUT', '/admin/api/studio/safety/lua-filters/' + enc(name), body)
+    const body = { script_filter: scriptFilter, mtime }
+    if (create) return this.json('POST', '/admin/api/studio/safety/script-filters', body)
+    return this.json('PUT', '/admin/api/studio/safety/script-filters/' + enc(name), body)
   }
 
-  deleteSafetyLuaFilter(name: string, mtime: T.Mtime | undefined): Promise<T.SafetyList> {
-    return this.json('DELETE', `/admin/api/studio/safety/lua-filters/${enc(name)}${query({ mtime })}`)
+  deleteSafetyScriptFilter(name: string, mtime: T.Mtime | undefined): Promise<T.SafetyList> {
+    return this.json('DELETE', `/admin/api/studio/safety/script-filters/${enc(name)}${query({ mtime })}`)
   }
 
   // ---- memory ---------------------------------------------------------------
@@ -601,7 +601,7 @@ export class Client {
     return this.json('DELETE', `/admin/api/pools/${enc(pool)}/grants?agent=${enc(agent)}&tenant=${enc(tenant)}`)
   }
 
-  // ---- shared & built-in Lua plugins ---------------------------------------
+  // ---- shared & built-in script plugins -------------------------------------
 
   plugins(signal?: AbortSignal): Promise<T.PluginsList> {
     return this.json('GET', '/admin/api/studio/plugins', undefined, signal)
@@ -620,11 +620,11 @@ export class Client {
     return this.json('DELETE', `/admin/api/studio/plugins/builtins/${enc(name)}${query({ mtime })}`)
   }
 
-  createLuaPackage(name: string, file?: string, source?: string): Promise<T.PluginsList> {
+  createScriptPackage(name: string, file?: string, source?: string): Promise<T.PluginsList> {
     return this.json('POST', '/admin/api/studio/plugins/packages', { name, file, source })
   }
 
-  deleteLuaPackage(name: string): Promise<T.PluginsList> {
+  deleteScriptPackage(name: string): Promise<T.PluginsList> {
     return this.json('DELETE', `/admin/api/studio/plugins/packages/${enc(name)}`)
   }
 

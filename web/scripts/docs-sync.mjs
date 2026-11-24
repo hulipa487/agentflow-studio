@@ -18,7 +18,7 @@ const runtimeRoot = path.resolve(studioRoot, runtimeFlag(process.argv.slice(2)) 
 
 const PAIRS = [
   ['api/openapi/users.yaml', 'docs/openapi/users.yaml'],
-  ['api/lua/af.d.lua', 'docs/lua/af.d.lua'],
+  ['api/ts/af.d.ts', 'docs/ts/af.d.ts'],
 ]
 
 for (const [srcRel, dstRel] of PAIRS) {

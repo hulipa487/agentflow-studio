@@ -44,7 +44,7 @@ function AboutSection() {
           {t('settings.adminApi')}
           <span className="font-mono text-xs text-muted">{orDash(version)}</span>
         </Fact>
-        <Fact label={t('settings.preludeVersion')} hint={t('settings.preludeHint', { marker: '-- af-prelude-version' })}>
+        <Fact label={t('settings.preludeVersion')} hint={t('settings.preludeHint', { marker: '// af-prelude-version' })}>
           <span className="font-mono text-xs">v{catalog.prelude_version}</span>
         </Fact>
         <Fact label={t('settings.activeTheme')}>{themeSummary(palette, mode, shown)}</Fact>

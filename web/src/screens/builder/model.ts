@@ -5,7 +5,7 @@
 import type { AgentDetail, AgentJSON, Catalog, Template } from '@/api/types'
 import { t } from '@/i18n'
 import { splitList } from '@/lib/format'
-import type { LuaDiagnostic } from '@/lua'
+import type { ScriptDiagnostic } from '@/script'
 import type { Tone } from '@/state/ui'
 
 export const AGENT_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/
@@ -190,7 +190,7 @@ export function buildYAML(form: BuilderForm, detail: AgentDetail | null): string
   }
 
   const name = form.name.trim()
-  let loopRef = name === '' ? './agent.lua' : `./${name}.lua`
+  let loopRef = name === '' ? './agent.ts' : `./${name}.ts`
   if (detail?.agent?.loop) loopRef = detail.agent.loop
   write('loop', loopRef)
   if (form.model !== '' && form.model !== DEFAULT_MODEL_OPTION) write('model', form.model)
@@ -261,17 +261,17 @@ export function nameError(name: string): string {
 }
 
 /** The loop editor's status line: errors lead, warnings follow, anything else is clean. */
-export function loopStatus(diagnostics: LuaDiagnostic[], checking: boolean, failure: string): Notice {
-  if (failure) return { text: t('lua.status.failed', { error: failure }), tone: 'danger' }
-  if (checking) return { text: t('lua.status.checking'), tone: 'neutral' }
+export function loopStatus(diagnostics: ScriptDiagnostic[], checking: boolean, failure: string): Notice {
+  if (failure) return { text: t('script.status.failed', { error: failure }), tone: 'danger' }
+  if (checking) return { text: t('script.status.checking'), tone: 'neutral' }
   const errors = diagnostics.filter((d) => d.severity === 'error').length
   const warnings = diagnostics.filter((d) => d.severity === 'warning').length
   if (errors > 0) {
-    const text = warnings > 0 ? t('lua.status.errorsAndWarnings', { errors, warnings }) : t('lua.status.errors', { errors })
+    const text = warnings > 0 ? t('script.status.errorsAndWarnings', { errors, warnings }) : t('script.status.errors', { errors })
     return { text, tone: 'danger' }
   }
-  if (warnings > 0) return { text: t('lua.status.warnings', { warnings }), tone: 'warning' }
-  return { text: t('lua.status.noIssues'), tone: 'success' }
+  if (warnings > 0) return { text: t('script.status.warnings', { warnings }), tone: 'warning' }
+  return { text: t('script.status.noIssues'), tone: 'success' }
 }
 
 /** CodeMirror stores lines LF-joined; normalising up front keeps a load from reading as an edit. */

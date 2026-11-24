@@ -7,7 +7,7 @@ it, and answers in Markdown.
 | | |
 | --- | --- |
 | Channel | `qq`, websocket mode, `scenes: [group]` |
-| Loop | [`loops/group_chat.lua`](loops/group_chat.lua) |
+| Loop | [`loops/group_chat.ts`](loops/group_chat.ts) |
 | Memory | SQLite: `qq_dialogue` (every exchange), `qq_facts` (`/remember`) |
 | Needs | a QQ bot (q.qq.com) and any OpenAI-compatible model |
 

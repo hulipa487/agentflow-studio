@@ -5,15 +5,15 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
-import type { SafetyClassifier, SafetyList, SafetyLuaFilter, SafetyProfile } from '@/api/types'
+import type { SafetyClassifier, SafetyList, SafetyProfile, SafetyScriptFilter } from '@/api/types'
 import { AsyncView, Banner, Button, Chip, CopyButton, IconButton, Page, Section, type Tone } from '@/components/ui'
 import { t } from '@/i18n'
 import { useAsync, useScreenActions } from '@/lib/hooks'
 import { useClient, useSession } from '@/state/session'
 import { confirm, info, toast } from '@/state/ui'
 import { ClassifierEditor } from './safety/ClassifierEditor'
-import { LuaFilterEditor } from './safety/LuaFilterEditor'
 import { ProfileEditor } from './safety/ProfileEditor'
+import { ScriptFilterEditor } from './safety/ScriptFilterEditor'
 import {
   categorySummary,
   directionLabel,
@@ -30,7 +30,7 @@ import { ChainView, LiveChip, useMounted } from './safety/parts'
 type Editor =
   | { kind: 'profile'; existing: SafetyProfile | null }
   | { kind: 'classifier'; existing: SafetyClassifier | null }
-  | { kind: 'lua_filter'; existing: SafetyLuaFilter | null }
+  | { kind: 'script_filter'; existing: SafetyScriptFilter | null }
 
 const ACTION_TONE: Record<string, Tone> = { allow: 'success', review: 'warning', block: 'danger' }
 
@@ -101,7 +101,7 @@ export default function Safety() {
 
   const profiles = list?.profiles ?? []
   const classifiers = list?.classifiers ?? []
-  const luaFilters = list?.lua_filters ?? []
+  const scriptFilters = list?.script_filters ?? []
   const editable = list?.editable ?? false
 
   const readOnly = () =>
@@ -139,10 +139,10 @@ export default function Safety() {
             confirmLabel: t('common.delete'),
             danger: true,
           }
-        : kind === 'lua_filter'
+        : kind === 'script_filter'
           ? {
-              title: t('safety.deleteLuaTitle'),
-              message: t('safety.deleteLuaMessage', { name }),
+              title: t('safety.deleteScriptTitle'),
+              message: t('safety.deleteScriptMessage', { name }),
               confirmLabel: t('common.delete'),
               danger: true,
             }
@@ -160,16 +160,16 @@ export default function Safety() {
       const next =
         kind === 'profile'
           ? await client.deleteSafetyProfile(name, mtime)
-          : kind === 'lua_filter'
-            ? await client.deleteSafetyLuaFilter(name, mtime)
+          : kind === 'script_filter'
+            ? await client.deleteSafetyScriptFilter(name, mtime)
             : await client.deleteSafetyClassifier(name, mtime)
       if (!mounted.current) return
       applied(
         next,
         kind === 'profile'
           ? t('safety.profileDeleted')
-          : kind === 'lua_filter'
-            ? t('safety.luaDeleted')
+          : kind === 'script_filter'
+            ? t('safety.scriptDeleted')
             : t('safety.classifierDeleted'),
       )
     } catch (err) {
@@ -195,7 +195,7 @@ export default function Safety() {
             <LiveChip live={!restart} />
             <span>{t('safety.profileCount', { n: profiles.length })}</span>
             <span>{t('safety.classifierCount', { n: classifiers.length })}</span>
-            <span>{t('safety.luaFilterCount', { n: luaFilters.length })}</span>
+            <span>{t('safety.scriptFilterCount', { n: scriptFilters.length })}</span>
             <span>{t('safety.source', { mode: list.mode || 'file' })}</span>
             {list.path && (
               <span className="flex min-w-0 items-center gap-1">
@@ -242,7 +242,7 @@ export default function Safety() {
             {profiles.map((p) => {
               const filters = p.filters ?? []
               const refs = p.classifiers ?? []
-              const luaRefs = p.lua_filters ?? []
+              const scriptRefs = p.script_filters ?? []
               const inUse = profileInUse(p)
               return (
                 <div key={p.name} className="border-t border-line/70 px-3 py-2.5">
@@ -278,9 +278,9 @@ export default function Safety() {
                         <span className="font-mono text-text">{refs.join(', ')}</span>
                       </Row>
                     )}
-                    {luaRefs.length > 0 && (
-                      <Row label={t('safety.row.luaFilters')}>
-                        <span className="font-mono text-text">{luaRefs.join(', ')}</span>
+                    {scriptRefs.length > 0 && (
+                      <Row label={t('safety.row.scriptFilters')}>
+                        <span className="font-mono text-text">{scriptRefs.join(', ')}</span>
                       </Row>
                     )}
                   </div>
@@ -359,50 +359,50 @@ export default function Safety() {
 
           <Section
             flush
-            title={t('safety.luaFilters')}
-            subtitle={t('safety.luaFiltersSubtitle')}
+            title={t('safety.scriptFilters')}
+            subtitle={t('safety.scriptFiltersSubtitle')}
             action={
-              <Button size="sm" icon={Plus} disabled={!editable} onClick={() => open({ kind: 'lua_filter', existing: null })}>
-                {t('safety.newLuaFilter')}
+              <Button size="sm" icon={Plus} disabled={!editable} onClick={() => open({ kind: 'script_filter', existing: null })}>
+                {t('safety.newScriptFilter')}
               </Button>
             }
           >
-            {luaFilters.length === 0 && <p className="px-3 pb-2 text-sm text-muted">{t('safety.noLuaFilters')}</p>}
-            {luaFilters.map((lf) => {
-              const onError = lf.on_error || 'pass'
-              const usedBy = lf.used_by ?? []
+            {scriptFilters.length === 0 && <p className="px-3 pb-2 text-sm text-muted">{t('safety.noScriptFilters')}</p>}
+            {scriptFilters.map((sf) => {
+              const onError = sf.on_error || 'pass'
+              const usedBy = sf.used_by ?? []
               const inUse = usedBy.length > 0
               return (
-                <div key={lf.name} className="border-t border-line/70 px-3 py-2.5">
+                <div key={sf.name} className="border-t border-line/70 px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-mono text-base font-semibold">{lf.name}</span>
+                    <span className="truncate font-mono text-base font-semibold">{sf.name}</span>
                     <Chip tone={onError === 'block' ? 'warning' : 'neutral'}>{failActionLabel(onError)}</Chip>
-                    {lf.file && <Chip>{lf.file}</Chip>}
-                    <LiveChip live={lf.live} />
+                    {sf.file && <Chip>{sf.file}</Chip>}
+                    <LiveChip live={sf.live} />
                     <div className="flex-1" />
-                    <IconButton icon={Pencil} label={t('safety.editWhat', { name: lf.name })} onClick={() => open({ kind: 'lua_filter', existing: lf })} />
+                    <IconButton icon={Pencil} label={t('safety.editWhat', { name: sf.name })} onClick={() => open({ kind: 'script_filter', existing: sf })} />
                     <IconButton
                       icon={Trash2}
                       tone="danger"
                       label={
                         inUse
-                          ? t('safety.cannotDeleteLuaFilter', { name: lf.name, n: usedBy.length, profiles: usedBy.join(', ') })
-                          : t('safety.deleteWhat', { name: lf.name })
+                          ? t('safety.cannotDeleteScriptFilter', { name: sf.name, n: usedBy.length, profiles: usedBy.join(', ') })
+                          : t('safety.deleteWhat', { name: sf.name })
                       }
                       disabled={inUse || deleting !== ''}
-                      loading={deleting === 'lua_filter:' + lf.name}
-                      onClick={() => void remove('lua_filter', lf.name)}
+                      loading={deleting === 'script_filter:' + sf.name}
+                      onClick={() => void remove('script_filter', sf.name)}
                     />
                   </div>
                   <div className="mt-1.5 grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
                     <Row label={t('safety.row.directions')}>
-                      {(lf.directions ?? []).length > 0 ? (lf.directions ?? []).map(directionLabel).join(', ') : t('safety.directionsDefault')}
+                      {(sf.directions ?? []).length > 0 ? (sf.directions ?? []).map(directionLabel).join(', ') : t('safety.directionsDefault')}
                     </Row>
                     <Row label={t('safety.row.sources')}>
-                      {(lf.sources ?? []).length > 0 ? (lf.sources ?? []).map(sourceLabel).join(', ') : t('safety.sourcesAll')}
+                      {(sf.sources ?? []).length > 0 ? (sf.sources ?? []).map(sourceLabel).join(', ') : t('safety.sourcesAll')}
                     </Row>
                     <Row label={t('safety.row.timeout')}>
-                      <span className="font-mono">{lf.timeout || '200ms'}</span>
+                      <span className="font-mono">{sf.timeout || '200ms'}</span>
                     </Row>
                     <Row label={t('safety.row.usedBy')}>
                       {inUse ? (
@@ -448,15 +448,15 @@ export default function Safety() {
           reload={reloadForEditor}
         />
       )}
-      {list && editor?.kind === 'lua_filter' && (
-        <LuaFilterEditor
+      {list && editor?.kind === 'script_filter' && (
+        <ScriptFilterEditor
           client={client}
           list={list}
           existing={editor.existing}
           onClose={() => setEditor(null)}
           onSaved={(next) => {
             setEditor(null)
-            applied(next, next.saved_note || t('safety.luaSaved'))
+            applied(next, next.saved_note || t('safety.scriptSaved'))
           }}
           reload={reloadForEditor}
         />

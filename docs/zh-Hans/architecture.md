@@ -1,6 +1,6 @@
 ## 架构
 
-一个请求自上而下穿过一个不深的分层栈。渠道驱动把平台字节转换成 `session.Message`。可选的身份层判断是谁发送的，路由器的 Lua 处理器选出一个会话键。监督器找到或创建会话参与者（actor），它运行一个 Lua 循环。循环通过异步桥调用由能力支撑的操作，驱动再去访问外部系统。安全过滤器、审计记录和来源信息都由核心掌管。它们就在这条路径上，因此循环无法移除或伪造它们。
+一个请求自上而下穿过一个不深的分层栈。渠道驱动把平台字节转换成 `session.Message`。可选的身份层判断是谁发送的，路由器的脚本处理器选出一个会话键。监督器找到或创建会话参与者（actor），它在 Goja 虚拟机中运行一个 TypeScript/JS 循环。循环通过异步桥调用由能力支撑的操作（以及已配置的 Goja 或 `wazero` Wasm 外部 API），驱动再去访问外部系统。安全过滤器、审计记录和来源信息都由核心掌管。它们就在这条路径上，因此循环无法移除或伪造它们。
 
 ```
 ┌─ Channels (bytes in / replies out) ─────────────────────────────────────────┐
@@ -15,7 +15,7 @@
 │  handle → user:<uuid> · /link codes consumed here · unregistered allow|reject │
 └───────────┬──────────────────────────────────────────────────────────────────┘
             ▼
-┌─ Router (one Lua service state per process) ────────────────────────────────┐
+┌─ Router (one Goja service VM per process) ──────────────────────────────────┐
 │  audit journal (inbound) ──► gateway.route handler (default plugin:per_chat)  │
 │  computes the session key, may propose a group; router.state.* is durable     │
 └───────────┬──────────────────────────────────────────────────────────────────┘
@@ -28,7 +28,7 @@
 └───────────┬──────────────────────────────────────────────────────────────────┘
             │ one mailbox per session
             ▼
-┌─ Actor (1 goroutine + 1 Lua state per session) ─────────────────────────────┐
+┌─ Actor (1 goroutine + 1 Goja VM per session) ───────────────────────────────┐
 │  session.inbox() ──► safety ingress ──► loop() continues                      │
 │  llm.* / memory.* / tools.run / shell.* / http.* / files.* / agent.* / …      │
 │  __af_op(json) yields ── inline op, or worker pool (fair-share per tenant)    │
@@ -56,7 +56,7 @@
 user ─► [channel driver]
           │ normalize → session.Message{from, text, attachments}
           ▼
-       identity sink (optional) ─► router: journal "routed" ─► gateway.route (Lua)
+       identity sink (optional) ─► router: journal "routed" ─► gateway.route (script)
           │                                          (per_chat → session key)
           ▼
        supervisor.Deliver ◄──────────────────────────┘
@@ -76,7 +76,7 @@ user ─► [channel driver]
        safety egress ─► journal "delivered" ─► gateway.Send ─► channel ─► user
 ```
 
-何时以及如何调用工具由循环决定。没有 `on_tool_call` 钩子：循环从 `llm.chat` 读取 `reply.tool_calls`，然后自己调用 `tools.run`（见 `examples/loops/tool_loop.lua`）。如果 `tools.run` 返回 `needs_confirm`，协程会挂起，由参与者向用户确认，之后再恢复。
+何时以及如何调用工具由循环决定。没有 `on_tool_call` 钩子：循环从 `llm.chat` 读取 `reply.tool_calls`，然后自己调用 `tools.run`（见 `examples/loops/tool_loop.ts`）。如果 `tools.run` 返回 `needs_confirm`，脚本执行会挂起，由参与者向用户确认，之后再恢复。
 
 ---
 
@@ -110,12 +110,12 @@ project launch: user ──► main ──[directive: start_project]──► ag
 | --- | --- | --- |
 | channels | 传输 | 把平台原始字节规范化为共享的 `session.Message`，并把回复送回去。`studio` 是为演练场注册的合成渠道。 |
 | identity | 身份 | 可选。把渠道关联账号解析为 `user:<uuid>`，消费 `/link` 码，并在 `runtime.users.unregistered: reject` 时拒绝未注册的发送者。 |
-| router | 路由 | 先把入站消息记入审计记录，然后在每个进程一个的服务状态中运行 `gateway.route` Lua 处理器，计算会话键（并可选地提议一个群组身份）。可热重载。 |
+| router | 路由 | 先把入站消息记入审计记录，然后在每个进程一个的 Goja 服务虚拟机中运行 `gateway.route` 脚本处理器，计算会话键（并可选地提议一个群组身份）。可热重载。 |
 | supervisor | 权威 | 查找和派生会话、加盖来源信息、校验群组成员关系、按租户限制会话数、在智能体之间跳转时检查 `can_contact`、派生/请求/回复，以及通过会话中心在集群内移交。 |
-| actor | 执行 | 每个会话一个 goroutine + 一个 Lua 状态。驱动循环，在 `__af_op` 上挂起，拿到结果后恢复，在 `session.inbox()` 处运行入站安全检查，在每次发送时运行出站安全检查。 |
-| capabilities | 操作 | 面向 Lua 的表（`llm`、`memory`、`store`、`tools`、`shell`、`http`、`mail`、`files`、`agent`、`scheduler`、`session.state`、`user`、`credential`），都建立在唯一的异步桥原语之上。每个智能体只获得其 `capabilities` 授予的处理器。 |
-| drivers | I/O | 访问真实系统：LLM 提供商、存储和向量后端、shell 提供方、MCP 服务器、搜索引擎、浏览器、邮件、S3。 |
-| safety | 防护 | 由核心掌管的过滤链（`profiles.safety`、基于模型的 `safety.classifiers`），不论循环如何，都在参与者内部的入站和出站处运行。无法从 Lua 中卸载。 |
+| actor | 执行 | 每个会话一个 goroutine + 一个 Goja 虚拟机。驱动循环，在 `__af_op` 上挂起，拿到结果后恢复，在 `session.inbox()` 处运行入站安全检查，在每次发送时运行出站安全检查。 |
+| capabilities | 操作 | 面向脚本的 API（`llm`、`memory`、`store`、`tools`、`api`、`shell`、`http`、`mail`、`files`、`agent`、`scheduler`、`session.state`、`user`、`credential`），都建立在唯一的异步桥原语之上。每个智能体只获得其 `capabilities` 授予的处理器。 |
+| drivers | I/O | 访问真实系统：LLM 提供商、存储和向量后端、shell 提供方、MCP 服务器、`wazero` Wasm 外部 API 模块、搜索引擎、浏览器、邮件、S3。 |
+| safety | 防护 | 由核心掌管的过滤链（`profiles.safety`、基于模型的 `safety.classifiers`、`safety.script_filters`），不论循环如何，都在参与者内部的入站和出站处运行。无法从循环脚本中卸载。 |
 | admin plane | 操作员 | `/healthz`、`/readyz`、`/metrics`，以及 Studio 和浏览器控制台使用的 `/admin/api/*` JSON API，通过 TCP 和/或本地套接字或管道提供。 |
 
 ## 部署：两种层级
@@ -196,7 +196,7 @@ files: { backend: s3, s3: { bucket: agentflow-files, region: eu-west-1 } }
 
 ### 部署必须遵守的不变量
 
-- **路由处理器把状态保存在存储中，而不是 Lua 中。** 路由器是每个进程一个 Lua 状态，由收到入站消息的那个实例运行，所以在 Lua 全局变量中记住任何东西的处理器，会让每个实例得出各自的答案，重启后也会忘掉。应该用 `router.state.*` 来存放：持久、部署范围内共享、每个实例上的值都相同，并且能在故障转移后保留。
+- **路由处理器把状态保存在存储中，而不是脚本全局变量中。** 路由器是每个进程一个 Goja 虚拟机，由收到入站消息的那个实例运行，所以在模块全局变量中记住任何东西的处理器，会让每个实例得出各自的答案，重启后也会忘掉。应该用 `router.state.*` 来存放：持久、部署范围内共享、每个实例上的值都相同，并且能在故障转移后保留。
 - **要么显式设置 `ADMIN_TOKEN`，要么把每个实例都命名为操作员。** 在区域单元中，每次启动生成的令牌会被拒绝而不是生成，因为每个控制台都会拒绝其他实例的令牌。
 - **消息 ID 按实例唯一，而不是按集群唯一。** 渠道驱动通常自行给消息编号（`wh-1`）。收件箱会用接收消息的实例加以限定，所以不会丢失任何东西 — 但仅按 ID 在消息日志中做审计查询可能匹配到两个实例的行。查询时请把 ID 当作按实例的键来处理。
 - **比较配置纪元。** `/admin/api/state` 报告 `config_epoch`，即按原样写入的配置片段的短哈希，并标出纪元不一致的运行中实例。两个实例不一致，说明其中一个运行着不同的部署；轮换密钥不会改变它（它哈希的是写入的内容，而不是解析后的内容）。

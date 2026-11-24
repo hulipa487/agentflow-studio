@@ -22,7 +22,7 @@ A config with no memory section at all already works:
 ```yaml
 agents:
   assistant:
-    loop: ./loops/chat.lua
+    loop: ./loops/chat.ts
     memory: conversational        # the built-in profile
 ```
 
@@ -34,9 +34,9 @@ no second database.
 
 In a loop:
 
-```lua
-memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text })
-local recent = memory.recall({ kind = "all" })          -- records from dialogue
+```ts
+memory.write({ type: "turn", id: msg.id, text: msg.text, reply: reply.text });
+const recent = memory.recall({ kind: "all" });          // records from dialogue
 ```
 
 The agent needs the `memory` capability, which is on by default.
@@ -147,7 +147,7 @@ Semantic recall needs three things on the profile:
 ### Write
 
 `write` lists the write chain. Today `memory.write` always runs the routing
-table: the shipped `plugin:routing_table`, or `plugins/routing_table.lua` when
+table: the shipped `plugin:routing_table`, or `plugins/routing_table.ts` when
 your deployment shadows it. The list itself is passed to loops as
 `agent.info().memory.write`, so a loop can read it, but it does not switch the
 chain. Leave it as `[plugin:routing_table]`.
@@ -157,11 +157,11 @@ chain. Leave it as `[plugin:routing_table]`.
 ```yaml
 agents:
   helper:
-    loop: ./loops/helper.lua
+    loop: ./loops/helper.ts
     memory: group_chat            # a named profile
 
   scratch:
-    loop: ./loops/scratch.lua
+    loop: ./loops/scratch.ts
     memory:                       # an inline profile, for one agent only
       stores:
         dialogue: { backend: main_db, table: scratch, retention: 1h }
@@ -177,17 +177,17 @@ agents:
 
 ### Writing
 
-```lua
--- A turn: routed to "dialogue", keyed turn:<id>.
-memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text })
+```ts
+// A turn: routed to "dialogue", keyed turn:<id>.
+memory.write({ type: "turn", id: msg.id, text: msg.text, reply: reply.text });
 
--- A fact: routed to "facts", keyed by key.
-memory.write({ type = "fact", key = "name:" .. msg.from, text = "Their name is Ada." })
+// A fact: routed to "facts", keyed by key.
+memory.write({ type: "fact", key: "name:" + msg.from, text: "Their name is Ada." });
 
--- Explicit targets: any store, any key, an optional ttl in seconds.
-memory.write({ targets = {
-  { store = "notes", key = "todo:" .. msg.id, value = { text = msg.text }, ttl = 3600 },
-} })
+// Explicit targets: any store, any key, an optional ttl in seconds.
+memory.write({ targets: [
+  { store: "notes", key: "todo:" + msg.id, value: { text: msg.text }, ttl: 3600 },
+] });
 ```
 
 A record goes only to stores the profile declares: a `turn` written by an
@@ -197,16 +197,16 @@ agent whose profile has no `dialogue` store is dropped, not an error.
 
 `memory.recall` returns a list of `{ key, value, meta }`.
 
-```lua
--- plugin:recency
-memory.recall({ kind = "all" })                                  -- dialogue
-memory.recall({ kind = "text", store = "facts", text = "name", k = 5 })
-memory.recall({ kind = "prefix", store = "notes", prefix = "todo:" })
-memory.recall({ kind = "time", store = "dialogue",
-                from = "2026-11-01T00:00:00Z", to = "2026-11-02T00:00:00Z" })
+```ts
+// plugin:recency
+memory.recall({ kind: "all" }); // dialogue
+memory.recall({ kind: "text", store: "facts", text: "name", k: 5 });
+memory.recall({ kind: "prefix", store: "notes", prefix: "todo:" });
+memory.recall({ kind: "time", store: "dialogue",
+                from: "2026-11-01T00:00:00Z", to: "2026-11-02T00:00:00Z" });
 
--- plugin:semantic
-memory.recall({ text = msg.text, k = 5 })                        -- semantic, else dialogue
+// plugin:semantic
+memory.recall({ text: msg.text, k: 5 }); // semantic, else dialogue
 ```
 
 Without a `store`, recency reads `dialogue`, so name the store for a text
@@ -215,7 +215,7 @@ search on `facts`. Time bounds are RFC3339 strings.
 ### Raw tables
 
 `store.put`, `store.get`, `store.query` and `store.delete` work on a store by
-name with no routing or embedding. They are covered in [Lua loops](loops.md#memory).
+name with no routing or embedding. They are covered in [Script loops](loops.md#memory).
 
 ## Isolation
 

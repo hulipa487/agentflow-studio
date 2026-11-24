@@ -1,15 +1,15 @@
 # AgentFlow
 
-一个纯 Go 构建、内置 Lua 循环、单个二进制文件、可自托管的 LLM 智能体运行时。常规的部分靠配置，特殊的部分靠编程。
+一个纯 Go 构建、内置 TypeScript/JS 循环和 Wasm 外部 API、单个二进制文件、可自托管的 LLM 智能体运行时。常规的部分靠配置，特殊的部分靠编程。
 
 ## 它是什么
 
-AgentFlow 运行由 LLM 驱动的智能体：它们能记忆、使用工具、执行 shell 命令、调度后台任务、与其他智能体对话，并通过 Webhook、Telegram、QQ 以及 OpenAI 兼容接口为用户提供服务。每个智能体都在 YAML 中声明式定义；默认行为之外的一切都来自可热重载的 Lua 插件，这些插件挂接在核心暴露的版本化接口上。
+AgentFlow 运行由 LLM 驱动的智能体：它们能记忆、使用工具、执行 shell 命令、调度后台任务、与其他智能体对话，并通过 Webhook、Telegram、QQ 以及 OpenAI 兼容接口为用户提供服务。每个智能体都在 YAML 中声明式定义；默认行为之外的一切都来自可热重载的 TypeScript/JS 插件，这些插件挂接在核心暴露的版本化接口上。
 
 ## 设计原则
 
 - **核心提供能力；插件提供行为；YAML 负责连接。**
-- **每个会话一个 Lua 状态** — 参与者（actor）模型，只通过消息传递通信。
+- **每个会话一个 VM 状态** — 参与者（actor）模型，只通过消息传递通信。
 - **失败时如实报告** — 不可用的工具返回结构化错误，绝不编造结果。
 - **内置功能也是插件** — 随二进制文件发布，可按名称覆盖，与用户插件遵循同一套契约。
 - **能力边界是一套消息协议** — 而不是某种语言的 API。
@@ -19,8 +19,8 @@ AgentFlow 运行由 LLM 驱动的智能体：它们能记忆、使用工具、�
 | 决策 | 选择 | 理由 |
 | --- | --- | --- |
 | 运行时 | Go（`CGO_ENABLED=0`） | 纯 Go 单二进制；每个参与者一个 goroutine；零配置交叉编译 |
-| 脚本 | Lua 5.1（`gopher-lua`） | 纯 Go 实现（无 cgo）；原生协程；带指令预算的沙箱隔离 |
-| 并发 | 参与者 + 工作池 | Lua 协程在异步操作上挂起；不占用操作系统线程 |
+| 脚本与外部 API | TypeScript/JS（`goja`）+ Wasm（`wazero`） | 纯 Go 实现（无 cgo）；TypeScript 循环与扩展；隔离的 Wasm 外部 API 模块 |
+| 并发 | 参与者 + 工作池 | 脚本 VM 在异步操作上挂起；不占用操作系统线程 |
 | 界面与文档 | AgentFlow Studio | 无头运行时提供 `/admin/api/`；Studio 提供桌面/网页工作台与离线文档 |
 
 > **当前状态**：核心运行时（参与者、记忆、工具、shell、多智能体、调度器、预算、安全、指标）已实现并经过测试。存储后端：SQLite、Redis 和 PostgreSQL 用于键值和文档行，一个内存中的易失性存储，以及通过 pgvector、Qdrant、Redis Stack/RediSearch、带 vector 扩展的 PostgreSQL 或 SQLite 有上限的暴力扫描实现的向量搜索 — 绝不会静默返回空结果。LLM 提供商覆盖四种聊天 API 形态（Anthropic Messages、OpenAI Chat Completions、OpenAI Responses、Gemini Interactions），外加一个 `rerank` 提供商，每种都可以指向官方主机，或通过 `base_url` 指向任何兼容端点；按模型设置的 `server_tools` 可启用提供商原生工具，例如 Google Search 检索增强。渠道包括 Webhook（同步或异步）、GitHub Webhook（`ghhook`）、Telegram（轮询、Webhook 或自动配置的 `auto`）、QQ 机器人、`openai`（Chat Completions）以及 `bridge` — 一种 HMAC 签名的适配器协议，让进程外的服务接入任何其他聊天平台。它们都挂载在同一个共享 HTTP 监听器上，并自带 `/health` 探针。此外，运行时还提供统一的媒体与文件存储、由核心掌管的审计记录、用于语义记忆的嵌入和重排、身份与用户层（用户资料、渠道关联、OIDC、按用户配额）、租户（群组、成员关系、共享记忆池和授权）、带快照版本管理的用户范围文件存储、加密凭据存储、由引擎触发的定时触发器、配置目录、仅追加的日志平面、单实例和区域两种部署层级、通过 stdio 或 Streamable HTTP 接入的 MCP 服务器、声明式 HTTP 工具，以及供 AgentFlow Studio 连接的无头管理 API（`/admin/api/`）。
@@ -61,16 +61,16 @@ go vet ./...
 
 ### 验证安装
 
-把一个最简单的 echo 循环保存为 `echo.lua`（第一行是 prelude API 契约 — 缺少这一行的代码块会被拒绝）：
+把一个最简单的 echo 循环保存为 `echo.ts`（第一行是 prelude API 契约 — 缺少这一行的代码块会被拒绝）：
 
 ```
--- af-prelude-version: 1
-function loop()
-  while true do
-    local msg = session.inbox()
-    session.send("echo: " .. (msg.text or ""))
-  end
-end
+// af-prelude-version: 2
+function loop() {
+  while (true) {
+    const msg = session.inbox();
+    session.send("echo: " + (msg.text || ""));
+  }
+}
 ```
 
 再写一个不需要模型的配置，把它连接到 Webhook，保存为 `agentflow.yaml`：
@@ -79,7 +79,7 @@ end
 version: "1"
 agents:
   echo:
-    loop: ./echo.lua
+    loop: ./echo.ts
 gateway:
   listen: ":8080"
   channels:
@@ -108,7 +108,7 @@ curl http://127.0.0.1:8080/health    # 渠道监听器自己的探针 -> {"ok":t
 
 | 症状 | 解决方法 |
 | --- | --- |
-| 切换分支后出现 `Nothing to be done for 'all'` | Makefile 会跟踪 Go 源码与嵌入的 Lua 文件，所以这种情况很少见。如果二进制文件看起来仍是旧的，运行 `make clean && make` 或 `go build ./cmd/agentflow`。 |
+| 切换分支后出现 `Nothing to be done for 'all'` | Makefile 会跟踪 Go 源码与嵌入的脚本文件，所以这种情况很少见。如果二进制文件看起来仍是旧的，运行 `make clean && make` 或 `go build ./cmd/agentflow`。 |
 | 测试因 SQLite / database locked 失败 | 串行运行测试（`go test -p 1 ./...`），或在两次运行之间删除残留的 `data/` 目录。 |
 
 ### 更新

@@ -12,7 +12,11 @@ import { currentLang, t, type Lang } from '@/i18n'
 
 const pages = import.meta.glob('../../../docs/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const translations = import.meta.glob('../../../docs/zh-{Hans,Hant}/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const assets = import.meta.glob('../../../docs/**/*.{yaml,yml,lua,json}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const assets = import.meta.glob('../../../docs/**/*.{yaml,yml,ts,js,json}', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
 
 /** The glob keys' prefix: this file's path to the shared docs directory. */
 const ROOT = '../../../docs/'
@@ -62,14 +66,14 @@ export interface DocAsset {
   path: string
   /** The catalogue key of the file's label. */
   titleKey: string
-  language: 'yaml' | 'lua' | 'json' | 'text'
+  language: 'yaml' | 'typescript' | 'javascript' | 'json' | 'text'
 }
 
 const MANIFEST: DocPage[] = [
   { slug: 'getting-started', file: 'getting-started.md', title: 'Overview', titleKey: 'docs.page.gettingStarted', sectionKey: 'docs.sectionStartHere', order: 1 },
   { slug: 'architecture', file: 'architecture.md', title: 'Architecture & deployment', titleKey: 'docs.page.architecture', sectionKey: 'docs.sectionStartHere', order: 2 },
   { slug: 'multi-region', file: 'multi-region.md', title: 'Multi-region', titleKey: 'docs.page.multiRegion', sectionKey: 'docs.sectionStartHere', order: 3 },
-  { slug: 'loops', file: 'loops.md', title: 'Lua loops', titleKey: 'docs.page.loops', sectionKey: 'docs.sectionBuild', order: 4 },
+  { slug: 'loops', file: 'loops.md', title: 'Script loops', titleKey: 'docs.page.loops', sectionKey: 'docs.sectionBuild', order: 4 },
   { slug: 'memory', file: 'memory.md', title: 'Memory', titleKey: 'docs.page.memory', sectionKey: 'docs.sectionBuild', order: 5 },
   { slug: 'extending', file: 'extending.md', title: 'Extending', titleKey: 'docs.page.extending', sectionKey: 'docs.sectionBuild', order: 6 },
   { slug: 'configuration', file: 'configuration.md', title: 'Configuration', titleKey: 'docs.page.configuration', sectionKey: 'docs.sectionReference', order: 7 },
@@ -83,7 +87,7 @@ export const DOC_SECTIONS = ['docs.sectionStartHere', 'docs.sectionBuild', 'docs
 /** The contract files that ship beside the guides. */
 export const DOC_ASSETS: DocAsset[] = [
   { path: 'openapi/users.yaml', titleKey: 'docs.assetUserApi', language: 'yaml' },
-  { path: 'lua/af.d.lua', titleKey: 'docs.assetLuaTypes', language: 'lua' },
+  { path: 'ts/af.d.ts', titleKey: 'docs.assetScriptTypes', language: 'typescript' },
 ]
 
 const available = MANIFEST.filter((p) => typeof pages[ROOT + p.file] === 'string' && pages[ROOT + p.file] !== '')

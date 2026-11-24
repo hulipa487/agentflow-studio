@@ -15,7 +15,7 @@ import { Split } from '@/components/ui/Split'
 import { findExample, type ExampleLoop } from '@/docs/examples'
 import { t, useLang } from '@/i18n'
 import { SKIP_GUARD, useAlive, useAsync, useDebounced, useScreenActions, useStored, useUnsavedGuard } from '@/lib/hooks'
-import { analyze, luaSupport, type LuaDiagnostic, type LuaOptions } from '@/lua'
+import { analyze, scriptSupport, type ScriptDiagnostic, type ScriptOptions } from '@/script'
 import { MOD } from '@/nav'
 import { useCatalog, useClient, useSession } from '@/state/session'
 import { confirm, toast } from '@/state/ui'
@@ -276,11 +276,11 @@ function BuilderView({
 
   // ---- language intelligence --------------------------------------------------
 
-  const preludeVersion = catalog.prelude_version > 0 ? catalog.prelude_version : 1
+  const preludeVersion = catalog.prelude_version > 0 ? catalog.prelude_version : 2
   // Keyed by content so the extension is rebuilt exactly when the effective
   // list changes: that is what re-lints the loop the moment a box is toggled.
   const capsKey = effectiveCapabilities(form.capabilities, catalog).join('\n')
-  const luaOptions = useMemo<LuaOptions>(
+  const scriptOptions = useMemo<ScriptOptions>(
     // No selection and no deployment defaults: the effective list is unknown,
     // so capability checks are skipped rather than flagging every call.
     () => ({ preludeVersion, capabilities: capsKey === '' ? null : capsKey.split('\n') }),
@@ -288,21 +288,21 @@ function BuilderView({
   )
   const support = useMemo(() => {
     try {
-      return { extensions: [luaSupport(luaOptions)], failure: '' }
+      return { extensions: [scriptSupport(scriptOptions)], failure: '' }
     } catch (err) {
       return { extensions: [], failure: errorMessage(err) }
     }
-  }, [luaOptions])
+  }, [scriptOptions])
   const linted = useDebounced(loop, 220)
   // Diagnostics are written in the language current when they are computed.
   const lang = useLang()
-  const analysis = useMemo<{ diagnostics: LuaDiagnostic[]; failure: string }>(() => {
+  const analysis = useMemo<{ diagnostics: ScriptDiagnostic[]; failure: string }>(() => {
     try {
-      return { diagnostics: analyze(linted, luaOptions), failure: '' }
+      return { diagnostics: analyze(linted, scriptOptions), failure: '' }
     } catch (err) {
       return { diagnostics: [], failure: errorMessage(err) }
     }
-  }, [linted, luaOptions, lang])
+  }, [linted, scriptOptions, lang])
   const loopErrors = analysis.diagnostics.filter((d) => d.severity === 'error').length
   const loopWarnings = analysis.diagnostics.filter((d) => d.severity === 'warning').length
 
@@ -508,8 +508,8 @@ function BuilderView({
   }
 
   const insertDirective = () => {
-    const directive = `-- af-prelude-version: ${preludeVersion}`
-    if (loop.split('\n').some((l) => l.trim().startsWith('-- af-prelude-version:'))) return
+    const directive = `// af-prelude-version: ${preludeVersion}`
+    if (loop.split('\n').some((l) => l.trim().startsWith('// af-prelude-version:'))) return
     editLoop(loop === '' ? `${directive}\n` : `${directive}\n${loop}`)
   }
 

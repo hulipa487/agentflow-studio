@@ -26,7 +26,7 @@ It is one app, two ways to open it:
 
 The screens are the same because they are the same code: the desktop app embeds the web app and adds what a browser tab cannot do (a local proxy to Unix sockets and Windows named pipes, native save dialogs, its own title bar on Windows). Neither needs a web server to host or CORS to configure; [the web README](web/README.md) and [the desktop README](desktop/README.md) cover how each reaches the runtime.
 
-- [x] A Lua 5.1 editor with completion, diagnostics and hover docs?
+- [x] A TypeScript/JS editor with completion, diagnostics and hover docs?
 - [x] Apply a loop to a live engine without restarting it?
 - [x] A trace of every op, model call and safety decision in a turn?
 - [x] The full documentation, offline, inside the app?
@@ -39,16 +39,16 @@ The runtime stays the source of truth. Studio holds no agent state of its own: c
 
 **🛠️ Build**
 - **Agents** - every configured agent with its model, capabilities and live sessions. Create from a template (echo, LLM chat, tool loop, group chat with memory, knowledge base, single-turn API, …) or from blank, edit, delete.
-- **Builder** - a workbench: a form for the agent's model, safety and memory profiles, capabilities, skills and credentials, a Lua loop editor, an instructions editor and the raw YAML, with a dock beside them for a **Run** panel (chat and trace with this agent) or the Lua reference (`F1`). **Validate** runs the same checks boot does. **Apply** is a split button: *Apply* installs the agent live, *Apply & save* also writes it into the deployment's config, and the button remembers your pick. `Ctrl+Enter` applies pending edits and sends the Run panel's message (or repeats the last one), so you can edit, run and read the trace without leaving.
+- **Builder** - a workbench: a form for the agent's model, safety and memory profiles, capabilities, skills and credentials, a TypeScript loop editor, an instructions editor and the raw YAML, with a dock beside them for a **Run** panel (chat and trace with this agent) or the Script reference (`F1`). **Validate** runs the same checks boot does. **Apply** is a split button: *Apply* installs the agent live, *Apply & save* also writes it into the deployment's config, and the button remembers your pick. `Ctrl+Enter` applies pending edits and sends the Run panel's message (or repeats the last one), so you can edit, run and read the trace without leaving.
 - **Playground** - threaded chat against one agent, one session per thread, with streamed replies and a live trace: turns, ops, model and tool calls, tokens, durations, safety decisions and errors. An optional *act as user* runs the turn as a real profile, so memory scopes and quotas apply.
 
 **✍️ The code editor**
-- One editor for every document: the loop (Lua 5.1), the instructions (Markdown, soft-wrapped), the agent YAML and the deployment config, on CodeMirror 6.
-- Highlighting per language, including multi-line Lua long strings and comments, YAML block scalars and Markdown code fences. Indent guides, bracket matching, folding, a status line (line, column, selections) and soft wrap.
+- One editor for every document: the loop (TypeScript / JavaScript), the instructions (Markdown, soft-wrapped), the agent YAML and the deployment config, on CodeMirror 6.
+- Highlighting per language, including TypeScript/JS expressions, regex literals and comments, YAML block scalars and Markdown code fences. Indent guides, bracket matching, folding, a status line (line, column, selections) and soft wrap.
 - Multiple carets and selections, column selection, and IDE line commands. Find and replace with match case, whole word and regex, plus go to line.
-- Completion for the whole Lua API with inline docs, and ghost text as you type.
+- Completion for the whole Prelude v2 API with inline docs, and ghost text as you type.
 - Diagnostics as wavy underlines with hover errors, before you ever hit Validate.
-- Backed by a Lua 5.1 analyzer and language server that live inside Studio. Nothing is added to the runtime and no external process is started.
+- Backed by a TypeScript/JS analyzer and language server that live inside Studio. Nothing is added to the runtime and no external process is started.
 
 | Keys | Action |
 |---|---|
@@ -92,7 +92,7 @@ Secrets are write-only everywhere: a field left blank keeps the stored value, an
 - **Status bar** - which runtime this is, on every screen: address, instance, region, topology, version, uptime and busy or idle sessions.
 
 **📚 Documentation**
-- The complete AgentFlow guide set - getting started, architecture, the configuration reference, the Lua API reference, deployment and the OpenAI-compatible API - in English, 简体中文 and 繁體中文, is built into the app. Search and links work offline.
+- The complete AgentFlow guide set - getting started, architecture, the configuration reference, the Script API reference, deployment and the OpenAI-compatible API - in English, 简体中文 and 繁體中文, is built into the app. Search and links work offline.
 
 ## Getting Started
 
@@ -148,7 +148,7 @@ The desktop app keeps that storage in the webview's profile: `$XDG_DATA_HOME/age
 | `Ctrl+K` (or `Ctrl+Shift+P`) | Go to any screen, agent or action |
 | `Alt+N` | New agent |
 | `Alt+1` … `Alt+9` | Overview, Agents, Playground, Channels, Models, Credentials, Safety, Users, Logs |
-| `F1` | Documentation; in the builder, the Lua reference dock |
+| `F1` | Documentation; in the builder, the Script reference dock |
 | `Alt+R` | Refresh the current screen |
 | `Ctrl+S` | Apply in the builder (its remembered choice); validate and save in Config |
 | `Ctrl+Space` | API completion in the loop editor |
@@ -166,15 +166,15 @@ The desktop app keeps that storage in the webview's profile: `$XDG_DATA_HOME/age
 
 | Path | What's there |
 |---|---|
-| `web/` | The app: `src/screens`, `src/api`, `src/lua` (the Lua analyzer and language server), `src/docs`, and the local proxy in `server/` |
+| `web/` | The app: `src/screens`, `src/api`, `src/script` (the TypeScript/JS analyzer and language server), `src/docs`, and the local proxy in `server/` |
 | `desktop/` | The desktop app: the web build in the system webview, a Go module of its own (proxy, save dialog, window, title bar) |
-| `docs/` | The Markdown guides, their translations, the users OpenAPI spec and the Lua type stubs |
-| `examples/` | Runnable scenarios (QQ group chatbot with memory, Telegram RAG bot, GitHub PR code agents, chat/completions endpoint) and single-pattern Lua loops |
+| `docs/` | The Markdown guides, their translations, the users OpenAPI spec and the TypeScript API definitions |
+| `examples/` | Runnable scenarios (QQ group chatbot with memory, Telegram RAG bot, GitHub PR code agents, chat/completions endpoint) and single-pattern TypeScript loops |
 | `i18n/` | The message catalogues in English, 简体中文 and 繁體中文 |
 
 ```bash
 make test        # vitest in web/, go test in desktop/
-make docs-sync   # refresh the OpenAPI spec and Lua type stubs from the runtime repo
+make docs-sync   # refresh the OpenAPI spec and TypeScript API definitions from the runtime repo
 ```
 
 **New screens and features go in `web/`.** The desktop app shows the web app, so a change there reaches both. The desktop side changes only for what a browser cannot do; `web/src/lib/desktop.ts` is the page's side of it and falls back to the browser's behaviour everywhere else.
@@ -183,7 +183,7 @@ make docs-sync   # refresh the OpenAPI spec and Lua type stubs from the runtime 
 
 **The guides are translated too.** `docs/zh-Hans/` and `docs/zh-Hant/` hold a translation of every guide under the same file name; the app shows a guide in the current language and falls back to English where a translation is missing. A translation keeps the English headings one for one, its code blocks (only prose comments are translated), its link targets and its table shapes, and each translated heading takes the English heading's anchor, so `configuration.md#memory` resolves in every language. `web/src/docs/translations.test.ts` fails when a translation is missing or breaks that structure. Change an English guide, then its two translations, in the same commit.
 
-**The docs are bundled at build time.** A new page needs a manifest entry in `web/src/docs/library.ts`, and a test fails if it is missing. `docs/openapi/users.yaml` and `docs/lua/af.d.lua` are copies of files versioned with the runtime; `make docs-sync` expects that checkout next to this one, or at `AGENTFLOW_DIR`.
+**The docs are bundled at build time.** A new page needs a manifest entry in `web/src/docs/library.ts`, and a test fails if it is missing. `docs/openapi/users.yaml` and `docs/ts/af.d.ts` are copies of files versioned with the runtime; `make docs-sync` expects that checkout next to this one, or at `AGENTFLOW_DIR`.
 
 **The Fyne desktop app** that came before the Wails one is at the git tag `fyne-desktop-final`.
 

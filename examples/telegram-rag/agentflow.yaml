@@ -50,7 +50,7 @@ profiles:
 
 agents:
   rag:
-    loop: ./loops/rag.lua
+    loop: ./loops/rag.ts
     model: default
     instructions: ./prompts/answer.md
     memory: knowledge

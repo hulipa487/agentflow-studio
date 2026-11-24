@@ -2,7 +2,7 @@
 # With nothing relevant in the knowledge base the bot says so and never asks
 # the model, so it cannot invent an answer.
 agent: rag
-loop: ../loops/rag.lua
+loop: ../loops/rag.ts
 messages:
   - from: user:telegram:7
     text: who won the world cup?

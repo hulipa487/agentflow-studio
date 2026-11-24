@@ -21,7 +21,7 @@ and a README each. Run any of them from the repository root with
 | --- | --- |
 | [`loops/`](loops/) | Single-pattern loops the docs walk through: echo, chat with memory, a multi-round tool loop, streaming, timers, a daemon, delegation, files, OpenAI pass-through and OpenAI-channel memory. |
 | [`loop-tests/`](loop-tests/) | Loop test files: scripted messages and model replies with expected sends (`agentflow loop test <file>`). |
-| [`packages/`](packages/) | Lua source packages and their manifests (`-- af-import: greeting`, `-- af-import: fact_extractor`). |
+| [`packages/`](packages/) | TypeScript source packages and their manifests (`// af-import: greeting`, `// af-import: fact_extractor`). |
 | [`tools/`](tools/) | A declarative HTTP tool (`tools.http`), no Go code needed. |
 | [`prompts/`](prompts/) | A shared system prompt. |
 

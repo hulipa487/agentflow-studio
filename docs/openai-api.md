@@ -9,7 +9,7 @@ mounts on the same `gateway.listen` as every other channel.
 The endpoint is a **channel**, not a proxy. It authenticates, parses, correlates
 the reply and speaks SSE. It makes no decision about meaning: the route handler
 picks a session, and the agent's loop decides what the request is. With the
-built-in route and the pass-through loop (`examples/loops/openai_passthrough.lua`),
+built-in route and the pass-through loop (`examples/loops/openai_passthrough.ts`),
 each request gets its own one-turn session and is forwarded to the agent's model
 unchanged, so a client that is itself an agent — its own system prompt, its own
 tools, its own conversation — gets exactly a model.
@@ -17,14 +17,14 @@ tools, its own conversation — gets exactly a model.
 ## Quick start
 
 An agent answers as its model when its loop forwards the request with
-`llm.forward()` (shipped as `examples/loops/openai_passthrough.lua`). The
+`llm.forward()` (shipped as `examples/loops/openai_passthrough.ts`). The
 channel does not choose the loop for you: an agent listed under `agents` runs
 whatever its own `loop:` says.
 
 ```yaml
 agents:
   coder:
-    loop: ./examples/loops/openai_passthrough.lua
+    loop: ./examples/loops/openai_passthrough.ts
     model: default
     capabilities: [llm.chat]      # llm.forward and openai.request are gated by it
 
@@ -184,17 +184,17 @@ ids in a regional cell.
 
 ## What the loop receives
 
-The body does not cross the Lua bridge. A large coding request stays in Go, and
+The body does not cross the script bridge. A large coding request stays in Go, and
 the message carries metadata and a handle:
 
-```lua
+```ts
 {
-  api = "openai.chat",
-  request_id = "…", request_ref = "…",
-  model = "coder", stream = true,
-  message_count = 12, has_tools = true, bytes = 48211,
-  conversation_id = nil,          -- from header or metadata, untrusted
-  user = "…", metadata = { … },   -- untrusted
+  api: "openai.chat",
+  request_id: "…", request_ref: "…",
+  model: "coder", stream: true,
+  message_count: 12, has_tools: true, bytes: 48211,
+  conversation_id: null,          // from header or metadata, untrusted
+  user: "…", metadata: { … },   // untrusted
 }
 ```
 
@@ -203,7 +203,7 @@ a tool result); it is what the safety profile screens on the way in.
 
 | Call | Purpose |
 | --- | --- |
-| `openai.request()` | The full request as a table: `{ model, stream, messages, tools, tool_choice, params, user, metadata }`. Refused above 4 MiB of JSON |
+| `openai.request()` | The full request as an object: `{ model, stream, messages, tools, tool_choice, params, user, metadata }`. Refused above 4 MiB of JSON |
 | `llm.forward(opts?)` | Forward the turn's request to a model without materialising it. Returns `{ text, tool_calls, finish_reason, usage, thinking, thinking_blocks }` |
 | `session.reply(t)` | Finish the turn with a structured answer: `{ text, tool_calls, finish_reason, usage, reasoning }` |
 | `session.send_delta(text)` | Send one text fragment of the answer |
@@ -214,17 +214,17 @@ capability.
 
 ## The pass-through loop
 
-`examples/loops/openai_passthrough.lua` is four lines:
+`examples/loops/openai_passthrough.ts` is eight lines:
 
-```lua
--- af-prelude-version: 1
-function loop()
-  while true do
-    local msg = session.inbox()
-    local reply = llm.forward()
-    session.reply(reply)
-  end
-end
+```ts
+// af-prelude-version: 2
+function loop() {
+  while (true) {
+    session.inbox();
+    const reply = llm.forward();
+    session.reply(reply);
+  }
+}
 ```
 
 `llm.forward()` with no arguments sends the client's own messages, tools, tool
@@ -251,23 +251,22 @@ reply whose text the safety profile refused carries no reasoning.
 The channel adds no policy; a loop can enrich the request or answer it as an
 assistant instead of a model. A pass-through that prepends remembered facts:
 
-```lua
-function loop()
-  while true do
-    local msg = session.inbox()
-    local facts = memory.recall({ store = "facts", kind = "text", text = msg.text or "", k = 5 })
-    local opts = nil
-    if facts and #facts > 0 then
-      local lines = {}
-      for _, hit in ipairs(facts) do lines[#lines + 1] = "- " .. tostring(hit.value.text or "") end
-      opts = { prepend = { { role = "system", content = table.concat(lines, "\n") } } }
-    end
-    session.reply(llm.forward(opts))
-  end
-end
+```ts
+function loop() {
+  while (true) {
+    const msg = session.inbox();
+    const facts = memory.recall({ store: "facts", kind: "text", text: msg.text || "", k: 5 });
+    let opts = undefined;
+    if (facts && facts.length > 0) {
+      const lines = facts.map((hit) => "- " + String(hit.value.text || ""));
+      opts = { prepend: [{ role: "system", content: lines.join("\n") }] };
+    }
+    session.reply(llm.forward(opts));
+  }
+}
 ```
 
-`examples/loops/openai_memory.lua` in `agentflow-studio` is a complete
+`examples/loops/openai_memory.ts` in `agentflow-studio` is a complete
 version of this pattern.
 
 Options to `llm.forward`: `model` (another `models:` entry), `messages` (replace
@@ -279,10 +278,10 @@ the client's `max_tokens`).
 
 Three things to know when a loop handles the reply itself:
 
-- A tool call in the reply has `args` (a table, for reading) and `arguments`
+- A tool call in the reply has `args` (an object, for reading) and `arguments`
   (the model's own JSON text). `session.reply` sends `arguments` when it is
-  present, because a Lua table cannot tell `[]` from `{}` and would return a
-  different call. If you change a call's `args`, set its `arguments` to `nil`.
+  present to preserve the exact serialized arguments from the model. If you
+  change a call's `args`, set its `arguments` to `undefined` or `null`.
 - A loop that sends fragments with `session.send_delta` and then replies with
   the full text has it sent once: the reply adds only what the fragments did not
   already carry.
@@ -291,7 +290,7 @@ Three things to know when a loop handles the reply itself:
   `finish_reason: "stop"`. A turn that produced nothing is an empty assistant
   message.
 
-Keep durable state out of Lua locals. A one-turn session has none to keep, and
+Keep durable state out of script local variables. A one-turn session has none to keep, and
 a conversation session is unloaded when idle (see
 [`runtime.sessions.idle_unload`](configuration.md)); use `session.state.*`,
 memory or the store.

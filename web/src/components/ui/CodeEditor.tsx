@@ -1,7 +1,7 @@
 // A CodeMirror 6 editor themed from the design tokens: line numbers,
 // highlighting, bracket pairing, auto-indent, search, multi-cursor, undo/redo
-// and the usual IDE keys. Language intelligence for Lua 5.1 loops (diagnostics,
-// completion, hover) is supplied by the caller through `extensions`.
+// and the usual IDE keys. Language intelligence for TypeScript/JS loops
+// (diagnostics, completion, hover) is supplied by the caller through `extensions`.
 import { useEffect, useRef, useState } from 'react'
 import { Compartment, EditorSelection, EditorState, RangeSetBuilder, type ChangeSpec, type Extension } from '@codemirror/state'
 import {
@@ -25,10 +25,8 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import {
   HighlightStyle,
-  StreamLanguage,
   bracketMatching,
   foldGutter,
-  foldService,
   foldKeymap,
   indentOnInput,
   indentUnit,
@@ -37,7 +35,7 @@ import {
 import { acceptCompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
 import { highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search'
 import { forceLinting, lintKeymap } from '@codemirror/lint'
-import { lua } from '@codemirror/legacy-modes/mode/lua'
+import { javascript } from '@codemirror/lang-javascript'
 import { yaml } from '@codemirror/lang-yaml'
 import { markdown } from '@codemirror/lang-markdown'
 import { json } from '@codemirror/lang-json'
@@ -45,7 +43,7 @@ import { tags as t } from '@lezer/highlight'
 import { t as i18n, useLang } from '@/i18n'
 import { cx } from './index'
 
-export type CodeLanguage = 'lua' | 'yaml' | 'markdown' | 'json' | 'text'
+export type CodeLanguage = 'typescript' | 'javascript' | 'yaml' | 'markdown' | 'json' | 'text'
 
 // Colors come from the tokens, so the editor follows the theme and palette
 // without being rebuilt.
@@ -149,22 +147,6 @@ const chrome = EditorView.theme({
   },
 })
 
-// The legacy Lua mode has no syntax tree to fold on, so Lua folds by
-// indentation: a line folds over the deeper-indented lines below it.
-const indentFold = foldService.of((state, lineStart) => {
-  const line = state.doc.lineAt(lineStart)
-  if (!line.text.trim()) return null
-  const indent = /^\s*/.exec(line.text)![0].length
-  let end = -1
-  for (let n = line.number + 1; n <= state.doc.lines; n++) {
-    const l = state.doc.line(n)
-    if (!l.text.trim()) continue
-    if (/^\s*/.exec(l.text)![0].length <= indent) break
-    end = l.to
-  }
-  return end > line.to ? { from: line.to, to: end } : null
-})
-
 // Indent guides: the leading spaces of each line get a mark whose background
 // draws a hairline at the start of every indent level.
 const indentMark = Decoration.mark({ class: 'cm-indent' })
@@ -234,7 +216,13 @@ const joinLines: Command = (view) => {
   return true
 }
 
-const LANGUAGE_LABEL: Record<Exclude<CodeLanguage, 'text'>, string> = { lua: 'Lua', yaml: 'YAML', markdown: 'Markdown', json: 'JSON' }
+const LANGUAGE_LABEL: Record<Exclude<CodeLanguage, 'text'>, string> = {
+  typescript: 'TypeScript',
+  javascript: 'JavaScript',
+  yaml: 'YAML',
+  markdown: 'Markdown',
+  json: 'JSON',
+}
 
 function languageLabel(lang: CodeLanguage): string {
   return lang === 'text' ? i18n('editor.lang.plain') : LANGUAGE_LABEL[lang]
@@ -297,8 +285,10 @@ function caretOf(state: EditorState): Caret {
 
 function languageExtension(lang: CodeLanguage): Extension {
   switch (lang) {
-    case 'lua':
-      return [StreamLanguage.define(lua), indentFold]
+    case 'typescript':
+      return javascript({ typescript: true })
+    case 'javascript':
+      return javascript()
     case 'yaml':
       return yaml()
     case 'markdown':

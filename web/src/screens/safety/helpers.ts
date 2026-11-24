@@ -4,19 +4,19 @@
 import type {
   SafetyClassifier,
   SafetyClassifierDraft,
-  SafetyLuaFilter,
-  SafetyLuaFilterDraft,
   SafetyProfile,
   SafetyProfileDraft,
+  SafetyScriptFilter,
+  SafetyScriptFilterDraft,
 } from '@/api/types'
 import { hasMessage, t } from '@/i18n'
 
 export const CLASSIFIER_PREFIX = 'classifier:'
-export const LUA_FILTER_PREFIX = 'lua:'
+export const SCRIPT_FILTER_PREFIX = 'script:'
 
 export const MODES = ['enforce', 'shadow']
 export const FAIL_ACTIONS = ['block', 'pass']
-export const LUA_FAIL_ACTIONS = ['pass', 'block']
+export const SCRIPT_FAIL_ACTIONS = ['pass', 'block']
 export const SOURCES = ['channel', 'agent', 'scheduler', 'system'] as const
 export type Source = (typeof SOURCES)[number]
 
@@ -117,8 +117,8 @@ export function isClassifierFilter(filter: string): boolean {
   return filter.startsWith(CLASSIFIER_PREFIX)
 }
 
-export function isLuaFilter(filter: string): boolean {
-  return filter.startsWith(LUA_FILTER_PREFIX)
+export function isScriptFilter(filter: string): boolean {
+  return filter.startsWith(SCRIPT_FILTER_PREFIX)
 }
 
 // ---- parsing ----------------------------------------------------------------
@@ -367,25 +367,25 @@ export function withCurrent(options: string[], current: string): string[] {
   return current !== '' && !options.includes(current) ? [...options, current] : options
 }
 
-// ---- custom Lua filter form -------------------------------------------------
+// ---- custom script filter form ----------------------------------------------
 
-export const LUA_FILTER_STARTER = `-- Sandboxed Lua 5.1 safety filter (string, table, math only).
--- Return a table or nil. Available on input:
---   ingress(input): input.message, input.source, input.session_id, input.annotations
---                   return redirect = "model-name" on ingress to reroute this turn
---   egress(input):  input.text, input.source, input.session_id, input.annotations
+export const SCRIPT_FILTER_STARTER = `// Sandboxed TypeScript/JS safety filter (deterministic ES runtime).
+// Return an object or null/undefined:
+//   ingress(input): input.message, input.source, input.session_id, input.annotations
+//                   return { redirect: "model-name" } on ingress to reroute this turn
+//   egress(input):  input.text, input.source, input.session_id, input.annotations
 
-function ingress(input)
-  return { text = input.message }
-end
+function ingress(input: { message: string }) {
+  return { text: input.message };
+}
 
-function egress(input)
-  local cleaned = string.gsub(input.text, "sk%-[A-Za-z0-9]+", "[REDACTED]")
-  return { text = cleaned }
-end
+function egress(input: { text: string }) {
+  const cleaned = input.text.replace(/sk-[A-Za-z0-9]+/g, "[REDACTED]");
+  return { text: cleaned };
+}
 `
 
-export interface LuaFilterForm {
+export interface ScriptFilterForm {
   name: string
   useFile: boolean
   source: string
@@ -400,12 +400,12 @@ export interface LuaFilterForm {
   fallback: string
 }
 
-export function luaFilterForm(existing: SafetyLuaFilter | null): LuaFilterForm {
+export function scriptFilterForm(existing: SafetyScriptFilter | null): ScriptFilterForm {
   if (!existing) {
     return {
       name: '',
       useFile: false,
-      source: LUA_FILTER_STARTER,
+      source: SCRIPT_FILTER_STARTER,
       file: '',
       ingress: true,
       egress: true,
@@ -424,7 +424,7 @@ export function luaFilterForm(existing: SafetyLuaFilter | null): LuaFilterForm {
   return {
     name: existing.name,
     useFile,
-    source: existing.source ?? (useFile ? '' : LUA_FILTER_STARTER),
+    source: existing.source ?? (useFile ? '' : SCRIPT_FILTER_STARTER),
     file: existing.file ?? '',
     ingress: directions.length === 0 || directions.includes('ingress'),
     egress: directions.length === 0 || directions.includes('egress'),
@@ -442,13 +442,13 @@ export function luaFilterForm(existing: SafetyLuaFilter | null): LuaFilterForm {
   }
 }
 
-export function buildLuaFilterDraft(f: LuaFilterForm): SafetyLuaFilterDraft {
+export function buildScriptFilterDraft(f: ScriptFilterForm): SafetyScriptFilterDraft {
   const name = f.name.trim()
-  if (name === '') throw new Error(t('safety.err.luaNameRequired'))
+  if (name === '') throw new Error(t('safety.err.scriptNameRequired'))
   if (f.useFile) {
-    if (f.file.trim() === '') throw new Error(t('safety.err.luaFileRequired'))
+    if (f.file.trim() === '') throw new Error(t('safety.err.scriptFileRequired'))
   } else if (f.source.trim() === '') {
-    throw new Error(t('safety.err.luaSourceRequired'))
+    throw new Error(t('safety.err.scriptSourceRequired'))
   }
   const directions: string[] = []
   if (f.ingress) directions.push('ingress')
@@ -457,7 +457,7 @@ export function buildLuaFilterDraft(f: LuaFilterForm): SafetyLuaFilterDraft {
   const sources = SOURCES.filter((s) => f.sources[s])
   if (sources.length === 0) throw new Error(t('safety.err.chooseSource'))
 
-  const d: SafetyLuaFilterDraft = {
+  const d: SafetyScriptFilterDraft = {
     name,
     directions,
     sources: sources.length === SOURCES.length ? undefined : sources,
@@ -468,7 +468,7 @@ export function buildLuaFilterDraft(f: LuaFilterForm): SafetyLuaFilterDraft {
 
   const timeout = f.timeout.trim()
   if (timeout !== '') d.timeout = timeout
-  const budget = optionalCount64(t('safety.lua.instrBudget'), f.instrBudget)
+  const budget = optionalCount64(t('safety.script.instrBudget'), f.instrBudget)
   if (budget > 0) d.instr_budget = budget
   const refusal = f.refusal.trim()
   if (refusal !== '') d.refusal = refusal

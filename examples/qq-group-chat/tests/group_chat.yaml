@@ -1,6 +1,6 @@
 # agentflow loop test examples/qq-group-chat/tests/group_chat.yaml
 agent: group_bot
-loop: ../loops/group_chat.lua
+loop: ../loops/group_chat.ts
 messages:
   - from: ann
     text: what should we cook tonight?

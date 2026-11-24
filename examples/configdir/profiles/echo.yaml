@@ -1,2 +1,2 @@
 name: echo
-loop: ./loops/echo.lua
+loop: ./loops/echo.ts

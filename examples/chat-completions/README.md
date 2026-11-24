@@ -6,7 +6,7 @@ client or SDK that speaks the OpenAI API works with only a base URL and a key.
 | | |
 | --- | --- |
 | Channel | `openai`, `auth: key` |
-| Loop | [`loops/single_turn.lua`](loops/single_turn.lua) |
+| Loop | [`loops/single_turn.ts`](loops/single_turn.ts) |
 | Needs | any model AgentFlow can call (OpenAI-compatible, Anthropic, Gemini, …) |
 
 ## How it works
@@ -45,7 +45,7 @@ print(client.chat.completions.create(model="assistant",
 
 ## Make it yours
 
-- **Pass-through** — `loop: ../loops/openai_passthrough.lua` forwards the client's
+- **Pass-through** — `loop: ../loops/openai_passthrough.ts` forwards the client's
   whole request (history, tools, sampling parameters) to the agent's model:
   the endpoint then behaves exactly like a model with AgentFlow's controls.
 - **Per-user keys** — `auth: user_token` with `runtime.identity.enabled`

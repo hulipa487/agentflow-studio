@@ -7,7 +7,7 @@ shell commands, and posts a review comment on the pull request.
 | | |
 | --- | --- |
 | Channel | `ghhook` (GitHub webhook, HMAC-verified) |
-| Loops | [`loops/pr_dispatcher.lua`](loops/pr_dispatcher.lua), [`loops/code_reviewer.lua`](loops/code_reviewer.lua) |
+| Loops | [`loops/pr_dispatcher.ts`](loops/pr_dispatcher.ts), [`loops/code_reviewer.ts`](loops/code_reviewer.ts) |
 | Runs code in | one-off gVisor sandbox jobs (Linux), no network |
 | Needs | a GitHub token, a public HTTPS URL for the webhook, an OpenAI-compatible model |
 
@@ -16,7 +16,7 @@ shell commands, and posts a review comment on the pull request.
 ```
 GitHub ──pull_request──▶ ghhook ──▶ pr_dispatcher ──agent.spawn──▶ code_reviewer (one per PR)
                                                                    │  GitHub API: changed files → project "pr-<repo>-<n>"
-                                                                   │  lua:run tool → shell.run in the sandbox
+                                                                   │  script:run tool → shell.run in the sandbox
                                                                    └─ GitHub API: review comment, then exit
 ```
 
@@ -26,7 +26,7 @@ GitHub ──pull_request──▶ ghhook ──▶ pr_dispatcher ──agent.sp
   `profiles.agent` template and sends it the job. Reviews run side by side.
 - **Reviewer.** It writes the changed files at the head commit into its own
   files-store project, with `PR.md` and `PR.diff` at the root. The model gets
-  one tool, `lua:run`, which runs a command on that project in a gVisor
+  one tool, `script:run`, which runs a command on that project in a gVisor
   sandbox: no network, a read-only toolchain, and only the project's files
   survive. When it is done it posts the review and the session exits.
 - **Secrets.** The GitHub token is the engine-wide credential `github`. Only
@@ -76,7 +76,7 @@ Open a pull request; a review comment follows in a minute or two.
   `python` environment's toolchain (add linters to the root filesystem).
 - **Other events** — the dispatcher's `REVIEW_ON` table; `issue_comment` can
   trigger a review on demand.
-- **Fix, not just review** — the reviewer can write files with `lua:run`;
+- **Fix, not just review** — the reviewer can write files with `script:run`;
   `files.commit` and a branch push through the GitHub API turn it into a
   fixing agent.
 - **Cost** — `budget.tokens_per_day` on the template caps every reviewer

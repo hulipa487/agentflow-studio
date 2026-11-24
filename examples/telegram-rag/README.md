@@ -7,7 +7,7 @@ making something up.
 | | |
 | --- | --- |
 | Channels | `telegram` (polling), `webhook` for bulk loading |
-| Loop | [`loops/rag.lua`](loops/rag.lua) |
+| Loop | [`loops/rag.ts`](loops/rag.ts) |
 | Memory | SQLite vector store `knowledge`, `recall: plugin:semantic` |
 | Needs | a Telegram bot token and an OpenAI-compatible chat + embedding model |
 

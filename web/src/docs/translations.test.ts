@@ -50,14 +50,15 @@ function parse(text: string): Shape {
   return g
 }
 
-/** Drops a #, -- or // comment (directives #!, #{ and -- af-… stay), as the Go test does. */
+/** Drops a #, -- or // comment (directives #!, #{ and // af-… stay), as the Go test does. */
 export function stripComment(line: string): string {
   for (let i = 0; i < line.length; i++) {
     if (i > 0 && line[i - 1] !== ' ' && line[i - 1] !== '\t') continue
     const rest = line.slice(i)
     const hash = rest.startsWith('#') && !rest.startsWith('#!') && !rest.startsWith('#{')
     const dash = rest.startsWith('--') && !rest.slice(2).trimStart().startsWith('af-')
-    if (hash || dash || rest.startsWith('//')) return line.slice(0, i)
+    const slash = rest.startsWith('//') && !rest.slice(2).trimStart().startsWith('af-')
+    if (hash || dash || slash) return line.slice(0, i)
   }
   return line
 }
@@ -114,6 +115,7 @@ describe('translated guides', () => {
     expect(stripComment('key: value  # a note')).toBe('key: value  ')
     expect(stripComment('#!/bin/sh')).toBe('#!/bin/sh')
     expect(stripComment('-- af-prelude-version: 1')).toBe('-- af-prelude-version: 1')
+    expect(stripComment('// af-prelude-version: 2')).toBe('// af-prelude-version: 2')
     expect(stripComment('url: http://host/x')).toBe('url: http://host/x')
     expect(stripComment('color: "#fff"')).toBe('color: "#fff"')
   })

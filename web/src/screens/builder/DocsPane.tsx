@@ -55,7 +55,7 @@ export function DocsPane({ onOpenDocs }: { onOpenDocs: (path: string) => void })
     <aside className="flex min-h-0 flex-1 flex-col rounded-card border border-line bg-surface">
       <div className="flex shrink-0 flex-col gap-2 border-b border-line p-3">
         <div className="flex items-center gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-md font-semibold leading-tight">{t('builder.luaReference')}</h2>
+          <h2 className="min-w-0 flex-1 truncate text-md font-semibold leading-tight">{t('builder.scriptReference')}</h2>
           <Button size="sm" variant="ghost" icon={BookOpen} title={t('builder.fullDocsTitle')} onClick={() => onOpenDocs('/docs/' + slug)}>
             {t('builder.fullDocs')}
           </Button>

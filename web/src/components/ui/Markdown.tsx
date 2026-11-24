@@ -18,23 +18,29 @@ function escapeHTML(s: string): string {
 const words = (list: string) => new Set(list.split(' '))
 
 const KEYWORDS: Record<string, Set<string>> = {
-  lua: words('and break continue do else elseif end export false for function if in local nil not or repeat return then true type until while'),
+  typescript: words(
+    'as async await break case catch class const continue debugger default delete do else enum export extends false finally for from function if implements import in instanceof interface let new null of package private protected public readonly return static super switch this throw true try type typeof var void while with yield',
+  ),
   yaml: words('true false null yes no on off'),
   bash: words('if then else fi for do done export echo curl cd make go git agentflow'),
   json: words('true false null'),
 }
 
 /**
- * A small highlighter for the fenced blocks the guides use (lua, yaml, bash,
+ * A small highlighter for the fenced blocks the guides use (ts/js, yaml, bash,
  * json). It marks comments, strings, numbers and keywords; anything else is
  * left as plain text.
  */
 export function highlightCode(code: string, lang: string): string {
-  const l = lang.toLowerCase().replace(/^luau$/, 'lua').replace(/^(sh|shell|console)$/, 'bash').replace(/^yml$/, 'yaml')
+  const l = lang
+    .toLowerCase()
+    .replace(/^(ts|typescript|js|javascript)$/, 'typescript')
+    .replace(/^(sh|shell|console)$/, 'bash')
+    .replace(/^yml$/, 'yaml')
   const kw = KEYWORDS[l]
   if (!kw) return escapeHTML(code)
-  const comment = l === 'lua' ? /--\[\[[\s\S]*?\]\]|--[^\n]*/y : l === 'json' ? null : /#[^\n]*/y
-  const string = /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/y
+  const comment = l === 'typescript' ? /\/\*[\s\S]*?\*\/|\/\/[^\n]*/y : l === 'json' ? null : /#[^\n]*/y
+  const string = l === 'typescript' ? /`(?:[^`\\]|\\.)*`|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/y : /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/y
   const number = /\b\d+(?:\.\d+)?\b/y
   const word = /[A-Za-z_][A-Za-z0-9_]*/y
   let out = ''
@@ -48,7 +54,7 @@ export function highlightCode(code: string, lang: string): string {
   while (i < code.length) {
     let m: RegExpExecArray | null
     // A '#' only starts a comment at line start or after whitespace.
-    const commentOK = comment && (l === 'lua' || i === 0 || /\s/.test(code[i - 1]))
+    const commentOK = comment && (l === 'typescript' || i === 0 || /\s/.test(code[i - 1]))
     if (commentOK && (m = at(comment!))) {
       out += span('--af-faint', m[0], true)
     } else if ((m = at(string))) {

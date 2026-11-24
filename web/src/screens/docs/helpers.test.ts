@@ -29,7 +29,7 @@ describe('headingID', () => {
 })
 
 describe('sectionForMatch', () => {
-  const src = ['# Title', 'intro needle-zero', '## First part', 'text', '```lua', '## not a heading', 'needle-one', '```', '### Sub `part`', 'needle-two'].join('\n')
+  const src = ['# Title', 'intro needle-zero', '## First part', 'text', '```ts', '## not a heading', 'needle-one', '```', '### Sub `part`', 'needle-two'].join('\n')
 
   it('names the last heading at or before the hit', () => {
     expect(sectionForMatch(src, 'needle-zero')).toBe('')

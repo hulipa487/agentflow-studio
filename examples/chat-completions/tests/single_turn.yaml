@@ -1,6 +1,6 @@
 # agentflow loop test examples/chat-completions/tests/single_turn.yaml
 agent: assistant
-loop: ../loops/single_turn.lua
+loop: ../loops/single_turn.ts
 messages:
   - from: client
     text: Say hi in French.

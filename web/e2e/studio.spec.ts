@@ -33,7 +33,7 @@ test.describe('AgentFlow Studio E2E (mock admin API)', () => {
     expect(errors).toEqual([])
   })
 
-  test('builder renders Lua 5.1 editor without Luau drift', async ({ page }) => {
+  test('builder renders TypeScript editor with inline Goja diagnostics', async ({ page }) => {
     const errors: string[] = []
     page.on('pageerror', (err) => errors.push(err.message))
 
@@ -42,11 +42,11 @@ test.describe('AgentFlow Studio E2E (mock admin API)', () => {
     await expect(page.getByRole('heading', { name: 'helper' })).toBeVisible()
 
     await page.getByRole('tab', { name: 'Loop' }).click()
-    await expect(page.getByRole('heading', { name: 'Loop (Lua 5.1)' })).toBeVisible()
-    await expect(page.getByText('Lua 5.1 · inline diagnostics')).toBeVisible()
-    await expect(page.locator('.cm-content')).toContainText('af.llm.chat')
-    await expect(page.getByText(/Ln \d+, Col \d+\s+·\s+Lua\s+·/)).toBeVisible()
-    expect(await page.locator('body').innerText()).not.toContain('Luau')
+    await expect(page.getByRole('heading', { name: 'Loop (TypeScript)' })).toBeVisible()
+    await expect(page.getByText('TypeScript (Goja) · inline diagnostics')).toBeVisible()
+    await expect(page.locator('.cm-content')).toContainText('llm.chat')
+    await expect(page.getByText(/Ln \d+, Col \d+\s+·\s+(TypeScript|TS)\s+·/i)).toBeVisible()
+    expect(await page.locator('body').innerText()).not.toContain('Lua 5.1')
     expect(errors).toEqual([])
   })
 
@@ -101,32 +101,32 @@ test.describe('AgentFlow Studio E2E (mock admin API)', () => {
     expect(errors).toEqual([])
   })
 
-  test('safety screen creates custom Lua filter, attaches it to profile, and switches to Simplified Chinese', async ({ page }) => {
+  test('safety screen creates custom script filter, attaches it to profile, and switches to Simplified Chinese', async ({ page }) => {
     const errors: string[] = []
     page.on('pageerror', (err) => errors.push(err.message))
 
     await connectToMock(page)
     await page.goto('/#/safety')
 
-    await expect(page.getByRole('heading', { name: 'Custom Lua filters' })).toBeVisible()
-    await page.getByRole('button', { name: 'New Lua filter', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Custom script filters' })).toBeVisible()
+    await page.getByRole('button', { name: 'New script filter', exact: true }).click()
 
     await page.getByPlaceholder('pii_mask').fill('pii_mask')
     await page.getByRole('button', { name: 'Validate', exact: true }).click()
-    await expect(page.getByText('Lua filter "pii_mask" compiled without errors.')).toBeVisible()
+    await expect(page.getByText('Script filter "pii_mask" compiled without errors.')).toBeVisible()
 
     await page.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(page.getByText('pii_mask').first()).toBeVisible()
 
-    // Attach lua:pii_mask to the default safety profile.
+    // Attach script:pii_mask to the default safety profile.
     await page.getByRole('button', { name: /\bdefault\b/i }).first().click()
-    await page.getByRole('button', { name: 'lua:pii_mask' }).click()
+    await page.getByRole('button', { name: 'script:pii_mask' }).click()
     await page.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(page.getByText('lua:pii_mask').first()).toBeVisible()
+    await expect(page.getByText('script:pii_mask').first()).toBeVisible()
 
     // Verify i18n language switch renders localized Safety UI labels.
     await page.getByRole('radio', { name: '简体' }).click()
-    await expect(page.getByRole('heading', { name: '自定义 Lua 过滤器' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '自定义脚本过滤器' })).toBeVisible()
     await expect(page.getByText('入站, 出站', { exact: true })).toBeVisible()
     await expect(page.getByText('放行').first()).toBeVisible()
     expect(errors).toEqual([])

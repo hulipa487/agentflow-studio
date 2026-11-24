@@ -19,7 +19,7 @@
 ```yaml
 agents:
   assistant:
-    loop: ./loops/chat.lua
+    loop: ./loops/chat.ts
     memory: conversational        # 內建設定檔
 ```
 
@@ -27,9 +27,9 @@ agents:
 
 在迴圈中：
 
-```lua
-memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text })
-local recent = memory.recall({ kind = "all" })          -- 來自 dialogue 的記錄
+```ts
+memory.write({ type: "turn", id: msg.id, text: msg.text, reply: reply.text });
+const recent = memory.recall({ kind: "all" });          // 來自 dialogue 的記錄
 ```
 
 代理需要 `memory` 能力，這項能力預設就已啟用。
@@ -126,18 +126,18 @@ profiles:
 
 ### 寫入
 
-`write` 列出寫入鏈。目前 `memory.write` 一律執行路由表：隨附的 `plugin:routing_table`，或在你的部署覆蓋它時使用 `plugins/routing_table.lua`。這份清單本身會以 `agent.info().memory.write` 傳給迴圈，讓迴圈可以讀取，但它不會切換寫入鏈。請保留為 `[plugin:routing_table]`。
+`write` 列出寫入鏈。目前 `memory.write` 一律執行路由表：隨附的 `plugin:routing_table`，或在你的部署覆蓋它時使用 `plugins/routing_table.ts`。這份清單本身會以 `agent.info().memory.write` 傳給迴圈，讓迴圈可以讀取，但它不會切換寫入鏈。請保留為 `[plugin:routing_table]`。
 
 ## 讓代理擁有記憶
 
 ```yaml
 agents:
   helper:
-    loop: ./loops/helper.lua
+    loop: ./loops/helper.ts
     memory: group_chat            # 具名設定檔
 
   scratch:
-    loop: ./loops/scratch.lua
+    loop: ./loops/scratch.ts
     memory:                       # 內嵌設定檔，僅供這一個代理使用
       stores:
         dialogue: { backend: main_db, table: scratch, retention: 1h }
@@ -151,17 +151,17 @@ agents:
 
 ### 寫入
 
-```lua
--- 一個輪次：路由到 "dialogue"，鍵為 turn:<id>。
-memory.write({ type = "turn", id = msg.id, text = msg.text, reply = reply.text })
+```ts
+// 一個輪次：路由到 "dialogue"，鍵為 turn:<id>。
+memory.write({ type: "turn", id: msg.id, text: msg.text, reply: reply.text });
 
--- 一項事實：路由到 "facts"，以 key 作為鍵。
-memory.write({ type = "fact", key = "name:" .. msg.from, text = "Their name is Ada." })
+// 一項事實：路由到 "facts"，以 key 作為鍵。
+memory.write({ type: "fact", key: "name:" + msg.from, text: "Their name is Ada." });
 
--- 明確指定目標：任何儲存區、任何鍵，以及選填的 ttl（秒）。
-memory.write({ targets = {
-  { store = "notes", key = "todo:" .. msg.id, value = { text = msg.text }, ttl = 3600 },
-} })
+// 明確指定目標：任何儲存區、任何鍵，以及選填的 ttl（秒）。
+memory.write({ targets: [
+  { store: "notes", key: "todo:" + msg.id, value: { text: msg.text }, ttl: 3600 },
+] });
 ```
 
 記錄只會送到設定檔宣告的儲存區：設定檔中沒有 `dialogue` 儲存區的代理寫入 `turn`，會被直接捨棄，而不是視為錯誤。
@@ -170,23 +170,23 @@ memory.write({ targets = {
 
 `memory.recall` 回傳 `{ key, value, meta }` 的清單。
 
-```lua
--- plugin:recency
-memory.recall({ kind = "all" })                                  -- dialogue
-memory.recall({ kind = "text", store = "facts", text = "name", k = 5 })
-memory.recall({ kind = "prefix", store = "notes", prefix = "todo:" })
-memory.recall({ kind = "time", store = "dialogue",
-                from = "2026-11-01T00:00:00Z", to = "2026-11-02T00:00:00Z" })
+```ts
+// plugin:recency
+memory.recall({ kind: "all" });                                  // dialogue
+memory.recall({ kind: "text", store: "facts", text: "name", k: 5 });
+memory.recall({ kind: "prefix", store: "notes", prefix: "todo:" });
+memory.recall({ kind: "time", store: "dialogue",
+                from: "2026-11-01T00:00:00Z", to: "2026-11-02T00:00:00Z" });
 
--- plugin:semantic
-memory.recall({ text = msg.text, k = 5 })                        -- 語意召回，否則讀取 dialogue
+// plugin:semantic
+memory.recall({ text: msg.text, k: 5 });                         // 語意召回，否則讀取 dialogue
 ```
 
 沒有指定 `store` 時，recency 會讀取 `dialogue`，所以要在 `facts` 上做全文搜尋時，請指定儲存區。時間邊界是 RFC3339 字串。
 
 ### 原始資料表
 
-`store.put`、`store.get`、`store.query` 與 `store.delete` 依名稱操作儲存區，不經過路由也不產生嵌入。說明請見 [Lua 迴圈](loops.md#memory)。
+`store.put`、`store.get`、`store.query` 與 `store.delete` 依名稱操作儲存區，不經過路由也不產生嵌入。說明請見 [指令碼迴圈](loops.md#memory)。
 
 ## 隔離
 

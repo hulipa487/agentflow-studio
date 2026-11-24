@@ -7,7 +7,7 @@ describe('bundled example loops', () => {
     expect(all.length).toBeGreaterThanOrEqual(11)
     const echo = findExample('echo')
     expect(echo).toBeDefined()
-    expect(echo?.file).toBe('echo.lua')
+    expect(echo?.file).toBe('echo.ts')
     expect(echo?.summary.length).toBeGreaterThan(0)
     expect(echo?.source).toContain('function loop()')
     expect(findExample('does-not-exist')).toBeUndefined()
