@@ -942,6 +942,15 @@ export interface TelegramBotInfo {
   privacy_mode_enabled: boolean
 }
 
+export interface QQBotInfo {
+  app_id: string
+  bot_id?: string
+  username?: string
+  gateway_url?: string
+  shards?: number
+  api_base?: string
+}
+
 export type StudioEventOutcome = 'answered' | 'ignored' | 'dropped' | 'failed' | 'received'
 
 export interface StudioEvent {

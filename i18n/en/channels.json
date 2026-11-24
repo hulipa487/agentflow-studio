@@ -117,6 +117,7 @@
   "channels.clearKeys": "Remove the stored keys",
   "channels.scene.c2c": "Private chats",
   "channels.scene.group": "Group @-mentions",
+  "channels.scene.groupAll": "Group all messages (group_all)",
   "channels.scene.guild": "Guild @-mentions",
   "channels.scene.dm": "Guild DMs",
   "channels.hint.agentsExposed": "Comma-separated. A client selects one by name as its model.",
@@ -179,5 +180,11 @@
   "channels.telegram.privacyOn": "Privacy Mode ON",
   "channels.telegram.privacyOff": "Privacy Mode OFF",
   "channels.telegram.privacyOnDesc": "Telegram hides ordinary group messages from bots with Privacy Mode on. It receives @-mentions and direct replies by default; run /setprivacy -> Disable in @BotFather if you want trigger phrases or all-message context.",
-  "channels.telegram.privacyOffDesc": "Bot can read all group messages where it is a member (trigger phrases and optional group context work out of the box)."
+  "channels.telegram.privacyOffDesc": "Bot can read all group messages where it is a member (trigger phrases and optional group context work out of the box).",
+  "channels.qq.testCredentials": "Test credentials",
+  "channels.qq.websocketLiveHint": "Websocket mode goes live immediately when you save — no restart needed.",
+  "channels.qq.verifyHint": "Verify AppID, AppSecret, and IP allowlist access before saving.",
+  "channels.qq.connected": "Gateway OK",
+  "channels.qq.shards": "{n} shard(s)",
+  "channels.qq.groupAllHint": "Group @-mentions arrives by default. Add group_all only if your QQ bot has full group-message permission."
 }

@@ -1,0 +1,53 @@
+# QQ group bot starter with Studio settings and per-group memory.
+#
+# Quick start:
+#   export OPENAI_API_KEY=...  QQ_APPID=102xxxxxx  QQ_APPSECRET=...
+#   agentflow validate -config examples/qq-group-bot/agentflow.yaml
+#   agentflow -config examples/qq-group-bot/agentflow.yaml
+#
+# Or edit everything visually in AgentFlow Studio (Starter Settings, Channel Tester, Event Center).
+
+version: "1"
+
+runtime:
+  persistence: sqlite://./data/agentflow.db
+  studio:
+    enabled: true
+  sessions:
+    idle_unload: 30m
+
+models:
+  default:
+    provider: openai
+    model: ${CHAT_MODEL:-gpt-4.1-mini}
+    base_url: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+    api_key: ${OPENAI_API_KEY}
+
+agents:
+  qq_group_bot:
+    loop: ./loops/group_bot.ts
+    model: default
+    instructions: ./prompts/assistant.md
+    memory: conversational
+    history_budget: 6000
+    capabilities: [llm.chat, memory, session.state]
+    extras:
+      respond_on_mention: true
+      respond_in_c2c: true
+      respond_in_guild: false
+      trigger_phrase: ""
+      cooldown_sec: 15
+      store_all_messages: false
+      retention_turns: 20
+
+gateway:
+  listen: 127.0.0.1:8080
+  channels:
+    - type: qq
+      name: qq
+      agent: qq_group_bot
+      app_id: ${QQ_APPID}
+      secret: ${QQ_APPSECRET}
+      mode: websocket
+      scenes: [group, c2c]
+      markdown: true

@@ -290,4 +290,36 @@ describe('starter settings schema and template seeding', () => {
       trigger_phrase: '',
     })
   })
+
+  it('picks the best-matching starter template when presets share common setting keys', () => {
+    const qqTpl: Template = {
+      name: 'qq-group-bot',
+      title: 'QQ group bot',
+      description: 'QQ group bot starter',
+      capabilities: ['llm.chat', 'memory', 'session.state'],
+      memory: 'conversational',
+      extras: { respond_on_mention: true, respond_in_c2c: true, respond_in_guild: false, cooldown_sec: 15 },
+      settings: [
+        { key: 'respond_on_mention', label: 'Reply on mention', type: 'bool', default: true },
+        { key: 'respond_in_c2c', label: 'Reply in C2C', type: 'bool', default: true },
+        { key: 'respond_in_guild', label: 'Reply in Guild', type: 'bool', default: false },
+        { key: 'cooldown_sec', label: 'Cooldown', type: 'number', default: 15 },
+      ],
+      loop: '// af-prelude-version: 2\nfunction loop() {}\n',
+    }
+    const both = { ...catalog, templates: [tgTpl, qqTpl] }
+    const qqForm = initialForm('', null, qqTpl, both)
+    expect(matchingTemplateSettings(both, parseExtrasObject(qqForm.extras)).map((s) => s.key)).toEqual([
+      'respond_on_mention',
+      'respond_in_c2c',
+      'respond_in_guild',
+      'cooldown_sec',
+    ])
+    const tgForm = initialForm('', null, tgTpl, both)
+    expect(matchingTemplateSettings(both, parseExtrasObject(tgForm.extras)).map((s) => s.key)).toEqual([
+      'respond_on_mention',
+      'cooldown_sec',
+      'trigger_phrase',
+    ])
+  })
 })

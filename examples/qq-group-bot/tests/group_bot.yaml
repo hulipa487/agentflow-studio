@@ -1,0 +1,72 @@
+# agentflow loop test examples/qq-group-bot/tests/group_bot.yaml
+agent: qq_group_bot
+loop: ../loops/group_bot.ts
+extras:
+  respond_on_mention: true
+  respond_in_c2c: true
+  respond_in_guild: false
+  trigger_phrase: "!bot"
+  cooldown_sec: 15
+  store_all_messages: true
+  retention_turns: 20
+
+messages:
+  # 1. Ordinary group message (via group_all): stays quiet via session.skip("not_mentioned"),
+  #    and enters working context because store_all_messages is true.
+  - from: alice
+    channel: qq
+    text: "hey everyone, staging deploy finished"
+    payload:
+      scene: group
+      chat_id: "group:G100"
+      name: Alice
+      mentioned: false
+
+  # 2. Direct @-mention in QQ group: recalls Alice's retained message and answers.
+  - from: bob
+    channel: qq
+    text: "what just happened?"
+    payload:
+      scene: group
+      chat_id: "group:G100"
+      name: Bob
+      mentioned: true
+
+  # 3. Immediate follow-up mention within cooldown_sec: stays quiet via session.skip("cooldown").
+  - from: carol
+    channel: qq
+    text: "summarize that too!"
+    payload:
+      scene: group
+      chat_id: "group:G100"
+      name: Carol
+      mentioned: true
+
+  # 4. Private C2C message (responds when respond_in_c2c is true).
+  - from: dave
+    channel: qq
+    text: "hi in private chat"
+    payload:
+      scene: c2c
+      chat_id: "c2c:U200"
+      user_openid: U200
+      name: Dave
+
+llm:
+  - match: "hi in private chat"
+    text: "Hi Dave, happy to help in private chat."
+  - match: "staging deploy finished"
+    text: "Alice noted that the staging deploy finished."
+
+expect:
+  - "Alice noted that the staging deploy finished."
+  - "Hi Dave, happy to help in private chat."
+
+expect_ops:
+  - session.state.get
+  - session.skip
+  - session.state.get
+  - llm.chat
+  - session.state.set
+  - session.skip
+  - llm.chat

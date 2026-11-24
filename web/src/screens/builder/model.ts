@@ -296,17 +296,25 @@ export function parseExtrasObject(raw: string): Record<string, unknown> | null {
   }
 }
 
-/** Finds the catalog template whose schema-driven settings match the agent's extras keys. */
+/** Finds the catalog template whose schema-driven settings best match the agent's extras keys. */
 export function matchingTemplateSettings(catalog: Catalog, extrasObj: Record<string, unknown> | null): TemplateSetting[] {
   if (!extrasObj) return []
+  let best: TemplateSetting[] = []
+  let bestHits = 0
+  let bestRatio = 0
   for (const tpl of catalog.templates ?? []) {
     const settings = tpl.settings ?? []
     if (settings.length === 0) continue
-    if (settings.some((s) => s.key in extrasObj)) {
-      return settings
+    const hits = settings.filter((s) => s.key in extrasObj).length
+    if (hits === 0) continue
+    const ratio = hits / settings.length
+    if (hits > bestHits || (hits === bestHits && ratio > bestRatio)) {
+      best = settings
+      bestHits = hits
+      bestRatio = ratio
     }
   }
-  return []
+  return best
 }
 
 /** Updates one key inside form.extras JSON while keeping existing keys and deterministic sorting. */

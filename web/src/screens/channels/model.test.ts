@@ -95,9 +95,9 @@ describe('qq channel form', () => {
   })
 
   it('builds a draft with app id, mode and scenes in display order, and no path in websocket mode', () => {
-    const r = buildDraft(qqForm({ scenes: ['guild', 'c2c'], path: '/webhook/qq/', secret: '${QQ_BOT_SECRET}' }))
+    const r = buildDraft(qqForm({ scenes: ['guild', 'group_all', 'c2c'], path: '/webhook/qq/', secret: '${QQ_BOT_SECRET}' }))
     expect(r.error).toBeUndefined()
-    expect(r.draft).toMatchObject({ type: 'qq', mode: 'websocket', app_id: '1024', scenes: ['c2c', 'guild'], secret: '${QQ_BOT_SECRET}' })
+    expect(r.draft).toMatchObject({ type: 'qq', mode: 'websocket', app_id: '1024', scenes: ['c2c', 'group_all', 'guild'], secret: '${QQ_BOT_SECRET}' })
     expect(r.draft?.path).toBeUndefined()
   })
 

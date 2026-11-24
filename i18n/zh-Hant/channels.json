@@ -117,6 +117,7 @@
   "channels.clearKeys": "移除已儲存的金鑰",
   "channels.scene.c2c": "私聊",
   "channels.scene.group": "群組內 @ 訊息",
+  "channels.scene.groupAll": "群組所有訊息（group_all）",
   "channels.scene.guild": "頻道內 @ 訊息",
   "channels.scene.dm": "頻道私訊",
   "channels.hint.agentsExposed": "以逗號分隔。用戶端用名稱作為模型 ID 來選用。",
@@ -179,5 +180,11 @@
   "channels.telegram.privacyOn": "隱私模式已開啟",
   "channels.telegram.privacyOff": "隱私模式已關閉",
   "channels.telegram.privacyOnDesc": "開啟隱私模式時，Telegram 只會向機器人投遞 @ 提及、指令與直接回覆；若需回應觸發詞或記錄全部群組訊息，請在 @BotFather 執行 /setprivacy -> Disable。",
-  "channels.telegram.privacyOffDesc": "機器人可讀取所在群組的所有訊息（觸發詞與全量上下文記憶可直接使用）。"
+  "channels.telegram.privacyOffDesc": "機器人可讀取所在群組的所有訊息（觸發詞與全量上下文記憶可直接使用）。",
+  "channels.qq.testCredentials": "測試憑證",
+  "channels.qq.websocketLiveHint": "WebSocket 模式儲存後立即生效，無需重新啟動執行環境。",
+  "channels.qq.verifyHint": "儲存前先驗證 AppID、AppSecret 與開放平台 IP 允許清單權限。",
+  "channels.qq.connected": "閘道連線正常",
+  "channels.qq.shards": "{n} 個分片",
+  "channels.qq.groupAllHint": "預設場景 group 僅投遞 @ 提及；僅當機器人於開放平台取得完整群組訊息權限時再勾選 group_all。"
 }

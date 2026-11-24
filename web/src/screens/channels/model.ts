@@ -12,6 +12,7 @@ export const QQ_MODES = ['websocket', 'webhook']
 export const QQ_SCENES = [
   { id: 'c2c', labelKey: 'channels.scene.c2c' },
   { id: 'group', labelKey: 'channels.scene.group' },
+  { id: 'group_all', labelKey: 'channels.scene.groupAll' },
   { id: 'guild', labelKey: 'channels.scene.guild' },
   { id: 'dm', labelKey: 'channels.scene.dm' },
 ]

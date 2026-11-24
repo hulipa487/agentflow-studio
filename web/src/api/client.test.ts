@@ -89,4 +89,29 @@ describe('Studio Telegram test & Event Center client APIs', () => {
     expect(trace.events[0].kind).toBe('turn.skip')
     expect(String(mockFetch.mock.calls[1][0])).toContain('/admin/api/studio/session-trace?session=group_bot')
   })
+
+  it('calls POST /admin/api/studio/channels/qq/test and unwraps QQ bot info', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          bot: {
+            app_id: '102999',
+            bot_id: 'qq-1',
+            username: 'QQGroupBot',
+            gateway_url: 'wss://api.bot.qq.com/websocket',
+            shards: 1,
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    globalThis.fetch = mockFetch as unknown as typeof fetch
+
+    const client = new Client({ url: 'http://127.0.0.1:8080', token: 'tok', viaProxy: false })
+    const bot = await client.testQQCredentials({ index: 0, app_id: '102999', secret: 'sec' })
+    expect(bot.app_id).toBe('102999')
+    expect(bot.username).toBe('QQGroupBot')
+    expect(String(mockFetch.mock.calls[0][0])).toBe('http://127.0.0.1:8080/admin/api/studio/channels/qq/test')
+  })
 })

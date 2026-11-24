@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { Check, RotateCw } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
-import type { Channel, ChannelList, TelegramBotInfo } from '@/api/types'
+import type { Channel, ChannelList, QQBotInfo, TelegramBotInfo } from '@/api/types'
 import { Banner, Button, Checkbox, Chip, Field, Input, Modal, Select, StatusChip, type Tone } from '@/components/ui'
 import { useClient } from '@/state/session'
 import { t } from '@/i18n'
@@ -83,6 +83,7 @@ export function ChannelEditor({
   const [conflict, setConflict] = useState(false)
   const [busy, setBusy] = useState<'validate' | 'save' | 'test' | null>(null)
   const [botInfo, setBotInfo] = useState<TelegramBotInfo | null>(null)
+  const [qqInfo, setQQInfo] = useState<QQBotInfo | null>(null)
 
   const set = <K extends keyof ChannelForm>(key: K, value: ChannelForm[K]) => setForm((f) => ({ ...f, [key]: value }))
   const text = (key: 'name' | 'path' | 'allowUsers' | 'timeout' | 'deliverURL' | 'mediaAllow' | 'mediaMax' | 'agents' | 'maxRequestBytes' | 'appID' | 'apiBase') => ({
@@ -153,6 +154,28 @@ export function ChannelEditor({
     } catch (err) {
       if (!alive.current) return
       setBotInfo(null)
+      setNotice({ tone: 'danger', text: errorMessage(err) })
+    } finally {
+      if (alive.current) setBusy(null)
+    }
+  }
+
+  const testQQ = async () => {
+    if (busy) return
+    setBusy('test')
+    setNotice(null)
+    try {
+      const info = await client.testQQCredentials({
+        index: existing?.index,
+        app_id: form.appID.trim() || undefined,
+        secret: form.secret.trim() || undefined,
+        api_base: form.apiBase.trim() || existing?.api_base || undefined,
+      })
+      if (!alive.current) return
+      setQQInfo(info)
+    } catch (err) {
+      if (!alive.current) return
+      setQQInfo(null)
       setNotice({ tone: 'danger', text: errorMessage(err) })
     } finally {
       if (alive.current) setBusy(null)
@@ -360,6 +383,36 @@ export function ChannelEditor({
             >
               <Checkbox checked={form.markdown} onChange={(v) => set('markdown', v)} label={t('channels.markdownReplies')} />
             </Field>
+            <div className="flex flex-col gap-2 rounded-ctl border border-line bg-surface2 p-2.5 sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs text-muted">
+                  {(form.qqMode === '' || form.qqMode === 'websocket')
+                    ? t('channels.qq.websocketLiveHint')
+                    : t('channels.qq.verifyHint')}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={testQQ}
+                  loading={busy === 'test'}
+                  disabled={busy !== null || reloading || form.appID.trim() === '' || (form.secret.trim() === '' && !hasSecret)}
+                >
+                  {t('channels.qq.testCredentials')}
+                </Button>
+              </div>
+              <div className="text-xs text-faint">{t('channels.qq.groupAllHint')}</div>
+              {qqInfo && (
+                <div className="flex flex-col gap-1.5 border-t border-line/60 pt-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {qqInfo.username && <Chip tone="accent">{qqInfo.username}</Chip>}
+                    <span className="font-mono text-faint">AppID {qqInfo.app_id}</span>
+                    <StatusChip tone="success">{t('channels.qq.connected')}</StatusChip>
+                    {typeof qqInfo.shards === 'number' && qqInfo.shards > 0 && (
+                      <Chip>{t('channels.qq.shards', { n: qqInfo.shards })}</Chip>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

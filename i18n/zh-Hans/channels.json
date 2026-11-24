@@ -117,6 +117,7 @@
   "channels.clearKeys": "移除已存储的密钥",
   "channels.scene.c2c": "私聊",
   "channels.scene.group": "群内 @ 消息",
+  "channels.scene.groupAll": "群内所有消息（group_all）",
   "channels.scene.guild": "频道内 @ 消息",
   "channels.scene.dm": "频道私信",
   "channels.hint.agentsExposed": "以逗号分隔。客户端用名称作为模型 ID 来选用。",
@@ -179,5 +180,11 @@
   "channels.telegram.privacyOn": "隐私模式已开启",
   "channels.telegram.privacyOff": "隐私模式已关闭",
   "channels.telegram.privacyOnDesc": "开启隐私模式时，Telegram 只会向机器人投递 @ 提及、命令和直接回复；若需响应触发词或记录全部群消息，请在 @BotFather 运行 /setprivacy -> Disable。",
-  "channels.telegram.privacyOffDesc": "机器人可读取所在群组的所有消息（触发词和全量上下文记忆可直接使用）。"
+  "channels.telegram.privacyOffDesc": "机器人可读取所在群组的所有消息（触发词和全量上下文记忆可直接使用）。",
+  "channels.qq.testCredentials": "测试凭据",
+  "channels.qq.websocketLiveHint": "WebSocket 模式保存后立即生效，无需重启运行时。",
+  "channels.qq.verifyHint": "保存前先验证 AppID、AppSecret 及开放平台 IP 白名单权限。",
+  "channels.qq.connected": "网关连接正常",
+  "channels.qq.shards": "{n} 个分片",
+  "channels.qq.groupAllHint": "默认场景 group 仅投递 @ 提及；仅当机器人在开放平台获批全量群消息权限时再勾选 group_all。"
 }

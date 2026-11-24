@@ -15,7 +15,7 @@ AgentFlow Studio
 
 > TL;DR - The workbench for [AgentFlow](https://github.com/hulipa487/agentflow), a programmable runtime for custom LLM bots and workflows
 
-AgentFlow Studio is the visual control plane and IDE for an AgentFlow runtime. Start by picking a supported starter — such as the **Telegram group bot** (configurable with zero TypeScript, external write tools off by default, and live polling setup with bot token / Privacy Mode checks) — verify what every group message did in **Event Center**, and edit the underlying TypeScript loop with live reload whenever you need custom routing, memory rules, or workflows.
+AgentFlow Studio is the visual control plane and IDE for an AgentFlow runtime. Start by picking a supported starter — such as the **Telegram group bot** or **QQ group bot** (configurable with zero TypeScript, external write tools off by default, and live setup with credential checks) — verify what every group message did in **Event Center**, and edit the underlying TypeScript loop with live reload whenever you need custom routing, memory rules, or workflows.
 
 It is one app, two ways to open it:
 
@@ -38,7 +38,7 @@ The runtime stays the source of truth. Studio holds no agent state of its own: c
 ## What's in the box
 
 **🛠️ Build**
-- **Agents** - every configured agent with its model, capabilities and live sessions. Create from a starter preset (**Telegram group bot**, echo, LLM chat, tool loop, group chat with memory, knowledge base, single-turn API, …) or from blank, edit, delete.
+- **Agents** - every configured agent with its model, capabilities and live sessions. Create from a starter preset (**Telegram group bot**, **QQ group bot**, echo, LLM chat, tool loop, group chat with memory, knowledge base, single-turn API, …) or from blank, edit, delete.
 - **Builder** - a workbench: schema-driven **Starter settings** (no JSON/TS needed for common rules), a form for the agent's model, safety and memory profiles, capabilities, skills and credentials, a TypeScript loop editor, an instructions editor and the raw YAML, with a dock beside them for a **Run** panel (chat and trace with this agent) or the Script reference (`F1`). **Validate** runs the same checks boot does. **Apply** is a split button: *Apply* installs the agent live, *Apply & save* also writes it into the deployment's config, and the button remembers your pick. `Ctrl+Enter` applies pending edits and sends the Run panel's message (or repeats the last one), so you can edit, run and read the trace without leaving.
 - **Playground** - threaded chat against one agent, one session per thread, with streamed replies and a live trace: turns, ops, model and tool calls, tokens, durations, safety decisions and errors. An optional *act as user* runs the turn as a real profile, so memory scopes and quotas apply.
 
@@ -169,7 +169,7 @@ The desktop app keeps that storage in the webview's profile: `$XDG_DATA_HOME/age
 | `web/` | The app: `src/screens`, `src/api`, `src/script` (the TypeScript/JS analyzer and language server), `src/docs`, and the local proxy in `server/` |
 | `desktop/` | The desktop app: the web build in the system webview, a Go module of its own (proxy, save dialog, window, title bar) |
 | `docs/` | The Markdown guides, their translations, the users OpenAPI spec and the TypeScript API definitions |
-| `examples/` | Runnable starters & scenarios ([Telegram group bot](examples/telegram-group-bot), QQ group chatbot with memory, Telegram RAG bot, GitHub PR code agents, chat/completions endpoint) and single-pattern TypeScript loops |
+| `examples/` | Runnable starters & scenarios ([Telegram group bot](examples/telegram-group-bot), [QQ group bot](examples/qq-group-bot), QQ group chatbot with memory, Telegram RAG bot, GitHub PR code agents, chat/completions endpoint) and single-pattern TypeScript loops |
 | `i18n/` | The message catalogues in English, 简体中文 and 繁體中文 |
 
 ```bash

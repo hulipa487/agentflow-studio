@@ -335,6 +335,12 @@ export class Client {
     return r.bot
   }
 
+  /** Verifies candidate or saved QQ Bot AppID + AppSecret via OpenAPI gateway lookup without exposing secrets. */
+  async testQQCredentials(req: { index?: number; app_id?: string; secret?: string; api_base?: string }): Promise<T.QQBotInfo> {
+    const r = await this.json<{ ok: boolean; bot: T.QQBotInfo }>('POST', '/admin/api/studio/channels/qq/test', req)
+    return r.bot
+  }
+
   /** Lists recent message journal events annotated with Event Center outcomes and trace links. */
   async studioEvents(filter: T.StudioEventFilter = {}, signal?: AbortSignal): Promise<T.StudioEvent[]> {
     const r = await this.json<{ ok: boolean; events: T.StudioEvent[] | null }>(
