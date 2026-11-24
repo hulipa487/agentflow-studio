@@ -33,6 +33,7 @@ export interface BuilderForm {
   canContact: string
   credentials: string
   shell: string
+  ssh: string
   /** '' is no memory; MEMORY_INLINE keeps the definition's inline profile. */
   memory: string
   extras: string
@@ -173,6 +174,7 @@ export function initialForm(name: string, detail: AgentDetail | null, tpl: Templ
     canContact: (ag.can_contact ?? []).join(', '),
     credentials: (ag.credentials ?? []).join(', '),
     shell: ag.shell ?? '',
+    ssh: ag.ssh ?? '',
     memory: ag.memory_inline && Object.keys(ag.memory_inline).length > 0 ? MEMORY_INLINE : (ag.memory ?? ''),
     extras: extras && Object.keys(extras).length > 0 ? JSON.stringify(sortKeys(extras), null, 2) : '',
   }
@@ -206,6 +208,8 @@ export function buildYAML(form: BuilderForm, detail: AgentDetail | null): string
   if (creds.length > 0) write('credentials', creds)
   const shell = form.shell.trim()
   if (shell !== '') write('shell', shell)
+  const ssh = form.ssh.trim()
+  if (ssh !== '') write('ssh', ssh)
   if (form.memory === MEMORY_INLINE) {
     if (detail?.agent?.memory_inline) write('memory', detail.agent.memory_inline)
   } else if (form.memory !== '') {

@@ -25,6 +25,7 @@ export interface Catalog {
   safety_profiles: string[] | null
   memory_profiles: string[] | null
   shell_profiles?: string[] | null
+  ssh_profiles?: string[] | null
   environments?: string[] | null
   packages?: string[] | null
   prompt_keys: string[] | null
@@ -49,6 +50,7 @@ export interface AgentJSON {
   history_budget: number
   safety: string
   shell?: string
+  ssh?: string
   /** The memory profile the agent names; "conversational" is the built-in one. */
   memory?: string
   /** An inline memory profile, as the config spells it. The builder keeps it as it is. */

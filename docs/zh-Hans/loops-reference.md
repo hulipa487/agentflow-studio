@@ -287,7 +287,7 @@ shell.cancel(job_id)    -> job
 // opts: { project: "site", environment: "python", workdir: "app",
 //         env: { KEY: "val" }, timeout: 120 }                 // timeout 单位为秒
 
-// 句柄：对 SSH 是真实连接，对沙箱是兼容垫片。
+// 沙箱句柄：把作业选项编码进 id 的兼容垫片。
 shell.spawn(opts) -> { id, provider, state }
 shell.exec(id, cmd, opts?) -> the same result as shell.run
 shell.write(id, path, content)
@@ -319,11 +319,23 @@ ignore: ["node_modules/", "dist/"]
 
 **后台作业。** `shell.start` 把同样的作业排队后立即返回，时限更长（`runtime.sandbox.background_max_timeout`）。结果以 `type: "shell.result"` 的消息到达会话收件箱，作业在 `msg.payload` 里（`state` 为 `finished`、`failed` 或 `cancelled`；`stdout` 和 `stderr` 是最后 16 KiB）。结果轮次以启动作业的用户身份运行。`shell.status` 可以在作业运行时（从任何实例）读取，`shell.cancel` 在运行它的实例上停止它。实例死掉的作业会报为 `failed`，不会重跑。会话结束时，它的后台作业会被取消。
 
-**句柄。** `shell.spawn` 带 `provider: "ssh"` 会连到真实远程机器（`host`、`user`、`password` 或 `key_file`）；`exec`、`write`、`destroy` 作用其上，它活在建连的那个实例上，会话结束时关闭。SSH 派生可以带 `project` + `ref` 和一项 `volumes: ["x:/dir"]`，在句柄报告就绪前把文件快照复制到远程的 `/dir`，或用 `scratch_mount` 复制会话的临时文件。
+**沙箱句柄。** `shell.spawn` 返回一个*沙箱句柄*，它存在的意义是让为容器 Shell 写的循环在重启和跨实例时也能干净工作：它只是把拿到的选项编码进 id。对它 `shell.exec` 会跑作业，`shell.write` 写进本地项目，`shell.destroy` 什么也不做。它不需要存储，在任何实例上都能用。有三个选项在沙箱里有含义：`image` 指定一个声明的环境，`volumes[0]` 的容器路径是项目的挂载点（而不是 `/workspace`），而 `network` 非 `"none"`、`ref` 非 `"main"` 以及 `scratch_mount` 会被拒绝，并说明原因。传入 `provider: "ssh"` 或 SSH 句柄会被拒绝 —— 请改用 `ssh.*`。
 
-不带 provider 的 `shell.spawn` 返回一个*沙箱句柄*，它存在的意义是让为容器 Shell 写的循环在重启和跨实例时也能干净工作：它只是把拿到的选项编码进 id。对它 `shell.exec` 会跑作业，`shell.write` 写进项目，`shell.destroy` 什么也不做。它不需要存储，在任何实例上都能用。有三个选项在沙箱里有含义：`image` 指定一个声明的环境，`volumes[0]` 的容器路径是项目的挂载点（而不是 `/workspace`），而 `network` 非 `"none"`、`ref` 非 `"main"` 以及 `scratch_mount` 会被拒绝，并说明原因。
+绑定了 Shell 方案的智能体（`agents.<name>.shell`）还会得到隐式操作本地沙箱项目的注册表工具，模型因此从不直接接触句柄：`builtin:shell.exec`（`{ command }` → `shell.run` 的结果）、`builtin:fs.read`（`{ path, handle_id? }` → `{ ok, content, path, truncated }`）和 `builtin:fs.write`（`{ path, content, handle_id? }`）。这些文件工具直接读写项目 —— 不会为它们启沙箱 —— 路径可以相对于项目，也可以写在 `/workspace` 下；可选的 `handle_id` 只接受 `shell.spawn` 返回的沙箱句柄。没绑定方案的智能体拿到的是如实的不可用，沙箱跑不起来的主机也一样；没有 `shell.exec` 能力的智能体根本看不到这些工具，即使 `tools.policy.default: all` 也一样。`builtin:shell.exec` 和 `builtin:fs.write` 默认 `needs_confirm: true` —— 可通过 `tools.policy.overrides` 按部署放开。
 
-绑定了 Shell 方案的智能体（`agents.<name>.shell`）还会得到隐式解析该方案的注册表工具，模型因此从不直接接触句柄：`builtin:shell.exec`（`{ command }` → `shell.run` 的结果）、`builtin:shell.write`（`{ path, content }`）、`builtin:fs.read`（`{ path }` → `{ ok, content, path, truncated }`）、`builtin:fs.write`（`{ path, content }`）和 `builtin:shell.destroy`。用沙箱方案时，文件工具直接读写项目 —— 不会为它们启沙箱 —— 路径可以相对于项目，也可以写在 `/workspace` 下。用 SSH 方案时，这些工具每个会话保持一条连接，首次使用时打开。没绑定方案的智能体拿到的是如实的不可用，沙箱跑不起来的主机也一样；没有 `shell.exec` 能力的智能体根本看不到这些工具，即使 `tools.policy.default: all` 也一样。除 `fs.read` 外都默认 `needs_confirm: true` —— 可通过 `tools.policy.overrides` 按部署放开。
+#### `ssh` —— 能力：`net.ssh`
+
+```ts
+ssh.spawn(opts?)             -> { id, provider, state }
+ssh.exec(id, cmd, opts?)     -> { stdout, stderr, exit_code, duration_ms }
+ssh.read(id, path)           -> { ok, path, content }
+ssh.write(id, path, content) -> true
+ssh.close(id)                -> true
+```
+
+**远程 SSH 句柄。** `ssh.spawn` 会连到真实远程机器（`host`、`user`、`password` 或 `key_file`、`workdir`、`env`、`shell_opts`），除非在 `opts` 中覆盖，否则默认继承绑定 `agents.<name>.ssh` 方案的设置；`ssh.exec`、`ssh.read`、`ssh.write` 和 `ssh.close` 作用其上。连接活在建连的那个实例上，并在调用 `ssh.close` 或会话结束时关闭。`ssh.spawn` 也可以带 `project` + `ref` 和一项 `volumes: ["x:/dir"]`，在句柄报告就绪前把文件快照复制到远程的 `/dir`，或用 `scratch_mount` 复制会话的临时文件。
+
+绑定了 SSH 方案的智能体（`agents.<name>.ssh`）还会得到注册表工具，每个会话按需开启并复用一条 SSH 连接（或接收来自 `ssh.spawn` 的显式 `handle_id`）：`builtin:ssh.exec`（`{ command, handle_id? }` → `{ ok, tool, handle_id, stdout, stderr, exit_code, duration_ms }`）、`builtin:ssh.read`（`{ path, handle_id? }` → `{ ok, tool, handle_id, path, content }`）、`builtin:ssh.write`（`{ path, content, handle_id? }`）和 `builtin:ssh.close`（`{ handle_id? }`）。没绑定 SSH 方案（且未提供 `handle_id`）的智能体拿到的是如实的不可用；没有 `net.ssh` 能力的智能体根本看不到这些工具，即使 `tools.policy.default: all` 也一样。除 `builtin:ssh.read` 外都默认 `needs_confirm: true` —— 可通过 `tools.policy.overrides` 按部署放开。
 
 `builtin:fetch` 是面向 API 和普通页面的通用 HTTP 客户端，不需要账号或凭据 —— 所以和 `web_search`、`browser` 不同，它永远不会如实的不可用。选项：`url`（必填）、`method`、`headers`、`body`（原始）或 `json`（序列化；除非已有请求头，否则会设 `Content-Type`）、`query`、`timeout_ms`、`follow` / `max_redirects`、`user_agent`、`max_bytes`、`insecure`，以及 `save_to`（响应体会同时落到本会话的临时文件区，可用 `files.scratch.read` 读取）。它返回 `{ok, status, status_text, headers, body, final_url, redirects?, content_type?, content_length?, size, truncated?, tls_verified, time_cost_ms}` —— 对*任何* HTTP 状态都返回，因为 404 是模型该读到的答案，而不是工具失败；`ok` 表示请求是否完成，`status` 表示服务端说了什么。
 

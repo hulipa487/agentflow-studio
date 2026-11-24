@@ -99,15 +99,23 @@ export const preludeEntries: readonly ApiEntry[] = [
   { path: 'api.batch', signature: 'api.batch(calls): BatchAPIResult[]', summary: 'Run multiple external API calls concurrently from Go and return ordered results.', capability: 'apis', kind: 'function', insert: 'batch(${1:calls})', yields: true },
 
   // shell
-  { path: 'shell', signature: 'shell', summary: 'Shell commands: sandbox project jobs and SSH connections.', kind: 'table' },
+  { path: 'shell', signature: 'shell', summary: 'Local sandbox project jobs.', kind: 'table' },
   { path: 'shell.run', signature: 'shell.run(command, opts?): ExecResult', summary: 'Run one sandbox command on a project. opts: project, environment, workdir, env, timeout.', capability: 'shell.exec', kind: 'function', insert: 'run(${1:command})', yields: true },
   { path: 'shell.start', signature: 'shell.start(command, opts?): { id, state }', summary: 'Queue a sandbox job in the background; result arrives as a "shell.result" inbox message.', capability: 'shell.exec', kind: 'function', insert: 'start(${1:command})', yields: true },
   { path: 'shell.status', signature: 'shell.status(job_id): Job', summary: 'Background job state and output tail.', capability: 'shell.exec', kind: 'function', insert: 'status(${1:job_id})', yields: true },
   { path: 'shell.cancel', signature: 'shell.cancel(job_id): Job', summary: 'Stop a running background job of this session.', capability: 'shell.exec', kind: 'function', insert: 'cancel(${1:job_id})', yields: true },
-  { path: 'shell.spawn', signature: 'shell.spawn(opts): { id, provider, state }', summary: 'Open an SSH connection or sandbox handle. Prefer shell.run for sandbox commands.', capability: 'shell.exec', kind: 'function', insert: 'spawn({ ${1:provider: "ssh"} })', yields: true },
-  { path: 'shell.exec', signature: 'shell.exec(id, command, opts?): ExecResult', summary: 'Run a command on a shell handle.', capability: 'shell.exec', kind: 'function', insert: 'exec(${1:id}, ${2:command})', yields: true },
-  { path: 'shell.write', signature: 'shell.write(id, path, content)', summary: 'Write a text file onto a shell handle.', capability: 'shell.exec', kind: 'function', insert: 'write(${1:id}, ${2:path}, ${3:content})', yields: true },
-  { path: 'shell.destroy', signature: 'shell.destroy(id)', summary: 'Close an SSH handle.', capability: 'shell.exec', kind: 'function', insert: 'destroy(${1:id})', yields: true },
+  { path: 'shell.spawn', signature: 'shell.spawn(opts): { id, provider, state }', summary: 'Encode sandbox job options as a compatibility handle. Prefer shell.run for sandbox commands; use ssh.spawn for SSH.', capability: 'shell.exec', kind: 'function', insert: 'spawn({ ${1:project: "site"} })', yields: true },
+  { path: 'shell.exec', signature: 'shell.exec(id, command, opts?): ExecResult', summary: 'Run a sandbox command with options encoded in a shell.spawn handle.', capability: 'shell.exec', kind: 'function', insert: 'exec(${1:id}, ${2:command})', yields: true },
+  { path: 'shell.write', signature: 'shell.write(id, path, content)', summary: 'Write a text file into the local project targeted by a sandbox handle.', capability: 'shell.exec', kind: 'function', insert: 'write(${1:id}, ${2:path}, ${3:content})', yields: true },
+  { path: 'shell.destroy', signature: 'shell.destroy(id)', summary: 'Compatibility no-op for sandbox handles (use ssh.close for SSH connections).', capability: 'shell.exec', kind: 'function', insert: 'destroy(${1:id})', yields: true },
+
+  // ssh
+  { path: 'ssh', signature: 'ssh', summary: 'Remote SSH connections (host credentials stay in Go).', kind: 'table' },
+  { path: 'ssh.spawn', signature: 'ssh.spawn(opts?): { id, provider, state }', summary: 'Open a remote SSH connection, inheriting agents.<name>.ssh defaults. Supports checkout (project, ref, volumes) and scratch_mount.', capability: 'net.ssh', kind: 'function', insert: 'spawn({ ${1:host: "box:22"} })', yields: true },
+  { path: 'ssh.exec', signature: 'ssh.exec(id, command, opts?): ExecResult', summary: 'Run a command on an open SSH handle.', capability: 'net.ssh', kind: 'function', insert: 'exec(${1:id}, ${2:command})', yields: true },
+  { path: 'ssh.read', signature: 'ssh.read(id, path): { ok, path, content }', summary: 'Read a text file over an open SSH handle.', capability: 'net.ssh', kind: 'function', insert: 'read(${1:id}, ${2:path})', yields: true },
+  { path: 'ssh.write', signature: 'ssh.write(id, path, content)', summary: 'Write a text file over an open SSH handle.', capability: 'net.ssh', kind: 'function', insert: 'write(${1:id}, ${2:path}, ${3:content})', yields: true },
+  { path: 'ssh.close', signature: 'ssh.close(id)', summary: 'Close an open SSH handle.', capability: 'net.ssh', kind: 'function', insert: 'close(${1:id})', yields: true },
 
   // http / os
   { path: 'http', signature: 'http', summary: 'Outbound HTTP with a private-address guard.', kind: 'table' },

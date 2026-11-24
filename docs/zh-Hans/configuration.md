@@ -6,7 +6,7 @@ AgentFlow 用单个 YAML 文件（`agentflow.yaml`）配置。所有值都在启
 
 ### 密钥：环境变量引用、凭据存储与如实降级
 
-含密钥的字段（`models.*.api_key`、`search.engines.*.api_key`、`gateway.channels[].token`/`secret`、`memory.backends.*.config.url`/`password`/`api_key`、`media.s3.access_key`/`secret_key`、`browser.api_token`、`profiles.shell.*.password`）接受三种写法：
+含密钥的字段（`models.*.api_key`、`search.engines.*.api_key`、`gateway.channels[].token`/`secret`、`memory.backends.*.config.url`/`password`/`api_key`、`media.s3.access_key`/`secret_key`、`browser.api_token`、`profiles.ssh.*.password`）接受三种写法：
 
 - 字面值；
 - `${VAR}`（或 `${VAR:-default}`）—— 从进程环境解析，找不到就回退到凭据存储里同名的那条；
@@ -28,7 +28,7 @@ gateway:      { ... }   # 一个共享监听器及其渠道
 mcp:          { ... }   # MCP 服务器
 tools:        { ... }   # 全局工具策略
 search:       { ... }   # 网页搜索引擎
-legal_search: { ... }   # HKLII / NPC
+apis:         { ... }   # 外部 API 扩展（Goja 脚本 / wazero Wasm）
 browser:      { ... }   # Cloudflare Browser Run
 net:          { ... }   # 出站连接策略
 media:        { ... }   # blob 存储后端：fs（默认）| s3
@@ -527,13 +527,13 @@ profiles:
 
 #### Shell 方案
 
-Shell 方案说的是智能体的 Shell 是什么。用 `agents.<name>.shell` 绑定（智能体还需要 `shell.exec` 能力）。
+Shell 方案配置智能体的本地沙箱工作区。用 `agents.<name>.shell` 绑定（智能体还需要 `shell.exec` 能力）。
 
 ```
 profiles:
   shell:
     code:
-      provider: sandbox          # sandbox（默认）| ssh
+      provider: sandbox          # 仅 sandbox（默认）
       environment: python        # environments 中的一个条目（必填）
       project: workspace         # 作业运行所在的文件存储项目（默认 workspace）
       workdir: app               # 命令的起始目录，相对于项目
@@ -543,21 +543,29 @@ profiles:
       env: { CI: "1" }
       ignore: ["node_modules/", "__pycache__/"]   # 由作业创建，从不存储
       network: none              # 唯一的取值：沙箱作业没有网络
-    box:
-      provider: ssh              # 连接到一台真实的远程机器
-      host: build.example.com:22
-      user: dev
-      key_file: /etc/agentflow/id_ed25519      # 或 password:（一个密钥引用）
-      workdir: /srv/work
 ```
 
 **`provider: sandbox`** 把每条命令作为一次性沙箱作业运行，用 [gVisor](https://gvisor.dev)（`provider: gvisor`，Linux 上的默认值）或 [microsandbox](https://github.com/superradcompany/microsandbox)（`provider: microsandbox`，Linux 上走 KVM 的硬件隔离微虚拟机、macOS 上走 Apple Silicon HVF、或 Windows 上走 WHP）：环境提供根工具链，项目以读写方式挂到 `/workspace`，命令写进项目的内容在结束时存下。别的都活不过一条命令，所以没什么要追踪的，任何实例都能跑下一条。`ignore` 用一个小的 `.gitignore` 子集：`node_modules/`（任意位置叫这个名字的目录）、`*.pyc`（任意位置的名字）、`build/out`（从项目根算起的路径）；结尾的斜杠把模式限定为目录。被忽略的路径既不存储也不清理 —— 它们作为尽力而为的缓存留在实例上。
 
 项目可以用工作树里的 `.agentflow/shell.yaml` 定制它的智能体方案。它可以设 `environment`（部署声明过的）、`env`、`workdir`、`timeout` 和 `ignore`。它没有用于镜像、网络策略或资源限制的字段，未知字段是错误而不是静默无操作。
 
-**`provider: ssh`** 每个会话保持一条到已存在机器的连接；这里不负责开通它。连接活在拨号的那个实例上，随会话关闭。
+`profiles.shell` 下的 `provider: docker` 和 `provider: ssh` 已移除（`provider: ssh` 移到了 `profiles.ssh`）。仍在用它们配置会在加载时失败，并给出替代写法。
 
-`provider: docker` 已移除。仍在用它配置会在加载时失败，并给出替代写法。
+#### SSH 方案
+
+SSH 方案独立于 `profiles.shell` 配置持久化远程 SSH 目标。用 `agents.<name>.ssh` 绑定（智能体还需要 `net.ssh` 能力）。
+
+```
+profiles:
+  ssh:
+    box:
+      host: build.example.com:22
+      user: dev
+      key_file: /etc/agentflow/id_ed25519      # 或 password:（一个密钥引用）
+      workdir: /srv/work
+```
+
+SSH 方案每个会话保持一条到已存在机器的连接；这里不负责开通它。连接活在拨号的那个实例上，随会话关闭。一个智能体可以同时绑定 `shell:` 和 `ssh:` —— 本地项目工具（`builtin:shell.exec`、`builtin:fs.*`）仍操作沙箱项目，而 `builtin:ssh.*` 操作远程主机。
 
 #### `environments` —— 声明的工具链
 
@@ -773,24 +781,31 @@ search:
 
 配置 `builtin:web_search` 工具背后的引擎，可按调用经工具的 `engine` 参数选择（`tools.run("builtin:web_search", {query=..., engine="doubao"})`）；省略 `engine` 就用 `search.default`。没有配置任何引擎时，工具如实报告不可用（`{ok:false, unavailable:true}`）。按引擎的 `base_url` 和 `timeout` 是可选覆盖。结果归一为 `{title, url, site, summary, snippet, content, published, score}`；`score` 是引擎原生的（doubao 是 0..1 的相关度，stackoverflow 是原始赞同数，github 是星标数；youtube 没有）。doubao、ollama 和 youtube（以及带检索依据的 google\_search/x\_search）需要 `api_key`；stackoverflow 和 github 不需要（`site` 字段可选任意 StackExchange 站点，例如 `superuser` 或 `serverfault`）。密钥缺失或解析不出来会**跳过该引擎并给出启动警告**，而不是让启动失败；如果被跳过的是 `search.default`，默认值退到唯一还活着的引擎（或没有）。github 搜索仓库，查询里支持 GitHub 的完整限定符语法（`language:go stars:>100 pushed:>2024-01-01`）。youtube 经 YouTube Data API v3 搜索视频（site = 频道标题，content = 描述，`LIVE:` 前缀的片段标记直播）；共享的 `time_range` 映射到 `publishedAfter`/`publishedBefore` —— 注意 search.list 每次调用消耗 100 个配额单位（默认项目配额下约 100 次搜索/天），配额用完会如实报 `quotaExceeded` 错误。
 
-### `legal_search`
+### `apis`
 
+```yaml
+apis:
+  hklii:
+    dir: ./examples/apis/hklii       # 包含 manifest.yaml 的扩展包目录
+  npc:
+    dir: ./examples/apis/npc         # Wasm 外部 API 扩展包
+  billing:                           # 或不用 dir 直接内联声明
+    runtime: script                  # script (Goja TS/JS) | wasm (wazero)
+    entry: ./apis/billing.ts
+    timeout: 15s
+    capabilities:
+      http:
+        allowed_hosts: ["api.stripe.com"]
+        credentials: ["stripe"]
+    actions:
+      charge:
+        description: "Charge a customer"
+        expose_as_tool: true         # 注册为工具 api:billing.charge（需 apis 能力）
 ```
-legal_search:
-  default: hklii                # 调用省略 `engine` 时使用的引擎
-  engines:
-    hklii: {}                   # 香港法律资讯中心——免费，无需密钥
-    npc: {}                     # 国家法律法规数据库——免费，无需密钥
-                                # （可选的 base_url / timeout 覆盖项）
-```
 
-配置两个工具背后的引擎，可按调用经 `engine` 参数选择（默认 `legal_search.default`）；没配置引擎时两者都如实报告不可用。两个引擎的回答方式不同，所以工具描述是按配置了哪些引擎拼出来的 —— 例如 `abbr`/`year`/`num`/`lang` 参数只在有 hklii 时才提供，因为 npc 一个都不读。结果同理：所选引擎不填的字段直接省略，而不是发空字符串，因为空字符串读起来像「未知」，而不是「不适用」。
+把外部 API 扩展包注册到运行时的隔离扩展注册表（循环中在 `apis` 能力下通过 `api.*` 调用）。每个扩展包都在每次调用时运行在全新的 Goja VM 中（`runtime: script`，支持 TypeScript/JS），或运行在 `wazero` 沙盒内的已编译 `.wasm` 模块中（`runtime: wasm`，受 `timeout` 与 `memory_mb` 限制）；所有出站 HTTP 均受 `capabilities.http.allowed_hosts` 与宿主注入的 `capabilities.http.credentials` 约束。
 
-`builtin:legal_search` 以 `{title, path, url, court, date, type?, effective?, status?, neutral?, parallel?, action?, parties?, coram?}` 返回命中，`total` 是完整匹配数。它的 `disable_fuzzy` 参数（默认 false）在每个引擎上含义不同 —— hklii 上是关键词 vs 概念，npc 上是仅标题 vs 全文。`builtin:legal_read` 取单个文档的完整纯文本，以命中的 `path` 为键，长正文可用 `start`/`max_chars` 分页。配置了多个引擎时，`path` 会被路由到签发它的引擎，所以不必在搜索调用之后再重复 `engine`：命中的 path 是一个只有它自己的引擎能读的不透明令牌，要求调用方再点一次引擎名字，等于在一个运行时已经知道的事情上让它出错。显式点名 `engine` 仍然优先，且绝不会被质疑。
-
-**hklii** 覆盖香港判例法和法例。搜索命中带中性引注和平行引注、法院、日期、当事人和审理法官。读取*仅限判案书*：`path` 形如 `/en/cases/hkcfi/2020/1808`，或给出显式的 `abbr`/`year`/`num`，可选 `lang`（`en`|`tc`|`sc`）。法例命中 —— `court` 读作 `Hong Kong Ordinances`、路径形如 `/en/legis/ord/201/` 的那种 —— 在这里没有可读的全文；它的 path 会被明确报错拒绝，而不是返回错误的东西。
-
-**npc** 覆盖中国国家法律、行政法规和司法解释。命中把制定机关作为 `court`、公布日期作为 `date`，并额外带 `type`（法律/行政法规/…）、`effective`（施行日期）和 `status`（有效/已修改/已废止/尚未生效）；npc 没有引注也没有当事人，所以那些字段缺省。读取只接受命中的 `path` —— 不透明的 `bbbs` 文档 ID —— 别的都不行：`abbr`、`year`、`num` 和 `lang` 在这里没有意义。返回的 `neutral` 是同一个 ID，不是引注。文本经内置的 doc/docx 解析器从返回的 Word 文档中提取。
+指定 `dir` 会加载 `<dir>/manifest.yaml`（并在包目录内解析 `entry`），也可直接内联声明 `runtime`、`entry` 与 `actions`。配置了 `expose_as_tool: true` 的动作还会自动注册为模型工具 `api:<pkg>.<action>`。替代原内置法律检索工具的两个外部 API 参考实现（基于 TypeScript/Goja 的 `hklii` 与基于 Go/Wasm 的 `npc`）位于 `examples/apis/hklii` 和 `examples/apis/npc`。
 
 ### `browser`
 
@@ -824,7 +839,7 @@ net:
 
 **取舍：** 有防护的传输层有意忽略 `HTTP_PROXY` / `HTTPS_PROXY`。在出口代理后面，拨号器连的是*代理*，防护就会去判断代理的地址，目标根本没被检查过。只经代理出网的部署会发现这些路径不走代理。另外注意 `198.18.0.0/15` 作为基准测试网段被封，而它正是 Clash/mihomo 和 sing-box 在 TUN 模式下的默认 fake-IP 池 —— 在跑了其中任何一个的开发机上，每个经代理的域名都会解析进去并被拒绝。
 
-`allow_private: true` 会彻底关掉防护，并在启动时打一条点名风险的 WARN，所以它不可能被悄悄打开。它是给那些确实要调内部服务的部署准备的；默认关闭，因为防护是提示词注入的智能体和主机自身网络之间唯一的东西。防护只覆盖这两条由智能体控制的路径 —— 模型、搜索、法律和浏览器驱动用的是管理员配置的 `base_url`，刻意不覆盖，好让内部镜像源继续工作。
+`allow_private: true` 会彻底关掉防护，并在启动时打一条点名风险的 WARN，所以它不可能被悄悄打开。它是给那些确实要调内部服务的部署准备的；默认关闭，因为防护是提示词注入的智能体和主机自身网络之间唯一的东西。防护只覆盖这两条由智能体控制的路径 —— 模型、搜索和浏览器驱动用的是管理员配置的 `base_url`，刻意不覆盖，好让内部镜像源继续工作。
 
 ### `media` —— blob 存储后端
 
@@ -913,7 +928,7 @@ tools:
                                            #    解析但无人读取——启动时警告）
 ```
 
-覆盖在启动时一次性地烤进注册表，在所有工具都注册完（内置、legal、shell、MCP）之后、任何智能体集合暴露之前。`params` 条目点名一个 schema 没有声明的参数时会被跳过并给出警告，绝不报错。策略字段按工具生效；`permission: forbidden` 把工具从每个暴露集合里移除 —— 也是其中唯一真正生效的一个。`cost_level`、`user_visible` 和 `autonomous` 会被接受、复制到工具上，然后没有任何地方读取它们；`tools.policy.write` 同样只解析不使用。设置了其中任何一个时，引擎会在启动时警告。
+覆盖在启动时一次性地烤进注册表，在所有工具都注册完（内置、shell、MCP、APIs）之后、任何智能体集合暴露之前。`params` 条目点名一个 schema 没有声明的参数时会被跳过并给出警告，绝不报错。策略字段按工具生效；`permission: forbidden` 把工具从每个暴露集合里移除 —— 也是其中唯一真正生效的一个。`cost_level`、`user_visible` 和 `autonomous` 会被接受、复制到工具上，然后没有任何地方读取它们；`tools.policy.write` 同样只解析不使用。设置了其中任何一个时，引擎会在启动时警告。
 
 **触达脚本声明的工具**：覆盖也可以点名循环用 `tool.def` 声明的工具 —— 见下文。那些条目不在启动时烤入（代码块加载之前工具并不存在）；它们在循环构建列表时解析，对着活跃的提示词注册表，所以编辑一个基于 `file:` 的提示词，会在下一次 `tools.list()` 时生效。拼错的*提示词键*对两类工具都仍是启动错误。一个既没注册、也没被任何已加载循环声明的工具名，无法在启动时抓到，所以启动时会记一行「保留给脚本声明」（列出这些名字，让拼错在任何智能体跑起来之前就可见），之后在某个循环首次声明工具却没认领它时，按名字警告一次。
 
@@ -930,6 +945,7 @@ agents:
     memory: conversational     # 预设，或内联
     safety: default
     shell: sandboxed                    # 可选
+    ssh: prod_box                       # 可选
     can_contact: [worker]               # ACL
     budget:
       tokens_per_day: 500000
@@ -943,13 +959,13 @@ agents:
       workflow: release-train
 ```
 
-**能力上限**：`plugins.allow_capabilities`（全局）⊇ `agents.<name>.capabilities`（按智能体）⊇ 派生时授予（子会话）。你无法委派自己没有的能力。智能体省略 `capabilities` 时得到默认值 `[llm.chat, memory, tools, agent.send, net.http, users]` —— 注意 `net.mail`、`shell.exec` 和 `session.state` *不是*默认值，必须显式声明。
+**能力上限**：`plugins.allow_capabilities`（全局）⊇ `agents.<name>.capabilities`（按智能体）⊇ 派生时授予（子会话）。你无法委派自己没有的能力。智能体省略 `capabilities` 时得到默认值 `[llm.chat, memory, tools, agent.send, net.http, users]` —— 注意 `net.mail`、`shell.exec`、`net.ssh` 和 `session.state` *不是*默认值，必须显式声明。
 
-**能力在运行时强制执行**，而不只是在启动时校验。每种能力门控其后的脚本操作：`llm.chat` → `llm.*`，`memory` → `store.*`，`tools` → `tools.*`，`apis` → `api.*`，`shell.exec` → `shell.*`，`net.http` → `http.request` 和 `os.env`，`net.mail` → `mail.*`，`files` → `files.*`。省略了某个能力的智能体会被拒绝，消息点名操作、智能体和缺失的能力 —— 操作仍然可达，只是明确失败，而不是消失成 undefined 属性错误。`agent.send`、`agent.request` 和 `agent.spawn` 一直就是这样强制的；其余现在也对齐了。`runtime.*` 和 `credential.get` 刻意不受门控 —— 前者是每个智能体都需要的循环机制，后者已经由智能体自己的凭据列表划定范围。启动警告会逐条列出从每个智能体和方案收回了什么。只有为了让一个依赖「每个智能体都有每个操作」的配置继续跑，才把 `plugins.enforce_capabilities: false`（默认 `true`）。
+**能力在运行时强制执行**，而不只是在启动时校验。每种能力门控其后的脚本操作：`llm.chat` → `llm.*`，`memory` → `store.*`，`tools` → `tools.*`，`apis` → `api.*`，`shell.exec` → `shell.*`，`net.ssh` → `ssh.*`，`net.http` → `http.request` 和 `os.env`，`net.mail` → `mail.*`，`files` → `files.*`。省略了某个能力的智能体会被拒绝，消息点名操作、智能体和缺失的能力 —— 操作仍然可达，只是明确失败，而不是消失成 undefined 属性错误。`agent.send`、`agent.request` 和 `agent.spawn` 一直就是这样强制的；其余现在也对齐了。`runtime.*` 和 `credential.get` 刻意不受门控 —— 前者是每个智能体都需要的循环机制，后者已经由智能体自己的凭据列表划定范围。启动警告会逐条列出从每个智能体和方案收回了什么。只有为了让一个依赖「每个智能体都有每个操作」的配置继续跑，才把 `plugins.enforce_capabilities: false`（默认 `true`）。
 
 **`builtin:` 是工具命名空间。** 以前有四种词汇都用它来拼 —— 循环/插件名、工具名、记忆提供商名和内置记忆方案 —— 而字符串本身说不出一个名字属于哪一种。现在各自有自己的写法，前缀的含义因此变得唯一：
 
-- **工具**保留它：`builtin:web_search`、`builtin:fetch`、`builtin:browser`、`builtin:legal_read`；
+- **工具**保留它：`builtin:web_search`、`builtin:fetch`、`builtin:browser`；
 - **循环和插件**是 `plugin:<name>`：`plugin:per_chat`、`plugin:recency`、`plugin:semantic`。这也彻底解决了「循环还是路径」的问题，因为路径永远不会以 `plugin:` 开头 —— 而在以前，一个名为 `per_chat` 的文件是无从触达的；
 - **记忆提供商**是裸名：`sqlite`、`qdrant`、`redisvector` —— `provider:` 键本身已经说明了这是什么名字；
 - **内置记忆方案**是 `conversational`，这个名字现在被保留：`profiles.memory` 里同名条目是启动错误，而不是一个永远跑不起来的方案。
@@ -991,6 +1007,7 @@ plugins:
     - tools
     - scheduler
     - shell.exec
+    - net.ssh
     - net.http
     - net.mail
     - channel.push

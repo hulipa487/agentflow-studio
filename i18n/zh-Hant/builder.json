@@ -68,6 +68,7 @@
   "builder.canContact": "可聯絡",
   "builder.credentials": "憑證",
   "builder.shellProfile": "Shell 設定檔",
+  "builder.sshProfile": "SSH 設定檔",
   "builder.persistent": "常駐（persistent）",
   "builder.extras": "額外欄位（JSON）",
   "builder.loopTitle": "迴圈（TypeScript）",

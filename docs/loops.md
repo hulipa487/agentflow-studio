@@ -383,6 +383,7 @@ into an undefined-property error.
 | `net.http` | `http.request`, `http.get`, `http.post`, `os.env` |
 | `net.mail` | `mail.*` |
 | `shell.exec` | `shell.*` |
+| `net.ssh` | `ssh.*` |
 | `files` | `files.*` |
 | `session.state` | `session.state.*` |
 | `users` | `user.current`, `user.usage`, `user.has_credential`, `user.get`, `user.list` |
@@ -390,7 +391,7 @@ into an undefined-property error.
 
 Defaults when an agent omits `capabilities`: `llm.chat`, `memory`, `tools`,
 `apis`, `agent.send`, `net.http`, `users`. Declare `net.mail`, `shell.exec`,
-`files`, `session.state` and `channel.push` explicitly.
+`net.ssh`, `files`, `session.state` and `channel.push` explicitly.
 
 Not gated by this table:
 
@@ -622,10 +623,18 @@ Each call is one command in one sandbox on one project from the files store.
 What the command writes in the project is stored when it ends; nothing else
 survives to the next call, and the next call can run on any instance. A non-zero
 exit code is a result; a job that could not run throws an error. `shell.spawn`,
-`shell.exec`, `shell.write` and `shell.destroy` still exist: for an SSH
-connection to a remote machine (`provider: "ssh"`), and as a compatibility
-shim for older loops. Needs `shell.exec`. The full rules are in the Script
-Plugin Development reference.
+`shell.exec`, `shell.write` and `shell.destroy` remain as a sandbox
+compatibility shim (`shell.exec`). Remote SSH connections use `ssh.spawn`,
+`ssh.exec`, `ssh.read`, `ssh.write` and `ssh.close` instead (`net.ssh`). The
+full rules are in the Script Plugin Development reference.
+
+```ts
+const conn = ssh.spawn({ host: "box:22", user: "dev" })
+const out  = ssh.exec(conn.id, "uname -a")
+ssh.write(conn.id, "/tmp/flag", "1")
+const txt  = ssh.read(conn.id, "/tmp/flag")
+ssh.close(conn.id)
+```
 
 ### 6.9 `http` and `os`
 
@@ -1085,7 +1094,7 @@ agent's `loop:` at your copy.
   objects `{}` preserve distinct JSON types, while functions, symbols, and
   cyclic objects cannot cross the bridge.
 - **Capabilities are enforced, not advisory.** A withheld op throws a refusal
-  naming the capability; declare `files`, `net.mail`, `shell.exec`,
+  naming the capability; declare `files`, `net.mail`, `shell.exec`, `net.ssh`,
   `session.state` and `channel.push` explicitly (`apis` is in defaults).
 - **Hooks.** The engine dispatches only `safety.script_filters`,
   `safety.ingress`, `safety.egress`, `gateway.route`, and configured External API
@@ -1120,7 +1129,8 @@ agent's `loop:` at your copy.
 | `memory.*` / `store.*` | `memory` | yes | scoped |
 | `tools.list` / `run` | `tools` | yes | confirm interception |
 | `api.*` | `apis` | yes | external TS/Wasm packages |
-| `shell.*` | `shell.exec` | yes | one-off sandbox jobs; SSH handles |
+| `shell.*` | `shell.exec` | yes | one-off sandbox jobs; compatibility handles |
+| `ssh.*` | `net.ssh` | yes | persistent remote SSH connections |
 | `http.*` / `os.env` | `net.http` | yes | address guard |
 | `mail.*` | `net.mail` | yes | no address guard |
 | `files.*` | `files` | yes | user-scoped |

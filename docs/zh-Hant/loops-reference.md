@@ -288,7 +288,7 @@ shell.cancel(job_id)    -> job
 // opts: { project: "site", environment: "python", workdir: "app",
 //         env: { KEY: "val" }, timeout: 120 }                 // timeout 單位為秒
 
-// 控制代碼：SSH 是真正的連線，沙箱則是相容性墊片。
+// 沙箱控制代碼：把作業選項編碼進 id 的相容性墊片。
 shell.spawn(opts) -> { id, provider, state }
 shell.exec(id, cmd, opts?) -> the same result as shell.run
 shell.write(id, path, content)
@@ -320,11 +320,23 @@ ignore: ["node_modules/", "dist/"]
 
 **背景作業。** `shell.start` 把同樣的作業排隊後立即回傳，時限更長（`runtime.sandbox.background_max_timeout`）。結果以 `type: "shell.result"` 的訊息到達工作階段收件匣，作業在 `msg.payload` 裡（`state` 為 `finished`、`failed` 或 `cancelled`；`stdout` 與 `stderr` 是最後 16 KiB）。結果輪次以啟動作業的使用者身分執行。`shell.status` 可以在作業執行時（從任何執行個體）讀取，`shell.cancel` 在執行它的執行個體上停止它。執行個體死掉的作業會報為 `failed`，不會重跑。工作階段結束時，它的背景作業會被取消。
 
-**控制代碼。** `shell.spawn` 帶 `provider: "ssh"` 會連到真實遠端機器（`host`、`user`、`password` 或 `key_file`）；`exec`、`write`、`destroy` 作用其上，它活在連線的那個執行個體上，工作階段結束時關閉。SSH 衍生可以帶 `project` + `ref` 和一項 `volumes: ["x:/dir"]`，在控制代碼回報就緒前把檔案快照複製到遠端的 `/dir`，或用 `scratch_mount` 複製工作階段的暫存檔。
+**沙箱控制代碼。** `shell.spawn` 回傳一個*沙箱控制代碼*，它存在的意義是讓為容器 Shell 寫的迴圈在重新啟動和跨執行個體時也能乾淨工作：它只是把拿到的選項編碼進 id。對它 `shell.exec` 會跑作業，`shell.write` 寫進本機專案，`shell.destroy` 什麼也不做。它不需要儲存，在任何執行個體上都能用。有三個選項在沙箱裡有意義：`image` 指定一個宣告的環境，`volumes[0]` 的容器路徑是專案的掛載點（而不是 `/workspace`），而 `network` 非 `"none"`、`ref` 非 `"main"` 以及 `scratch_mount` 會被拒絕，並說明原因。傳入 `provider: "ssh"` 或 SSH 控制代碼會被拒絕 —— 請改用 `ssh.*`。
 
-不帶 provider 的 `shell.spawn` 回傳一個*沙箱控制代碼*，它存在的意義是讓為容器 Shell 寫的迴圈在重新啟動和跨執行個體時也能乾淨工作：它只是把拿到的選項編碼進 id。對它 `shell.exec` 會跑作業，`shell.write` 寫進專案，`shell.destroy` 什麼也不做。它不需要儲存，在任何執行個體上都能用。有三個選項在沙箱裡有意義：`image` 指定一個宣告的環境，`volumes[0]` 的容器路徑是專案的掛載點（而不是 `/workspace`），而 `network` 非 `"none"`、`ref` 非 `"main"` 以及 `scratch_mount` 會被拒絕，並說明原因。
+綁定了 Shell 設定檔的代理（`agents.<name>.shell`）還會得到隱式操作本機沙箱專案的登錄表工具，模型因此從不直接接觸控制代碼：`builtin:shell.exec`（`{ command }` → `shell.run` 的結果）、`builtin:fs.read`（`{ path, handle_id? }` → `{ ok, content, path, truncated }`）與 `builtin:fs.write`（`{ path, content, handle_id? }`）。這些檔案工具直接讀寫專案 —— 不會為它們啟沙箱 —— 路徑可以相對於專案，也可以寫在 `/workspace` 下；選填的 `handle_id` 只接受 `shell.spawn` 回傳的沙箱控制代碼。沒綁設定檔的代理拿到的是如實的不可用，沙箱跑不起來的主機也一樣；沒有 `shell.exec` 能力的代理根本看不到這些工具，即使 `tools.policy.default: all` 也一樣。`builtin:shell.exec` 與 `builtin:fs.write` 預設 `needs_confirm: true` —— 可透過 `tools.policy.overrides` 依部署放寬。
 
-綁定了 Shell 設定檔的代理（`agents.<name>.shell`）還會得到隱式解析該設定檔的登錄表工具，模型因此從不直接接觸控制代碼：`builtin:shell.exec`（`{ command }` → `shell.run` 的結果）、`builtin:shell.write`（`{ path, content }`）、`builtin:fs.read`（`{ path }` → `{ ok, content, path, truncated }`）、`builtin:fs.write`（`{ path, content }`）與 `builtin:shell.destroy`。用沙箱設定檔時，檔案工具直接讀寫專案 —— 不會為它們啟沙箱 —— 路徑可以相對於專案，也可以寫在 `/workspace` 下。用 SSH 設定檔時，這些工具每個工作階段保持一條連線，首次使用時開啟。沒綁設定檔的代理拿到的是如實的不可用，沙箱跑不起來的主機也一樣；沒有 `shell.exec` 能力的代理根本看不到這些工具，即使 `tools.policy.default: all` 也一樣。除 `fs.read` 外都預設 `needs_confirm: true` —— 可透過 `tools.policy.overrides` 依部署放寬。
+#### `ssh` —— 能力：`net.ssh`
+
+```ts
+ssh.spawn(opts?)             -> { id, provider, state }
+ssh.exec(id, cmd, opts?)     -> { stdout, stderr, exit_code, duration_ms }
+ssh.read(id, path)           -> { ok, path, content }
+ssh.write(id, path, content) -> true
+ssh.close(id)                -> true
+```
+
+**遠端 SSH 控制代碼。** `ssh.spawn` 會連到真實遠端機器（`host`、`user`、`password` 或 `key_file`、`workdir`、`env`、`shell_opts`），除非在 `opts` 中覆寫，否則預設繼承綁定 `agents.<name>.ssh` 設定檔的設定；`ssh.exec`、`ssh.read`、`ssh.write` 與 `ssh.close` 作用其上。連線活在建連的那個執行個體上，並在呼叫 `ssh.close` 或工作階段結束時關閉。`ssh.spawn` 也可以帶 `project` + `ref` 與一項 `volumes: ["x:/dir"]`，在控制代碼回報就緒前把檔案快照複製到遠端的 `/dir`，或用 `scratch_mount` 複製工作階段的暫存檔。
+
+綁定了 SSH 設定檔的代理（`agents.<name>.ssh`）還會得到登錄表工具，每個工作階段依需求開啟並重用一條 SSH 連線（或接收來自 `ssh.spawn` 的顯式 `handle_id`）：`builtin:ssh.exec`（`{ command, handle_id? }` → `{ ok, tool, handle_id, stdout, stderr, exit_code, duration_ms }`）、`builtin:ssh.read`（`{ path, handle_id? }` → `{ ok, tool, handle_id, path, content }`）、`builtin:ssh.write`（`{ path, content, handle_id? }`）與 `builtin:ssh.close`（`{ handle_id? }`）。沒綁 SSH 設定檔（且未提供 `handle_id`）的代理拿到的是如實的不可用；沒有 `net.ssh` 能力的代理根本看不到這些工具，即使 `tools.policy.default: all` 也一樣。除 `builtin:ssh.read` 外都預設 `needs_confirm: true` —— 可透過 `tools.policy.overrides` 依部署放寬。
 
 `builtin:fetch` 是面向 API 與普通頁面的通用 HTTP 用戶端，不需要帳號或憑證 —— 所以和 `web_search`、`browser` 不同，它永遠不會如實的不可用。選項：`url`（必填）、`method`、`headers`、`body`（原始）或 `json`（序列化；除非已有要求標頭，否則會設 `Content-Type`）、`query`、`timeout_ms`、`follow` / `max_redirects`、`user_agent`、`max_bytes`、`insecure`，以及 `save_to`（回應主體會同時落到本工作階段的暫存檔區，可用 `files.scratch.read` 讀取）。它回傳 `{ok, status, status_text, headers, body, final_url, redirects?, content_type?, content_length?, size, truncated?, tls_verified, time_cost_ms}` —— 對*任何* HTTP 狀態都回傳，因為 404 是模型該讀到的答案，而不是工具失敗；`ok` 表示請求是否完成，`status` 表示伺服器說了什麼。
 

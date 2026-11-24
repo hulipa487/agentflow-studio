@@ -193,4 +193,4 @@ AgentFlow 没有钩子注册表。引擎自己分发三个点，其余全靠 **�
 | 支持片段 `plugin:token_budget` | `token_budget(messages, budget)` | 循环，需要裁剪提示词时 |
 | 循环插件 `plugin:per_chat` | `loop()` | 无人调用 —— 它本身就是循环，不是辅助函数 |
 
-> **本节以前写的是什么**：它列了 26 个钩子 —— `gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等 —— 还写了类型、签名和默认值，并声称由核心分发。并不存在这样的分发器，定义这些名字的插件从未被调用过。其中两个还点到了内置实现（`shell.before_exec` 对应 `plugin:exec_policy`，`shell.teardown` 对应 `plugin:ttl`），它们被加载进每个会话状态却没有任何调用方；这两个现在都已删除。**Shell 命令只受 `shell.exec` 能力约束 —— 不存在命令策略过滤器。** 循环崩溃会重启，文件变更会热重载，这才是 `session.resume` 和 `core.on_reload` 当初想要的；需要在两者之间保留状态的循环，请用 `session.state.*`。
+> **本节以前写的是什么**：它列了 26 个钩子 —— `gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等 —— 还写了类型、签名和默认值，并声称由核心分发。并不存在这样的分发器，定义这些名字的插件从未被调用过。其中两个还点到了内置实现（`shell.before_exec` 对应 `plugin:exec_policy`，`shell.teardown` 对应 `plugin:ttl`），它们被加载进每个会话状态却没有任何调用方；这两个现在都已删除。**本地 Shell 命令只受 `shell.exec` 能力约束，远程 SSH 会话只受 `net.ssh` 能力约束 —— 不存在命令策略过滤器。** 循环崩溃会重启，文件变更会热重载，这才是 `session.resume` 和 `core.on_reload` 当初想要的；需要在两者之间保留状态的循环，请用 `session.state.*`。

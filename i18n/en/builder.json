@@ -68,6 +68,7 @@
   "builder.canContact": "Can contact",
   "builder.credentials": "Credentials",
   "builder.shellProfile": "Shell profile",
+  "builder.sshProfile": "SSH profile",
   "builder.persistent": "Daemon (persistent)",
   "builder.extras": "Extras (JSON)",
   "builder.loopTitle": "Loop (TypeScript)",

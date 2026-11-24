@@ -306,12 +306,13 @@ files.scratch.list();
 | `net.http` | `http.request`、`http.get`、`http.post`、`os.env` |
 | `net.mail` | `mail.*` |
 | `shell.exec` | `shell.*` |
+| `net.ssh` | `ssh.*` |
 | `files` | `files.*` |
 | `session.state` | `session.state.*` |
 | `users` | `user.current`、`user.usage`、`user.has_credential`、`user.get`、`user.list` |
 | `channel.push` | `session.push`、`session.push_user` |
 
-智能体不写 `capabilities` 时的默认值：`llm.chat`、`memory`、`tools`、`apis`、`agent.send`、`net.http`、`users`。`net.mail`、`shell.exec`、`files`、`session.state` 和 `channel.push` 必须显式声明。
+智能体不写 `capabilities` 时的默认值：`llm.chat`、`memory`、`tools`、`apis`、`agent.send`、`net.http`、`users`。`net.mail`、`shell.exec`、`net.ssh`、`files`、`session.state` 和 `channel.push` 必须显式声明。
 
 不受此表门控的：
 
@@ -486,7 +487,15 @@ shell.status(job_id) / shell.cancel(job_id)
 // opts：{ project, environment, workdir, env, timeout }   // timeout 以秒为单位
 ```
 
-每次调用都是文件存储里某个项目上、某个沙箱里的一条命令。命令在项目里写的东西结束时会被存下；别的一概活不到下一次调用，而下一次调用可以在任何实例上跑。非零退出码是结果；跑不起来的作业会抛错。`shell.spawn`、`shell.exec`、`shell.write` 和 `shell.destroy` 仍然存在：用于连远程机器的 SSH 连接（`provider: "ssh"`），也作为旧循环的兼容垫片。需要 `shell.exec`。完整规则见脚本插件开发参考。
+每次调用都是文件存储里某个项目上、某个沙箱里的一条命令。命令在项目里写的东西结束时会被存下；别的一概活不到下一次调用，而下一次调用可以在任何实例上跑。非零退出码是结果；跑不起来的作业会抛错。`shell.spawn`、`shell.exec`、`shell.write` 和 `shell.destroy` 作为沙箱兼容垫片保留（需要 `shell.exec`）。远程 SSH 连接改用 `ssh.spawn`、`ssh.exec`、`ssh.read`、`ssh.write` 和 `ssh.close`（需要 `net.ssh`）。完整规则见脚本插件开发参考。
+
+```ts
+const conn = ssh.spawn({ host: "box:22", user: "dev" })
+const out  = ssh.exec(conn.id, "uname -a")
+ssh.write(conn.id, "/tmp/flag", "1")
+const txt  = ssh.read(conn.id, "/tmp/flag")
+ssh.close(conn.id)
+```
 
 ### 6.9 `http` 与 `os`
 
@@ -851,7 +860,7 @@ const reply = llm.chat(messages, { model: info.model });
 - **作用域由引擎侧强制执行。** `store.scopes` 和 `user.get/list` 仅限维护；渠道轮次会被拒绝。
 - **`os` 不是完整的 Node/Lua `os` 库。** 只有 `os.env`、`os.time` 和 `os.date`，全部 UTC。没有 `require`、`fs`、`process`、`fetch`、`setTimeout`，也没有套接字库。
 - **过桥的值都做 JSON 编码。** 空数组 `[]` 和空对象 `{}` 保留各自的 JSON 类型，而函数、symbol 和循环引用对象过不了桥。
-- **能力是被强制执行的，不是建议。** 被收回的操作会抛出点名能力的拒绝；`files`、`net.mail`、`shell.exec`、`session.state` 和 `channel.push` 要显式声明（`apis` 在默认值里）。
+- **能力是被强制执行的，不是建议。** 被收回的操作会抛出点名能力的拒绝；`files`、`net.mail`、`shell.exec`、`net.ssh`、`session.state` 和 `channel.push` 要显式声明（`apis` 在默认值里）。
 - **钩子。** 引擎只直接分发 `safety.script_filters`、`safety.ingress`、`safety.egress`、`gateway.route`，以及配置好的外部 API（`apis`）操作；会话 VM 里其他一切都是全局约定，由 prelude 或你的循环按名字调用（`memory_routing_table`、`memory_recall_handler`、`token_budget` 等）。
 - **`scheduler.cron` 是个子集。** 日/月/星期的排期请用 `every`/`after` 或引擎触发器。
 - **`http.request` 在拨号器里拒绝私有目的地**（包括重定向跳转），除非部署设了 `net.http.allow_private`。
@@ -879,7 +888,8 @@ const reply = llm.chat(messages, { model: info.model });
 | `memory.*` / `store.*` | `memory` | 是 | 带范围 |
 | `tools.list` / `run` | `tools` | 是 | 确认拦截 |
 | `api.*` | `apis` | 是 | 外部 TS/Wasm 包 |
-| `shell.*` | `shell.exec` | 是 | 一次性沙箱作业；SSH 句柄 |
+| `shell.*` | `shell.exec` | 是 | 一次性沙箱作业；兼容句柄 |
+| `ssh.*` | `net.ssh` | 是 | 持久化远程 SSH 连接 |
 | `http.*` / `os.env` | `net.http` | 是 | 地址防护 |
 | `mail.*` | `net.mail` | 是 | 无地址防护 |
 | `files.*` | `files` | 是 | 用户范围 |

@@ -1,2 +1,3 @@
 # build output: see desktop/.gitignore and web/.gitignore
 *.exe
+examples/apis/npc/npc.wasm

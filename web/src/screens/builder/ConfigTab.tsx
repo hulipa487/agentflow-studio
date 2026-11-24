@@ -159,7 +159,10 @@ export function ConfigTab({
             <Field label={t('builder.shellProfile')}>
               <Input mono value={form.shell} placeholder={t('builder.noneParen')} onChange={(e) => patch({ shell: e.target.value })} />
             </Field>
-            <div className="flex items-end pb-1.5">
+            <Field label={t('builder.sshProfile')}>
+              <Input mono value={form.ssh} placeholder={t('builder.noneParen')} onChange={(e) => patch({ ssh: e.target.value })} />
+            </Field>
+            <div className="col-span-2 pt-1">
               <Checkbox checked={form.persistent} onChange={(persistent) => patch({ persistent })} label={t('builder.persistent')} />
             </div>
           </div>

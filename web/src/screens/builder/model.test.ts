@@ -173,8 +173,10 @@ describe('buildYAML', () => {
   })
 
   it('writes the memory profile after the shell, and keeps an inline one as it is', () => {
-    const f = { ...initialForm('a', null, null, catalog), shell: 'sandbox', memory: 'group_chat' }
-    expect(buildYAML(f, null)).toBe('loop: "./a.ts"\nsafety: "default"\nhistory_budget: 6000\nshell: "sandbox"\nmemory: "group_chat"\n')
+    const f = { ...initialForm('a', null, null, catalog), shell: 'sandbox', ssh: 'prod-box', memory: 'group_chat' }
+    expect(buildYAML(f, null)).toBe('loop: "./a.ts"\nsafety: "default"\nhistory_budget: 6000\nshell: "sandbox"\nssh: "prod-box"\nmemory: "group_chat"\n')
+    const sshDetail = detailOf({ ssh: 'prod-box' })
+    expect(initialForm('a', sshDetail, null, catalog).ssh).toBe('prod-box')
     const inline = { stores: { facts: { backend: 'main_db', table: 'notes' } }, recall: 'plugin:recency' }
     const d = detailOf({ memory_inline: inline })
     const g = initialForm('a', d, null, catalog)

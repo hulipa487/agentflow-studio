@@ -193,4 +193,4 @@ AgentFlow 沒有掛鉤登錄表。引擎自己分派三個點，其餘全靠 **�
 | 支援片段 `plugin:token_budget` | `token_budget(messages, budget)` | 迴圈，需要裁剪提示詞時 |
 | 迴圈外掛 `plugin:per_chat` | `loop()` | 無人呼叫 —— 它本身就是迴圈，不是輔助函式 |
 
-> **本節以前寫的是什麼**：它列了 26 個掛鉤 —— `gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等 —— 還寫了類型、簽章與預設值，並聲稱由核心分派。並不存在這樣的分派器，定義這些名字的外掛從未被呼叫過。其中兩個還點到了內建實作（`shell.before_exec` 對應 `plugin:exec_policy`，`shell.teardown` 對應 `plugin:ttl`），它們被載入每個工作階段狀態卻沒有任何呼叫方；這兩個現在都已移除。**Shell 命令只受 `shell.exec` 能力約束 —— 不存在命令原則過濾器。** 迴圈崩潰會重新啟動，檔案變更會熱重載，這才是 `session.resume` 與 `core.on_reload` 當初想要的；需要在兩者之間保留狀態的迴圈，請用 `session.state.*`。
+> **本節以前寫的是什麼**：它列了 26 個掛鉤 —— `gateway.ingress`、`loop.before_turn`、`session.migrate`、`shell.before_exec`、`agent.start`、`core.on_reload` 等 —— 還寫了類型、簽章與預設值，並聲稱由核心分派。並不存在這樣的分派器，定義這些名字的外掛從未被呼叫過。其中兩個還點到了內建實作（`shell.before_exec` 對應 `plugin:exec_policy`，`shell.teardown` 對應 `plugin:ttl`），它們被載入每個工作階段狀態卻沒有任何呼叫方；這兩個現在都已移除。**本機 Shell 命令只受 `shell.exec` 能力約束，遠端 SSH 工作階段只受 `net.ssh` 能力約束 —— 不存在命令原則過濾器。** 迴圈崩潰會重新啟動，檔案變更會熱重載，這才是 `session.resume` 與 `core.on_reload` 當初想要的；需要在兩者之間保留狀態的迴圈，請用 `session.state.*`。

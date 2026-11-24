@@ -9,7 +9,7 @@ AgentFlow is configured through a single YAML file (`agentflow.yaml`). Every val
 
 ### Secrets: env references, the credential store, and honest degradation
 
-Secret-bearing fields (`models.*.api_key`, `search.engines.*.api_key`, `gateway.channels[].token`/`secret`, `memory.backends.*.config.url`/`password`/`api_key`, `media.s3.access_key`/`secret_key`, `browser.api_token`, `profiles.shell.*.password`) accept three forms:
+Secret-bearing fields (`models.*.api_key`, `search.engines.*.api_key`, `gateway.channels[].token`/`secret`, `memory.backends.*.config.url`/`password`/`api_key`, `media.s3.access_key`/`secret_key`, `browser.api_token`, `profiles.ssh.*.password`) accept three forms:
 
 - a literal value,
 - `${VAR}` (or `${VAR:-default}`) — resolved from the process environment, with the credential store (by the same name) as fallback,
@@ -31,7 +31,7 @@ gateway:      { ... }   # one shared listener + its channels
 mcp:          { ... }   # MCP servers
 tools:        { ... }   # global tool policy
 search:       { ... }   # web-search engines
-legal_search: { ... }   # HKLII / NPC
+apis:         { ... }   # External API extensions (Goja script / wazero Wasm)
 browser:      { ... }   # Cloudflare Browser Run
 net:          { ... }   # outbound connection policy
 media:        { ... }   # blob store backend: fs (default) | s3
@@ -580,13 +580,13 @@ An ingress block skips the turn: the loop never sees the message, and `refusal` 
 
 #### Shell profile
 
-A shell profile says what an agent's shell is. Bind one with `agents.<name>.shell` (the agent also needs the `shell.exec` capability).
+A shell profile configures an agent's local sandboxed workspace. Bind one with `agents.<name>.shell` (the agent also needs the `shell.exec` capability).
 
 ```
 profiles:
   shell:
     code:
-      provider: sandbox          # sandbox (default) | ssh
+      provider: sandbox          # sandbox only (default)
       environment: python        # an entry of environments (required)
       project: workspace         # the files-store project jobs run in (default workspace)
       workdir: app               # where a command starts, relative to the project
@@ -596,21 +596,29 @@ profiles:
       env: { CI: "1" }
       ignore: ["node_modules/", "__pycache__/"]   # created by jobs, never stored
       network: none              # the only value: sandbox jobs have no network
-    box:
-      provider: ssh              # a connection to a real remote machine
-      host: build.example.com:22
-      user: dev
-      key_file: /etc/agentflow/id_ed25519      # or password: (a secret reference)
-      workdir: /srv/work
 ```
 
 **`provider: sandbox`** runs each command as a one-off sandbox job using either [gVisor](https://gvisor.dev) (`provider: gvisor`, default on Linux) or [microsandbox](https://github.com/superradcompany/microsandbox) (`provider: microsandbox`, hardware-isolated microVM over KVM on Linux, Apple Silicon HVF on macOS, or WHP on Windows): the environment provides the root toolchain, the project is mounted read-write at `/workspace`, and what the command wrote into the project is stored when it ends. Nothing else survives a command, so there is nothing to keep track of and any instance can run the next one. `ignore` uses a small subset of `.gitignore`: `node_modules/` (a directory with that name anywhere), `*.pyc` (a name anywhere), `build/out` (a path from the project root); a trailing slash restricts a pattern to directories. Ignored paths are neither stored nor cleaned up — they stay on the instance as a best-effort cache.
 
 A project can customise its agent's profile with a `.agentflow/shell.yaml` file in its working tree. It may set `environment` (one the deployment declares), `env`, `workdir`, `timeout` and `ignore`. It has no field for an image, a network policy or a resource limit, and an unknown field is an error rather than a silent no-op.
 
-**`provider: ssh`** keeps a connection per session to a machine that already exists; nothing here provisions it. The connection lives in the instance that dialled it and closes with the session.
+`provider: docker` and `provider: ssh` under `profiles.shell` were removed (`provider: ssh` moved to `profiles.ssh`). Configs that still set them fail at load with a message naming the replacement.
 
-`provider: docker` was removed. A config that still uses it fails at load with a message naming the replacement.
+#### SSH profile
+
+An SSH profile configures a persistent remote SSH target independently of `profiles.shell`. Bind one with `agents.<name>.ssh` (the agent also needs the `net.ssh` capability).
+
+```
+profiles:
+  ssh:
+    box:
+      host: build.example.com:22
+      user: dev
+      key_file: /etc/agentflow/id_ed25519      # or password: (a secret reference)
+      workdir: /srv/work
+```
+
+An SSH profile keeps one connection per session to a machine that already exists; nothing here provisions it. The connection lives in the instance that dialled it and closes with the session. An agent may bind both `shell:` and `ssh:` — local project tools (`builtin:shell.exec`, `builtin:fs.*`) still target the sandbox project while `builtin:ssh.*` target the remote host.
 
 #### `environments` — declared toolchains
 
@@ -826,24 +834,31 @@ search:
 
 Configures the engines behind the `builtin:web_search` tool, selectable per call via the tool's `engine` parameter (`tools.run("builtin:web_search", {query=..., engine="doubao"})`); omitting `engine` uses `search.default`. With no engines configured the tool reports honest-unavailable (`{ok:false, unavailable:true}`). Per-engine `base_url` and `timeout` are optional overrides. Results normalize to `{title, url, site, summary, snippet, content, published, score}`; `score` is engine-native (doubao is a 0..1 relevance, stackoverflow is the raw upvote count, github is the stargazer count; youtube has none). doubao, ollama, and youtube (and the grounded engines google\_search/x\_search) need an `api_key`; stackoverflow and github need none (the `site` field picks any StackExchange network site, e.g. `superuser` or `serverfault`). A missing or unresolvable key **skips the engine with a boot warning** instead of failing the boot; if the skipped engine was `search.default`, the default falls back to the sole surviving engine (or none). github searches repositories and honors GitHub's full qualifier syntax in the query (`language:go stars:>100 pushed:>2024-01-01`). youtube searches videos via the YouTube Data API v3 (site = channel title, content = description, a `LIVE:` snippet prefix marks live broadcasts); the shared `time_range` maps to `publishedAfter`/`publishedBefore` — note search.list costs 100 quota units per call (~100 searches/day on the default project quota), and a spent quota surfaces an honest `quotaExceeded` error.
 
-### `legal_search`
+### `apis`
 
+```yaml
+apis:
+  hklii:
+    dir: ./examples/apis/hklii       # package dir containing manifest.yaml
+  npc:
+    dir: ./examples/apis/npc         # Wasm External API package
+  billing:                           # or inline declaration without dir
+    runtime: script                  # script (Goja TS/JS) | wasm (wazero)
+    entry: ./apis/billing.ts
+    timeout: 15s
+    capabilities:
+      http:
+        allowed_hosts: ["api.stripe.com"]
+        credentials: ["stripe"]
+    actions:
+      charge:
+        description: "Charge a customer"
+        expose_as_tool: true         # registers as tool api:billing.charge (cap: apis)
 ```
-legal_search:
-  default: hklii                # engine used when a call omits `engine`
-  engines:
-    hklii: {}                   # Hong Kong Legal Information Institute — free, no key
-    npc: {}                     # China National Database of Laws and Regulations — free, no key
-                                # (optional base_url / timeout overrides)
-```
 
-Configures the engines behind two tools, selectable per call via the `engine` param (default `legal_search.default`); both report honest-unavailable when no engine is configured. The two engines answer differently, so the tool descriptions are assembled from whichever engines are configured — an `abbr`/`year`/`num`/`lang` parameter, for instance, is only offered when hklii is present, because npc reads none of them. The same reasoning applies to the result: a field the selected engine does not fill is left out rather than sent as an empty string, which would read as "unknown" instead of "not applicable".
+Registers External API packages into the runtime's isolated extension registry (`api.*` inside loops under the `apis` capability). Each package runs either TypeScript/JS in a fresh Goja VM per invocation (`runtime: script`) or a compiled `.wasm` module under `wazero` (`runtime: wasm`, bounded by `timeout` and `memory_mb`), with outbound HTTP restricted to `capabilities.http.allowed_hosts` and host-injected `capabilities.http.credentials`.
 
-`builtin:legal_search` returns hits as `{title, path, url, court, date, type?, effective?, status?, neutral?, parallel?, action?, parties?, coram?}`, with `total` the full match count. Its `disable_fuzzy` param (default false) means something different per engine — keyword-vs-concept on hklii, title-only-vs-full-text on npc. `builtin:legal_read` retrieves one document's full plain text, keyed by the hit's `path`, with `start`/`max_chars` paging for long bodies. With more than one engine configured, the `path` is routed to the engine that issued it, so `engine` need not be repeated from the search call: a hit's path is an opaque token that only its own engine can read, and requiring the caller to name that engine again is a way to fail at something the runtime already knows. Naming `engine` explicitly still wins and is never second-guessed.
-
-**hklii** covers Hong Kong case law and legislation. Search hits carry a neutral and parallel citation, court, date, parties and coram. Reading is *case judgments only*: `path` is `/en/cases/hkcfi/2020/1808`, or give explicit `abbr`/`year`/`num`, with an optional `lang` (`en`|`tc`|`sc`). A legislation hit — one whose `court` reads `Hong Kong Ordinances`, with a path like `/en/legis/ord/201/` — has no readable full text here; its path is rejected with a clear error rather than returning something wrong.
-
-**npc** covers PRC national laws, administrative regulations, and judicial interpretations. Hits carry the enacting organ as `court`, the promulgation date as `date`, and add `type` (法律/行政法规/…), `effective` (施行日期) and `status` (有效/已修改/已废止/尚未生效); npc has no citations and no parties, so those fields are absent. Reading takes the hit's `path` — the opaque `bbbs` document id — and nothing else: `abbr`, `year`, `num` and `lang` have no meaning here. The returned `neutral` is that same id, not a citation. Text is extracted from the returned Word document via the built-in doc/docx parser.
+Set `dir` to load `<dir>/manifest.yaml` (resolving `entry` inside the package directory), or declare `runtime`, `entry`, and `actions` inline. Actions with `expose_as_tool: true` also register as model tools named `api:<pkg>.<action>`. Reference External API packages replacing the retired built-in legal tools (`hklii` in TypeScript/Goja and `npc` in Go/Wasm) live in `examples/apis/hklii` and `examples/apis/npc`.
 
 ### `browser`
 
@@ -877,7 +892,7 @@ Two details worth knowing. A *zoned* address (`http://[fc00::1%25en0]/`) is refu
 
 **Trade-off:** the guarded transports deliberately ignore `HTTP_PROXY` / `HTTPS_PROXY`. Behind an egress proxy the dialer connects to the *proxy*, so the guard would judge the proxy's address and the target would never be checked at all. A deployment that egresses only through a proxy will find these paths do not use it. Also note `198.18.0.0/15` is blocked as a benchmarking range, which is the default fake-IP pool for Clash/mihomo and sing-box in TUN mode — on a developer machine running either, every proxied domain resolves into it and will be refused.
 
-`allow_private: true` disables the guard entirely and logs a WARN at boot naming the risk, so it cannot be switched on silently. It exists for deployments that legitimately call an internal service; it is off by default because the guard is the only thing between a prompt-injected agent and the host's own network. The guard scopes to these two agent-controlled paths only — model, search, legal and browser drivers use admin-configured `base_url`s and are deliberately not covered, so an internal mirror keeps working.
+`allow_private: true` disables the guard entirely and logs a WARN at boot naming the risk, so it cannot be switched on silently. It exists for deployments that legitimately call an internal service; it is off by default because the guard is the only thing between a prompt-injected agent and the host's own network. The guard scopes to these two agent-controlled paths only — model, search, and browser drivers use admin-configured `base_url`s and are deliberately not covered, so an internal mirror keeps working.
 
 ### `media` — blob store backend
 
@@ -966,7 +981,7 @@ tools:
                                            #    parsed and read by nothing — boot warns)
 ```
 
-Overrides are baked into the registry once at boot, after every tool is registered (builtins, legal, shell, MCP) and before any agent set is exposed. A `params` entry naming a param the schema does not declare is skipped with a warning, never an error. Policy fields apply per tool; `permission: forbidden` removes the tool from every exposed set — and is the only one of them with an effect. `cost_level`, `user_visible` and `autonomous` are accepted, copied onto the tool, and consulted by nothing; `tools.policy.write` is likewise parsed and unused. The engine warns at boot when one is set.
+Overrides are baked into the registry once at boot, after every tool is registered (builtins, shell, MCP, APIs) and before any agent set is exposed. A `params` entry naming a param the schema does not declare is skipped with a warning, never an error. Policy fields apply per tool; `permission: forbidden` removes the tool from every exposed set — and is the only one of them with an effect. `cost_level`, `user_visible` and `autonomous` are accepted, copied onto the tool, and consulted by nothing; `tools.policy.write` is likewise parsed and unused. The engine warns at boot when one is set.
 
 **Reaching script-declared tools**: an override may also name a tool a loop declares with `tool.def` — see below. Those entries are not baked at boot (the tool does not exist until a chunk loads); they are resolved when the loop builds its list, against the live prompt registry, so editing a `file:`-backed prompt shows up on the next `tools.list()`. A misspelled *prompt key* is still a boot error for either kind of tool. A tool name that is neither registered nor declared by any loaded loop cannot be caught at boot, so it is logged once at boot as held for a script declaration (one informational line naming them, so a typo is visible before any agent takes a turn) and then warned about once per name the first time a loop declares its tools without claiming it.
 
@@ -983,6 +998,7 @@ agents:
     memory: conversational     # preset, or inline
     safety: default
     shell: sandboxed                    # optional
+    ssh: prod_box                       # optional
     can_contact: [worker]               # ACL
     budget:
       tokens_per_day: 500000
@@ -996,13 +1012,13 @@ agents:
       workflow: release-train
 ```
 
-**Capability ceiling**: `plugins.allow_capabilities` (global) ⊇ `agents.<name>.capabilities` (per-agent) ⊇ spawn-spec grants (child). You cannot delegate what you lack. If an agent omits `capabilities` it gets the defaults `[llm.chat, memory, tools, agent.send, net.http, users]` — note `net.mail`, `shell.exec` and `session.state` are *not* defaults and must be declared explicitly.
+**Capability ceiling**: `plugins.allow_capabilities` (global) ⊇ `agents.<name>.capabilities` (per-agent) ⊇ spawn-spec grants (child). You cannot delegate what you lack. If an agent omits `capabilities` it gets the defaults `[llm.chat, memory, tools, agent.send, net.http, users]` — note `net.mail`, `shell.exec`, `net.ssh` and `session.state` are *not* defaults and must be declared explicitly.
 
-**Capabilities are enforced at runtime**, not merely validated at boot. Each capability gates the script ops behind it: `llm.chat` → `llm.*`, `memory` → `store.*`, `tools` → `tools.*`, `apis` → `api.*`, `shell.exec` → `shell.*`, `net.http` → `http.request` and `os.env`, `net.mail` → `mail.*`, `files` → `files.*`. An agent that omits one is refused with a message naming the op, the agent and the missing capability — the op stays addressable and fails clearly rather than vanishing into an undefined-property error. `agent.send`, `agent.request` and `agent.spawn` were always enforced this way; the rest now match. `runtime.*` and `credential.get` are deliberately ungated — the first is loop machinery every agent needs, the second is already scoped by the agent's own credential list. A boot warning lists exactly what was withheld from each agent and profile. Set `plugins.enforce_capabilities: false` (default `true`) only to keep a configuration running that depended on every agent having every op.
+**Capabilities are enforced at runtime**, not merely validated at boot. Each capability gates the script ops behind it: `llm.chat` → `llm.*`, `memory` → `store.*`, `tools` → `tools.*`, `apis` → `api.*`, `shell.exec` → `shell.*`, `net.ssh` → `ssh.*`, `net.http` → `http.request` and `os.env`, `net.mail` → `mail.*`, `files` → `files.*`. An agent that omits one is refused with a message naming the op, the agent and the missing capability — the op stays addressable and fails clearly rather than vanishing into an undefined-property error. `agent.send`, `agent.request` and `agent.spawn` were always enforced this way; the rest now match. `runtime.*` and `credential.get` are deliberately ungated — the first is loop machinery every agent needs, the second is already scoped by the agent's own credential list. A boot warning lists exactly what was withheld from each agent and profile. Set `plugins.enforce_capabilities: false` (default `true`) only to keep a configuration running that depended on every agent having every op.
 
 **`builtin:` is the tool namespace.** Four vocabularies used to spell it — loop/plugin names, tool names, memory provider names, and the built-in memory profile — and nothing in the string said which one a name belonged to. Each now has its own spelling, so the prefix means exactly one thing:
 
-- **tools** keep it: `builtin:web_search`, `builtin:fetch`, `builtin:browser`, `builtin:legal_read`;
+- **tools** keep it: `builtin:web_search`, `builtin:fetch`, `builtin:browser`;
 - **loops and plugins** are `plugin:<name>`: `plugin:per_chat`, `plugin:recency`, `plugin:semantic`. This also settles the loop-versus-path question outright, since a path never begins with `plugin:` — where before a file named `per_chat` was unreachable;
 - **memory providers** are bare: `sqlite`, `qdrant`, `redisvector` — the `provider:` key already says what kind of name it is;
 - the **built-in memory profile** is `conversational`, and that name is now reserved: a `profiles.memory` entry of the same name is a boot error rather than a profile that could never run.
@@ -1044,6 +1060,7 @@ plugins:
     - tools
     - scheduler
     - shell.exec
+    - net.ssh
     - net.http
     - net.mail
     - channel.push

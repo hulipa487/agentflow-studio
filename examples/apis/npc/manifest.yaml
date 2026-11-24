@@ -1,0 +1,54 @@
+name: npc
+version: "1.0.0"
+description: "China National Database of Laws and Regulations (flk.npc.gov.cn) search and document reader"
+runtime: wasm
+entry: ./npc.wasm
+timeout: 30s
+memory_mb: 64
+capabilities:
+  http:
+    # Include flk.npc.gov.cn plus object-storage hosts used for signed .docx download URLs.
+    allowed_hosts:
+      - flk.npc.gov.cn
+      - "*.flk.npc.gov.cn"
+      - "*.aliyuncs.com"
+      - "*.myhuaweicloud.com"
+actions:
+  search:
+    description: "Search PRC national laws, administrative regulations, judicial interpretations, and local rules (flk.npc.gov.cn). Returns normalized hits with title, path (opaque bbbs document id), url, court (enacting organ), date, type, effective, status, and total."
+    expose_as_tool: true
+    parameters:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: "Search query text (1-100 chars)"
+        count:
+          type: number
+          description: "Max results to return (default 10, max 50)"
+        disable_fuzzy:
+          type: boolean
+          description: "true = title-only match (searchType=1); false = full-text search (searchType=2, default false)"
+        base_url:
+          type: string
+          description: "Optional NPC base URL override (default https://flk.npc.gov.cn)"
+  read:
+    description: "Fetch and extract plain text from an NPC document identified by its opaque bbbs document id (`path` from an npc search hit). Long documents support start/max_chars paging."
+    expose_as_tool: true
+    parameters:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+          description: "Opaque bbbs document id from an npc search hit"
+        start:
+          type: number
+          description: "Byte offset into extracted plain-text body (default 0)"
+        max_chars:
+          type: number
+          description: "Maximum bytes to return (0 or omitted = no cap)"
+        base_url:
+          type: string
+          description: "Optional NPC base URL override (default https://flk.npc.gov.cn)"
