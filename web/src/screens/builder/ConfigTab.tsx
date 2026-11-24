@@ -10,9 +10,12 @@ import {
   effectiveCapabilities,
   extrasError,
   historyValid,
+  matchingTemplateSettings,
   memoryOptions,
+  parseExtrasObject,
   safetyOptions,
   toggleCheck,
+  updateExtrasSetting,
   type BuilderForm,
 } from './model'
 
@@ -73,6 +76,8 @@ export function ConfigTab({
   const nameBad = isNew && form.name.trim() !== '' && !AGENT_NAME_RE.test(form.name.trim())
   const historyBad = !historyValid(form.history)
   const extrasBad = extrasError(form.extras)
+  const extrasObj = parseExtrasObject(form.extras)
+  const starterSettings = matchingTemplateSettings(catalog, extrasObj)
   const caps = effectiveCapabilities(form.capabilities, catalog)
   const memoryNeedsCap = form.memory !== '' && caps.length > 0 && !caps.includes('memory')
 
@@ -114,6 +119,69 @@ export function ConfigTab({
           </Field>
         </div>
       </Section>
+
+      {starterSettings.length > 0 && (
+        <Section title={t('builder.starterSettings')} subtitle={t('builder.starterSettingsSubtitle')}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {starterSettings.map((setting) => {
+              const rawVal = extrasObj && setting.key in extrasObj ? extrasObj[setting.key] : setting.default
+              if (setting.type === 'bool') {
+                return (
+                  <div key={setting.key} className="sm:col-span-2">
+                    <Checkbox
+                      checked={Boolean(rawVal)}
+                      onChange={(v) => patch({ extras: updateExtrasSetting(form.extras, setting.key, v) })}
+                      label={setting.label}
+                      hint={setting.description}
+                    />
+                  </div>
+                )
+              }
+              if (setting.type === 'number') {
+                const numStr = rawVal === undefined || rawVal === null ? '' : String(rawVal)
+                return (
+                  <Field key={setting.key} label={setting.label} hint={setting.description}>
+                    <Input
+                      type="number"
+                      mono
+                      min={setting.min}
+                      max={setting.max}
+                      value={numStr}
+                      onChange={(e) => {
+                        const n = Number(e.target.value)
+                        if (e.target.value !== '' && Number.isFinite(n)) {
+                          patch({ extras: updateExtrasSetting(form.extras, setting.key, n) })
+                        }
+                      }}
+                    />
+                  </Field>
+                )
+              }
+              if (setting.type === 'select') {
+                return (
+                  <Field key={setting.key} label={setting.label} hint={setting.description}>
+                    <Select
+                      value={rawVal === undefined || rawVal === null ? '' : String(rawVal)}
+                      options={setting.options ?? []}
+                      onChange={(v) => patch({ extras: updateExtrasSetting(form.extras, setting.key, v) })}
+                    />
+                  </Field>
+                )
+              }
+              return (
+                <Field key={setting.key} label={setting.label} hint={setting.description}>
+                  <Input
+                    mono
+                    value={rawVal === undefined || rawVal === null ? '' : String(rawVal)}
+                    placeholder={setting.placeholder}
+                    onChange={(e) => patch({ extras: updateExtrasSetting(form.extras, setting.key, e.target.value) })}
+                  />
+                </Field>
+              )
+            })}
+          </div>
+        </Section>
+      )}
 
       <Section
         title={t('builder.capabilities')}

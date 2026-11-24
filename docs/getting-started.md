@@ -148,6 +148,7 @@ AgentFlow Studio hosts complete sample deployments under [`examples/`](https://g
 
 | Scenario | What it shows |
 | --- | --- |
+| [`telegram-group-bot`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-group-bot) | Flagship Telegram group bot starter: configure `@`-mentions, replies, trigger phrases, cooldowns, and per-group context with zero TypeScript in Studio's **Starter settings**, verify tokens/Privacy Mode and go live in **Channels**, and inspect `answered`/`ignored`/`dropped` outcomes in **Event Center** |
 | [`qq-group-chat`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-chat) | A QQ group chatbot with memory and context: one session per group, speaker-aware prompts, recent context in `session.state`, long-term recall and `/remember` facts |
 | [`telegram-rag`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-rag) | A Telegram bot that answers from a knowledge base: embeddings in SQLite, semantic recall, cited answers, and a webhook for bulk loading |
 | [`github-pr-agents`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/github-pr-agents) | A GitHub pull request webhook that spawns a code agent per PR: the change copied into a sandbox project, inspected with shell commands, and reviewed in a comment |
@@ -158,7 +159,7 @@ AgentFlow Studio hosts complete sample deployments under [`examples/`](https://g
 ./agentflow loop test examples/telegram-rag/tests/answer.yaml
 ```
 
-Studio's **New agent** dialog offers the same shapes as starter templates (group chat with memory, knowledge base, single-turn API) for an agent built from scratch.
+Studio's **New agent** dialog offers the same shapes as starter templates (**Telegram group bot** with zero-TS **Starter settings**, group chat with memory, knowledge base, single-turn API) for an agent built from scratch.
 
 ### Connect a real model
 

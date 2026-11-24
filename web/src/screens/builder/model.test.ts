@@ -16,8 +16,11 @@ import {
   initialForm,
   lf,
   loopStatus,
+  matchingTemplateSettings,
   nameError,
+  parseExtrasObject,
   toggleCheck,
+  updateExtrasSetting,
 } from './model'
 
 const catalog: Catalog = {
@@ -246,5 +249,45 @@ describe('memoryOptions', () => {
   it('keeps a profile the catalog does not list, and an inline one', () => {
     expect(memoryOptions(catalog, 'gone').at(-1)).toEqual({ value: 'gone', label: 'gone · not in catalog' })
     expect(memoryOptions(catalog, MEMORY_INLINE).at(-1)?.value).toBe(MEMORY_INLINE)
+  })
+})
+
+describe('starter settings schema and template seeding', () => {
+  const tgTpl: Template = {
+    name: 'telegram-group-bot',
+    title: 'Telegram group bot',
+    description: 'Group bot starter',
+    capabilities: ['llm.chat', 'memory', 'session.state'],
+    memory: 'conversational',
+    instructions: 'Answer mentions politely.',
+    extras: { respond_on_mention: true, cooldown_sec: 15, trigger_phrase: '' },
+    settings: [
+      { key: 'respond_on_mention', label: 'Reply on mention', type: 'bool', default: true },
+      { key: 'cooldown_sec', label: 'Cooldown', type: 'number', default: 15, min: 0, max: 3600 },
+      { key: 'trigger_phrase', label: 'Trigger phrase', type: 'string', default: '' },
+    ],
+    loop: '// af-prelude-version: 2\nfunction loop() {}\n',
+  }
+
+  it('seeds capabilities, memory, and extras from a template', () => {
+    const form = initialForm('', null, tgTpl, { ...catalog, templates: [tgTpl] })
+    expect(form.capabilities).toEqual(['llm.chat', 'memory', 'session.state'])
+    expect(form.memory).toBe('conversational')
+    const parsed = parseExtrasObject(form.extras)
+    expect(parsed).toEqual({ cooldown_sec: 15, respond_on_mention: true, trigger_phrase: '' })
+  })
+
+  it('matches starter settings and syncs changes back into extras JSON', () => {
+    const c = { ...catalog, templates: [tgTpl] }
+    const form = initialForm('', null, tgTpl, c)
+    const settings = matchingTemplateSettings(c, parseExtrasObject(form.extras))
+    expect(settings.map((s) => s.key)).toEqual(['respond_on_mention', 'cooldown_sec', 'trigger_phrase'])
+
+    const nextExtras = updateExtrasSetting(form.extras, 'cooldown_sec', 30)
+    expect(parseExtrasObject(nextExtras)).toEqual({
+      cooldown_sec: 30,
+      respond_on_mention: true,
+      trigger_phrase: '',
+    })
   })
 })

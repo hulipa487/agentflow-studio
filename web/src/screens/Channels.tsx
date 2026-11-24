@@ -289,7 +289,10 @@ export default function Channels() {
       if (!alive.current) return
       applyList(next)
       setProblem('')
-      toast(t('channels.deleted'), 'warning')
+      toast(
+        next.saved_note || (next.restart_required ? t('channels.deleted') : t('channels.deletedLive')),
+        next.restart_required ? 'warning' : 'success',
+      )
     } catch (err) {
       if (!alive.current) return
       if (err instanceof ApiError && err.status === 409) {
@@ -321,7 +324,7 @@ export default function Channels() {
   // secret-only edit leaves the row "live" although it needs a restart too.
   if (list?.saved_note) {
     banners.push(
-      <Banner key="saved" tone="warning">
+      <Banner key="saved" tone={list.restart_required ? 'warning' : 'success'}>
         {list.saved_note}
       </Banner>,
     )
@@ -455,7 +458,10 @@ export default function Channels() {
             applyList(next)
             setEditing(null)
             setProblem('')
-            toast(t('channels.saved'), 'warning')
+            toast(
+              next.saved_note || (next.restart_required ? t('channels.saved') : t('channels.savedLive')),
+              next.restart_required ? 'warning' : 'success',
+            )
           }}
           onReload={() => {
             if (editing.existing) {

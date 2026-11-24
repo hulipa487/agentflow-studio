@@ -41,7 +41,7 @@ function op(req: Record<string, unknown>) {
 }
 ```
 
-`session.send(text)` 通过活跃渠道回复（当前消息所属的渠道和回复目标）。`session.push(channel, reply_to, text)` 是主动发送，需要 `channel.push` 能力。`session.push_user(uuid, text)` 按身份 UUID 推送给用户。`session.exit()` 干净地结束会话。
+`session.send(text)` 通过活跃渠道回复（当前消息所属的渠道和回复目标）。`session.skip(reason?)` 跳过回复但不结束会话，并把原因记录到事件中心（群聊中常配合 Telegram `payload` 字段如 `chat_type`、`chat_title`、`mentioned`、`is_reply_to_bot`、`reply_to_text`、`message_thread_id` 使用）。`session.push(channel, reply_to, text)` 是主动发送，需要 `channel.push` 能力。`session.push_user(uuid, text)` 按身份 UUID 推送给用户。`session.exit()` 干净地结束会话。
 
 ### 编写循环插件
 
@@ -79,6 +79,7 @@ session.send_delta(text)              // 流式回答的一个片段
 session.push(channel, reply_to, text) // 主动出站；能力：channel.push
 session.push(channel, reply_to, text, { attachments: parts })
 session.push_user(uuid, text)         // 主动向某个用户 UUID 出站；能力：channel.push
+session.skip(reason?)                 // 干净地跳过回复并记录原因
 session.exit()                        // 结束本会话
 
 session.state.set(key, value)         // 能力：session.state（需声明）

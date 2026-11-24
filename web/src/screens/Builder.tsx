@@ -187,7 +187,7 @@ function BuilderView({
     return f
   })
   const [loop, setLoop] = useState(() => lf(initialDetail ? initialDetail.loop : (template?.loop ?? example?.source)))
-  const [instructions, setInstructions] = useState(() => lf(initialDetail?.instructions))
+  const [instructions, setInstructions] = useState(() => lf(initialDetail ? initialDetail.instructions : template?.instructions))
   // The YAML pane starts from the runtime's own rendering of the definition
   // and is only replaced by "Rebuild from form" or by typing in it.
   const [yaml, setYaml] = useState(() => {

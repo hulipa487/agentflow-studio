@@ -42,7 +42,7 @@ function op(req: Record<string, unknown>) {
 }
 ```
 
-`session.send(text)` 透過作用中頻道回覆（目前訊息所屬的頻道與回覆目標）。`session.push(channel, reply_to, text)` 是主動送出，需要 `channel.push` 能力。`session.push_user(uuid, text)` 依身分 UUID 推給使用者。`session.exit()` 乾淨地結束工作階段。
+`session.send(text)` 透過作用中頻道回覆（目前訊息所屬的頻道與回覆目標）。`session.skip(reason?)` 略過回覆但不結束工作階段，並將原因記錄到事件中心（群組聊天常搭配 Telegram `payload` 欄位如 `chat_type`、`chat_title`、`mentioned`、`is_reply_to_bot`、`reply_to_text`、`message_thread_id` 使用）。`session.push(channel, reply_to, text)` 是主動送出，需要 `channel.push` 能力。`session.push_user(uuid, text)` 依身分 UUID 推給使用者。`session.exit()` 乾淨地結束工作階段。
 
 ### 撰寫迴圈外掛
 
@@ -80,6 +80,7 @@ session.send_delta(text)              // 串流答覆的一個片段
 session.push(channel, reply_to, text) // 主動傳出；能力：channel.push
 session.push(channel, reply_to, text, { attachments: parts })
 session.push_user(uuid, text)         // 主動傳出給某個使用者 UUID；能力：channel.push
+session.skip(reason?)                 // 乾淨地略過回覆並記錄原因
 session.exit()                        // 結束此工作階段
 
 session.state.set(key, value)         // 能力：session.state（需宣告）

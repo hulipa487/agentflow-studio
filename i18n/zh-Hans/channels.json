@@ -22,7 +22,9 @@
   "channels.deleteTitle": "删除渠道",
   "channels.deleteMessage": "从部署配置中删除“{name}”？\n\n运行中的实例会继续保留，直到下次重启。",
   "channels.deleted": "渠道已删除 · 需重启",
+  "channels.deletedLive": "渠道已停止并删除",
   "channels.saved": "渠道已保存 · 需重启",
+  "channels.savedLive": "渠道已保存并立即生效",
   "channels.fileChangedTitle": "渠道文件已变更",
   "channels.fileChangedMessage": "{message}\n\n没有删除任何内容。要重新加载渠道列表吗？",
   "channels.reload": "重新加载",
@@ -170,5 +172,12 @@
   "channels.error.appIdRequired": "请填写 AppID",
   "channels.error.sceneRequired": "请至少选择一个场景",
   "channels.error.maxRequestBytes": "请求体上限必须是不小于 0 的整数",
-  "channels.error.mediaMax": "最大字节数必须是正整数"
+  "channels.error.mediaMax": "最大字节数必须是正整数",
+  "channels.telegram.testToken": "测试令牌",
+  "channels.telegram.pollingLiveHint": "轮询模式保存后立即生效，无需重启运行时。",
+  "channels.telegram.verifyHint": "保存前先验证机器人身份和隐私模式设置。",
+  "channels.telegram.privacyOn": "隐私模式已开启",
+  "channels.telegram.privacyOff": "隐私模式已关闭",
+  "channels.telegram.privacyOnDesc": "开启隐私模式时，Telegram 只会向机器人投递 @ 提及、命令和直接回复；若需响应触发词或记录全部群消息，请在 @BotFather 运行 /setprivacy -> Disable。",
+  "channels.telegram.privacyOffDesc": "机器人可读取所在群组的所有消息（触发词和全量上下文记忆可直接使用）。"
 }

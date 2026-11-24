@@ -10,10 +10,27 @@
  */
 export type Mtime = string
 
+export interface TemplateSetting {
+  key: string
+  label: string
+  description?: string
+  type: 'bool' | 'number' | 'string' | 'select'
+  default: unknown
+  min?: number
+  max?: number
+  placeholder?: string
+  options?: string[]
+}
+
 export interface Template {
   name: string
   title: string
   description: string
+  capabilities?: string[]
+  memory?: string
+  instructions?: string
+  extras?: Record<string, unknown>
+  settings?: TemplateSetting[]
   loop: string
 }
 
@@ -914,6 +931,53 @@ export interface PluginValidateRequest {
 export interface PluginValidateResult {
   ok: boolean
   errors: string[] | null
+}
+
+export interface TelegramBotInfo {
+  bot_id: number
+  username: string
+  first_name?: string
+  can_join_groups: boolean
+  can_read_all_group_messages: boolean
+  privacy_mode_enabled: boolean
+}
+
+export type StudioEventOutcome = 'answered' | 'ignored' | 'dropped' | 'failed' | 'received'
+
+export interface StudioEvent {
+  id: string
+  ts: number
+  direction: string
+  status: string
+  channel: string
+  chat: string
+  sender: string
+  user_uuid?: string
+  agent: string
+  session_id?: string
+  type?: string
+  text?: string
+  text_bytes?: number
+  attachment_bytes?: number
+  err?: string
+  has_trace: boolean
+  outcome: StudioEventOutcome
+}
+
+export interface StudioEventFilter {
+  channel?: string
+  agent?: string
+  chat?: string
+  session?: string
+  direction?: string
+  status?: string
+  limit?: number
+}
+
+export interface SessionTraceResponse {
+  ok: boolean
+  session: string
+  events: TraceEvent[]
 }
 
 /** The runtime's billing rule: input + output. */

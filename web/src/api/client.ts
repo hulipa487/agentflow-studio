@@ -329,6 +329,28 @@ export class Client {
     return this.json('DELETE', `/admin/api/studio/channels/${index}${query({ mtime })}`)
   }
 
+  /** Tests a candidate or saved Telegram bot token via getMe without exposing secrets. */
+  async testTelegramToken(req: { index?: number; token?: string; api_base?: string }): Promise<T.TelegramBotInfo> {
+    const r = await this.json<{ ok: boolean; bot: T.TelegramBotInfo }>('POST', '/admin/api/studio/channels/telegram/test', req)
+    return r.bot
+  }
+
+  /** Lists recent message journal events annotated with Event Center outcomes and trace links. */
+  async studioEvents(filter: T.StudioEventFilter = {}, signal?: AbortSignal): Promise<T.StudioEvent[]> {
+    const r = await this.json<{ ok: boolean; events: T.StudioEvent[] | null }>(
+      'GET',
+      `/admin/api/studio/events${query(filter as Record<string, string | number | boolean | undefined>)}`,
+      undefined,
+      signal,
+    )
+    return r.events ?? []
+  }
+
+  /** Reads buffered execution trace events for any runtime session key. */
+  studioSessionTrace(session: string, signal?: AbortSignal): Promise<T.SessionTraceResponse> {
+    return this.json('GET', `/admin/api/studio/session-trace${query({ session })}`, undefined, signal)
+  }
+
   // ---- models ---------------------------------------------------------------
 
   async models(signal?: AbortSignal): Promise<T.ModelList> {

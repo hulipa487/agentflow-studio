@@ -105,6 +105,7 @@ return json.decode(resp);
 | `loop()` 回傳 | 迴圈**立刻重新啟動**（跑完的迴圈不等於退出的工作階段） |
 | 未捕捉的 JS 錯誤逃出 `loop()` | 迴圈崩潰，約 1 秒後重新啟動，如此反覆 |
 | `session.exit()` | 工作階段結束；VM 被銷毀；計時器與請求被回收 |
+| `session.skip(reason?)` | 略過本輪回覆但不結束工作階段；記錄一筆 `ignored` 稽核與 `turn.skip` 追蹤，可在事件中心檢視 |
 
 有兩點值得記牢：
 
@@ -156,7 +157,7 @@ return json.decode(resp);
 
 | `type` | 來自哪裡 | `payload` |
 |---|---|---|
-| `user` | 某個頻道，或 Studio 遊樂場 | 頻道相關（`chat_id`、`text` 等） |
+| `user` | 某個頻道，或 Studio 遊樂場 | 頻道相關（`chat_id`、`chat_type`、`chat_title`、`mentioned`、`is_reply_to_bot`、`reply_to_text`、`message_thread_id`、`text` 等） |
 | `agent` | `agent.send` / `agent.request` / `agent.spawn` 流量 | 傳送方的 payload 物件 |
 | `timer` | `scheduler.every/after/cron` | `{ timer_id: "..." }` |
 | `shell.result` | 一個 `shell.start` 作業結束 | 該作業：`{ id, state, exit_code, stdout, stderr, changed, ... }` |
@@ -336,6 +337,7 @@ session.send(text, opts?)                   // 回覆目前作用中的訊息
 session.send(text, { attachments: parts })
 session.push(channel, reply_to, text, opts?) // 能力：channel.push
 session.push_user(uuid, text)                // 能力：channel.push；身分層
+session.skip(reason?)                        // 乾淨地略過回覆；於事件中心記錄原因
 session.exit()                               // 結束工作階段（永不恢復）
 session.state.set(key, value)                // 能力：session.state
 session.state.get(key) -> value | null | undefined
@@ -875,6 +877,7 @@ const reply = llm.chat(messages, { model: info.model });
 | `session.send` | — | 是 | 回覆作用中訊息；安全 + 日誌 |
 | `session.push` / `push_user` | `channel.push` | 是 | 主動傳出 |
 | `session.exit` | — | 否 | 結束工作階段 |
+| `session.skip` | — | 內聯 | 略過回覆並記錄原因 |
 | `session.state.*` | `session.state` | 是 | 持久化的工作階段層級鍵值 |
 | `log.*` | — | 內聯 | 日誌等級 |
 | `time.sleep` | — | 讓出 | 閒置，不阻塞 |

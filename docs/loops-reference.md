@@ -44,7 +44,7 @@ Blocking ops include `send`, `llm.chat`, `tools.run`, `api.*`, all `store.*`, al
 }
 ```
 
-`session.send(text)` replies through the active channel (the channel and reply target of the current message). `session.push(channel, reply_to, text)` sends proactively and requires the `channel.push` capability. `session.push_user(uuid, text)` pushes to a user by identity UUID. `session.exit()` terminates the session cleanly.
+`session.send(text)` replies through the active channel (the channel and reply target of the current message). `session.skip(reason?)` skips replying cleanly without ending the session and logs the reason in Event Center (useful in group chats using Telegram payload fields such as `chat_type`, `chat_title`, `mentioned`, `is_reply_to_bot`, `reply_to_text`, and `message_thread_id`). `session.push(channel, reply_to, text)` sends proactively and requires the `channel.push` capability. `session.push_user(uuid, text)` pushes to a user by identity UUID. `session.exit()` terminates the session cleanly.
 
 ### Writing a loop plugin
 
@@ -82,6 +82,7 @@ session.send_delta(text)              // one fragment of a streamed answer
 session.push(channel, reply_to, text) // proactive egress; cap: channel.push
 session.push(channel, reply_to, text, { attachments: parts })
 session.push_user(uuid, text)         // proactive egress to a user UUID; cap: channel.push
+session.skip(reason?)                 // skip replying cleanly and record reason
 session.exit()                        // terminate this session
 
 session.state.set(key, value)         // cap: session.state (declare it)

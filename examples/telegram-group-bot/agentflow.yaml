@@ -1,0 +1,50 @@
+# Telegram group bot starter with Studio settings and per-group memory.
+#
+# Quick start:
+#   export OPENAI_API_KEY=...  TELEGRAM_BOT_TOKEN=...
+#   agentflow validate -config examples/telegram-group-bot/agentflow.yaml
+#   agentflow -config examples/telegram-group-bot/agentflow.yaml
+#
+# Or edit everything visually in AgentFlow Studio (Starter Settings, Channel Tester, Event Center).
+
+version: "1"
+
+runtime:
+  persistence: sqlite://./data/agentflow.db
+  studio:
+    enabled: true
+  sessions:
+    idle_unload: 30m
+
+models:
+  default:
+    provider: openai
+    model: ${CHAT_MODEL:-gpt-4.1-mini}
+    base_url: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+    api_key: ${OPENAI_API_KEY}
+
+agents:
+  group_bot:
+    loop: ./loops/group_bot.ts
+    model: default
+    instructions: ./prompts/assistant.md
+    memory: conversational
+    history_budget: 6000
+    capabilities: [llm.chat, memory, session.state]
+    extras:
+      respond_on_mention: true
+      respond_on_reply: true
+      respond_in_dm: true
+      trigger_phrase: ""
+      cooldown_sec: 15
+      store_all_messages: false
+      retention_turns: 20
+
+gateway:
+  listen: 127.0.0.1:8080
+  channels:
+    - type: telegram
+      name: telegram
+      agent: group_bot
+      token: ${TELEGRAM_BOT_TOKEN}
+      mode: polling

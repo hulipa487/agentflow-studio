@@ -4,8 +4,8 @@
 import { useState } from 'react'
 import { Check, RotateCw } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
-import type { Channel, ChannelList } from '@/api/types'
-import { Banner, Button, Checkbox, Field, Input, Modal, Select, type Tone } from '@/components/ui'
+import type { Channel, ChannelList, TelegramBotInfo } from '@/api/types'
+import { Banner, Button, Checkbox, Chip, Field, Input, Modal, Select, StatusChip, type Tone } from '@/components/ui'
 import { useClient } from '@/state/session'
 import { t } from '@/i18n'
 import {
@@ -81,7 +81,8 @@ export function ChannelEditor({
   const [form, setForm] = useState<ChannelForm>(() => formFor(existing, agents))
   const [notice, setNotice] = useState<{ tone: Tone; text: string } | null>(null)
   const [conflict, setConflict] = useState(false)
-  const [busy, setBusy] = useState<'validate' | 'save' | null>(null)
+  const [busy, setBusy] = useState<'validate' | 'save' | 'test' | null>(null)
+  const [botInfo, setBotInfo] = useState<TelegramBotInfo | null>(null)
 
   const set = <K extends keyof ChannelForm>(key: K, value: ChannelForm[K]) => setForm((f) => ({ ...f, [key]: value }))
   const text = (key: 'name' | 'path' | 'allowUsers' | 'timeout' | 'deliverURL' | 'mediaAllow' | 'mediaMax' | 'agents' | 'maxRequestBytes' | 'appID' | 'apiBase') => ({
@@ -134,6 +135,27 @@ export function ChannelEditor({
       setNotice({ tone: 'danger', text: errorMessage(err) })
       setConflict(err instanceof ApiError && err.status === 409)
       setBusy(null)
+    }
+  }
+
+  const testTelegram = async () => {
+    if (busy) return
+    setBusy('test')
+    setNotice(null)
+    try {
+      const info = await client.testTelegramToken({
+        index: existing?.index,
+        token: form.token.trim() || undefined,
+        api_base: existing?.api_base || undefined,
+      })
+      if (!alive.current) return
+      setBotInfo(info)
+    } catch (err) {
+      if (!alive.current) return
+      setBotInfo(null)
+      setNotice({ tone: 'danger', text: errorMessage(err) })
+    } finally {
+      if (alive.current) setBusy(null)
     }
   }
 
@@ -267,6 +289,41 @@ export function ChannelEditor({
               onClear={(v) => set('clearSecretToken', v)}
               clearLabel={t('channels.clearWebhookSecret')}
             />
+            <div className="flex flex-col gap-2 rounded-ctl border border-line bg-surface2 p-2.5 sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs text-muted">
+                  {(form.mode === '' || form.mode === 'polling')
+                    ? t('channels.telegram.pollingLiveHint')
+                    : t('channels.telegram.verifyHint')}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={testTelegram}
+                  loading={busy === 'test'}
+                  disabled={busy !== null || reloading || (form.token.trim() === '' && !hasToken)}
+                >
+                  {t('channels.telegram.testToken')}
+                </Button>
+              </div>
+              {botInfo && (
+                <div className="flex flex-col gap-1.5 border-t border-line/60 pt-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Chip tone="accent">@{botInfo.username}</Chip>
+                    <span className="font-mono text-faint">#{botInfo.bot_id}</span>
+                    <StatusChip tone={botInfo.privacy_mode_enabled ? 'warning' : 'success'}>
+                      {botInfo.privacy_mode_enabled
+                        ? t('channels.telegram.privacyOn')
+                        : t('channels.telegram.privacyOff')}
+                    </StatusChip>
+                  </div>
+                  <div className="text-muted">
+                    {botInfo.privacy_mode_enabled
+                      ? t('channels.telegram.privacyOnDesc')
+                      : t('channels.telegram.privacyOffDesc')}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

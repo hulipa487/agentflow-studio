@@ -130,6 +130,7 @@ What happens around `loop()`:
 | `loop()` returns | the loop is **restarted** immediately (a finished loop is not an exited session) |
 | an unhandled JS error escapes `loop()` | the loop crashes and is restarted after ~1s, forever |
 | `session.exit()` | the session ends; the VM is torn down; timers/requests are reaped |
+| `session.skip(reason?)` | skips replying without ending the session; records an `ignored` entry (`turn.skip` trace) visible in Event Center |
 
 Two consequences worth internalizing:
 
@@ -199,7 +200,7 @@ when finished.
 
 | `type` | Where it comes from | `payload` |
 |---|---|---|
-| `user` | a channel or the Studio playground | channel-specific (`chat_id`, `text`, ...) |
+| `user` | a channel or the Studio playground | channel-specific (`chat_id`, `chat_type`, `chat_title`, `mentioned`, `is_reply_to_bot`, `reply_to_text`, `message_thread_id`, `text`, ...) |
 | `agent` | `agent.send` / `agent.request` / `agent.spawn` traffic | the sender's payload object |
 | `timer` | `scheduler.every/after/cron` | `{ timer_id: "..." }` |
 | `shell.result` | a `shell.start` job ending | the job: `{ id, state, exit_code, stdout, stderr, changed, ... }` |
@@ -420,6 +421,7 @@ session.send(text, opts?)                   // reply to the active message
 session.send(text, { attachments: parts })
 session.push(channel, reply_to, text, opts?) // cap: channel.push
 session.push_user(uuid, text)                // cap: channel.push; identity layer
+session.skip(reason?)                        // skip replying cleanly; records reason in Event Center
 session.exit()                               // end the session (never resumes)
 session.state.set(key, value)                // cap: session.state
 session.state.get(key) -> value | null | undefined
@@ -1124,6 +1126,7 @@ agent's `loop:` at your copy.
 | `session.send` | — | yes | reply to the active message; safety + journal |
 | `session.push` / `push_user` | `channel.push` | yes | proactive egress |
 | `session.exit` | — | no | ends the session |
+| `session.skip` | — | inline | skips reply and logs reason |
 | `session.state.*` | `session.state` | yes | durable per-session KV |
 | `log.*` | — | inline | log levels |
 | `time.sleep` | — | yields | idle, not blocking |

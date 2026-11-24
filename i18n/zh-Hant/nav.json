@@ -27,6 +27,8 @@
   "nav.usersHint": "使用者資料、連結帳號、配額、模型層與邀請",
   "nav.tenancy": "租戶",
   "nav.tenancyHint": "群組、成員、共用記憶池與授權",
+  "nav.events": "事件中心",
+  "nav.eventsHint": "查看頻道訊息為何被回覆、忽略、捨棄或失敗，並追蹤工作階段軌跡",
   "nav.usage": "用量",
   "nav.usageHint": "依租戶、代理與模型統計的當日 Token 帳目",
   "nav.logs": "日誌",

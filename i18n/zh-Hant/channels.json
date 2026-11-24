@@ -22,7 +22,9 @@
   "channels.deleteTitle": "刪除頻道",
   "channels.deleteMessage": "要從部署組態中刪除「{name}」嗎？\n\n執行中的執行個體會繼續保留，直到下次重新啟動。",
   "channels.deleted": "頻道已刪除 · 需重新啟動",
+  "channels.deletedLive": "頻道已停止並刪除",
   "channels.saved": "頻道已儲存 · 需重新啟動",
+  "channels.savedLive": "頻道已儲存並立即生效",
   "channels.fileChangedTitle": "頻道檔案已變更",
   "channels.fileChangedMessage": "{message}\n\n沒有刪除任何內容。要重新載入頻道清單嗎？",
   "channels.reload": "重新載入",
@@ -170,5 +172,12 @@
   "channels.error.appIdRequired": "請填寫 AppID",
   "channels.error.sceneRequired": "請至少選擇一個場景",
   "channels.error.maxRequestBytes": "請求主體上限必須是不小於 0 的整數",
-  "channels.error.mediaMax": "位元組上限必須是正整數"
+  "channels.error.mediaMax": "位元組上限必須是正整數",
+  "channels.telegram.testToken": "測試權杖",
+  "channels.telegram.pollingLiveHint": "輪詢模式儲存後立即生效，無需重新啟動執行環境。",
+  "channels.telegram.verifyHint": "儲存前先驗證機器人身分與隱私模式設定。",
+  "channels.telegram.privacyOn": "隱私模式已開啟",
+  "channels.telegram.privacyOff": "隱私模式已關閉",
+  "channels.telegram.privacyOnDesc": "開啟隱私模式時，Telegram 只會向機器人投遞 @ 提及、指令與直接回覆；若需回應觸發詞或記錄全部群組訊息，請在 @BotFather 執行 /setprivacy -> Disable。",
+  "channels.telegram.privacyOffDesc": "機器人可讀取所在群組的所有訊息（觸發詞與全量上下文記憶可直接使用）。"
 }

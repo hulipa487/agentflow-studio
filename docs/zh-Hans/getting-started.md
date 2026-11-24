@@ -148,6 +148,7 @@ AgentFlow Studio 仓库在 [`examples/`](https://github.com/hulipa487/agentflow-
 
 | 场景 | 展示内容 |
 | --- | --- |
+| [`telegram-group-bot`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-group-bot) | 旗舰 Telegram 群聊机器人示例：无需编写 TypeScript，在 Studio 的**模板设置**配置 `@` 提及、回复、触发词、冷却与分群上下文，在**渠道**测试令牌并热启轮询，在**事件中心**查看 `answered`/`ignored`/`dropped` 结果 |
 | [`qq-group-chat`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-chat) | 带记忆和上下文的 QQ 群聊机器人：每个群一个会话，提示词能区分发言人，近期上下文存在 `session.state` 里，支持长期召回和 `/remember` 事实 |
 | [`telegram-rag`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-rag) | 基于知识库作答的 Telegram 机器人：嵌入存在 SQLite 里，语义召回，带引用的回答，外加一个用于批量导入的 Webhook |
 | [`github-pr-agents`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/github-pr-agents) | 为每个 PR 派生一个代码智能体的 GitHub 拉取请求 Webhook：变更被复制进沙箱项目，用 Shell 命令检查，并在评论中给出评审 |
@@ -158,7 +159,7 @@ AgentFlow Studio 仓库在 [`examples/`](https://github.com/hulipa487/agentflow-
 ./agentflow loop test examples/telegram-rag/tests/answer.yaml
 ```
 
-从零开始构建智能体时，Studio 的 **新建智能体** 对话框会以起始模板的形式提供这几种形态（带记忆的群聊、知识库、单轮 API）。
+从零开始构建智能体时，Studio 的 **新建智能体** 对话框会以起始模板的形式提供这几种形态（含无需 TS **模板设置**的 **Telegram 群聊机器人**、带记忆的群聊、知识库、单轮 API）。
 
 ### 接入真实模型
 

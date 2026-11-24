@@ -81,7 +81,7 @@ describe('completion and hover by offset', () => {
     const at = src.indexOf('session.') + 'session.'.length
     const all = completionsAt(src, at, opts)
     expect(all.path).toBe('session')
-    expect(all.items.map((it) => it.label)).toEqual(['exit', 'inbox', 'push', 'push_user', 'reply', 'send', 'send_delta', 'state'])
+    expect(all.items.map((it) => it.label)).toEqual(['exit', 'inbox', 'push', 'push_user', 'reply', 'send', 'send_delta', 'skip', 'state'])
     expect(all.from).toBe(at)
 
     const typed = src.replace('session.', 'session.pu')

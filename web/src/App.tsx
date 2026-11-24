@@ -31,6 +31,7 @@ const Credentials = lazy(() => import('@/screens/Credentials'))
 const Safety = lazy(() => import('@/screens/Safety'))
 const Users = lazy(() => import('@/screens/Users'))
 const Tenancy = lazy(() => import('@/screens/Tenancy'))
+const Events = lazy(() => import('@/screens/Events'))
 const Usage = lazy(() => import('@/screens/Usage'))
 const Logs = lazy(() => import('@/screens/Logs'))
 const Config = lazy(() => import('@/screens/Config'))
@@ -167,6 +168,7 @@ export default function App() {
               <Route path="/users" element={<Users />} />
               <Route path="/users/:id" element={<Users />} />
               <Route path="/tenancy" element={<Tenancy />} />
+              <Route path="/events" element={<Events />} />
               <Route path="/usage" element={<Usage />} />
               <Route path="/logs" element={<Logs />} />
               <Route path="/config" element={<Config />} />

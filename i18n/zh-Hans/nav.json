@@ -27,6 +27,8 @@
   "nav.usersHint": "用户资料、关联账号、配额、模型层和邀请",
   "nav.tenancy": "租户",
   "nav.tenancyHint": "群组、成员、共享记忆池和授权",
+  "nav.events": "事件中心",
+  "nav.eventsHint": "查看渠道消息为何被回复、忽略、丢弃或失败，并追踪会话轨迹",
   "nav.usage": "用量",
   "nav.usageHint": "按租户、智能体和模型统计的当日 Token 账目",
   "nav.logs": "日志",

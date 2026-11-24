@@ -105,5 +105,7 @@
   "builder.fullDocs": "完整文档",
   "builder.fullDocsTitle": "在文档查看器中打开此指南",
   "builder.guide": "指南",
-  "builder.chooseGuide": "选择指南"
+  "builder.chooseGuide": "选择指南",
+  "builder.starterSettings": "模板设置",
+  "builder.starterSettingsSubtitle": "无需修改 TypeScript 或 JSON，直接调整此模板的运行时行为选项。"
 }

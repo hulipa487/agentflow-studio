@@ -22,7 +22,9 @@
   "channels.deleteTitle": "Delete channel",
   "channels.deleteMessage": "Delete \"{name}\" from the deployment config?\n\nThe running instance keeps it until the next restart.",
   "channels.deleted": "channel deleted · restart required",
+  "channels.deletedLive": "channel stopped and deleted",
   "channels.saved": "channel saved · restart required",
+  "channels.savedLive": "channel saved and active now",
   "channels.fileChangedTitle": "Channels file changed",
   "channels.fileChangedMessage": "{message}\n\nNothing was deleted. Reload the channel list?",
   "channels.reload": "Reload",
@@ -170,5 +172,12 @@
   "channels.error.appIdRequired": "the AppID is required",
   "channels.error.sceneRequired": "pick at least one scene",
   "channels.error.maxRequestBytes": "max request bytes must be a whole number, 0 or more",
-  "channels.error.mediaMax": "max bytes must be a positive integer"
+  "channels.error.mediaMax": "max bytes must be a positive integer",
+  "channels.telegram.testToken": "Test token",
+  "channels.telegram.pollingLiveHint": "Polling mode goes live immediately when you save — no restart needed.",
+  "channels.telegram.verifyHint": "Verify bot identity and Privacy Mode before saving.",
+  "channels.telegram.privacyOn": "Privacy Mode ON",
+  "channels.telegram.privacyOff": "Privacy Mode OFF",
+  "channels.telegram.privacyOnDesc": "Telegram hides ordinary group messages from bots with Privacy Mode on. It receives @-mentions and direct replies by default; run /setprivacy -> Disable in @BotFather if you want trigger phrases or all-message context.",
+  "channels.telegram.privacyOffDesc": "Bot can read all group messages where it is a member (trigger phrases and optional group context work out of the box)."
 }

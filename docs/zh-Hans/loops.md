@@ -105,6 +105,7 @@ return json.decode(resp);
 | `loop()` 返回 | 循环**立刻重启**（跑完的循环不等于退出的会话） |
 | 未捕获的 JS 错误逃出 `loop()` | 循环崩溃，约 1 秒后重启，如此反复 |
 | `session.exit()` | 会话结束；VM 被销毁；计时器和请求被回收 |
+| `session.skip(reason?)` | 跳过本轮回复但不结束会话；记录一条 `ignored` 审计和 `turn.skip` 追踪，可在事件中心查看 |
 
 有两点值得记牢：
 
@@ -156,7 +157,7 @@ return json.decode(resp);
 
 | `type` | 来自哪里 | `payload` |
 |---|---|---|
-| `user` | 某个渠道，或 Studio 演练场 | 渠道相关（`chat_id`、`text` 等） |
+| `user` | 某个渠道，或 Studio 演练场 | 渠道相关（`chat_id`、`chat_type`、`chat_title`、`mentioned`、`is_reply_to_bot`、`reply_to_text`、`message_thread_id`、`text` 等） |
 | `agent` | `agent.send` / `agent.request` / `agent.spawn` 流量 | 发送方的 payload 对象 |
 | `timer` | `scheduler.every/after/cron` | `{ timer_id: "..." }` |
 | `shell.result` | 一个 `shell.start` 作业结束 | 该作业：`{ id, state, exit_code, stdout, stderr, changed, ... }` |
@@ -336,6 +337,7 @@ session.send(text, opts?)                   // 回复当前活跃的消息
 session.send(text, { attachments: parts })
 session.push(channel, reply_to, text, opts?) // 能力：channel.push
 session.push_user(uuid, text)                // 能力：channel.push；需要身份层
+session.skip(reason?)                        // 干净地跳过回复；在事件中心记录原因
 session.exit()                               // 结束会话（不再恢复）
 session.state.set(key, value)                // 能力：session.state
 session.state.get(key) -> value | null | undefined
@@ -875,6 +877,7 @@ const reply = llm.chat(messages, { model: info.model });
 | `session.send` | — | 是 | 回复活跃消息；安全 + 日志 |
 | `session.push` / `push_user` | `channel.push` | 是 | 主动出站 |
 | `session.exit` | — | 否 | 结束会话 |
+| `session.skip` | — | 内联 | 跳过回复并记录原因 |
 | `session.state.*` | `session.state` | 是 | 持久化的会话级键值 |
 | `log.*` | — | 内联 | 日志级别 |
 | `time.sleep` | — | 让出 | 空闲，不阻塞 |

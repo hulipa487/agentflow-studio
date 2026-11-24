@@ -105,5 +105,7 @@
   "builder.fullDocs": "Full docs",
   "builder.fullDocsTitle": "Open this guide in the documentation viewer",
   "builder.guide": "Guide",
-  "builder.chooseGuide": "Choose a guide"
+  "builder.chooseGuide": "Choose a guide",
+  "builder.starterSettings": "Starter settings",
+  "builder.starterSettingsSubtitle": "Configure this template's runtime options without editing TypeScript or JSON."
 }

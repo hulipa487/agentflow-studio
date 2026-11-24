@@ -105,5 +105,7 @@
   "builder.fullDocs": "完整文件",
   "builder.fullDocsTitle": "在文件檢視器中開啟此指南",
   "builder.guide": "指南",
-  "builder.chooseGuide": "選擇指南"
+  "builder.chooseGuide": "選擇指南",
+  "builder.starterSettings": "範本設定",
+  "builder.starterSettingsSubtitle": "無需編輯 TypeScript 或 JSON，直接調整此範本的執行時期選項。"
 }

@@ -2,7 +2,7 @@
 // a loaded definition or a template, and how it becomes the agent document
 // sent to the runtime. A port of the desktop Studio's builder.go; buildYAML
 // emits the same bytes the Go builder does for the same form.
-import type { AgentDetail, AgentJSON, Catalog, Template } from '@/api/types'
+import type { AgentDetail, AgentJSON, Catalog, Template, TemplateSetting } from '@/api/types'
 import { t } from '@/i18n'
 import { splitList } from '@/lib/format'
 import type { ScriptDiagnostic } from '@/script'
@@ -155,7 +155,13 @@ export function extrasError(text: string): string {
 export function initialForm(name: string, detail: AgentDetail | null, tpl: Template | null, catalog: Catalog): BuilderForm {
   let ag: Partial<AgentJSON> = detail?.agent ?? {}
   if (tpl) {
-    ag = { safety: 'default', history_budget: 6000, capabilities: [...(catalog.default_capabilities ?? [])] }
+    ag = {
+      safety: 'default',
+      history_budget: 6000,
+      capabilities: tpl.capabilities ? [...tpl.capabilities] : [...(catalog.default_capabilities ?? [])],
+      memory: tpl.memory ?? '',
+      extras: tpl.extras ?? null,
+    }
   }
   // An unset profile shows as "default", but only when the deployment has one
   // by that name; a profile the definition names itself is always kept.
@@ -276,6 +282,38 @@ export function loopStatus(diagnostics: ScriptDiagnostic[], checking: boolean, f
   }
   if (warnings > 0) return { text: t('script.status.warnings', { warnings }), tone: 'warning' }
   return { text: t('script.status.noIssues'), tone: 'success' }
+}
+
+/** Parses form.extras when it is a JSON object, returning null otherwise. */
+export function parseExtrasObject(raw: string): Record<string, unknown> | null {
+  const trimmed = raw.trim()
+  if (trimmed === '') return {}
+  try {
+    const parsed = JSON.parse(trimmed)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+/** Finds the catalog template whose schema-driven settings match the agent's extras keys. */
+export function matchingTemplateSettings(catalog: Catalog, extrasObj: Record<string, unknown> | null): TemplateSetting[] {
+  if (!extrasObj) return []
+  for (const tpl of catalog.templates ?? []) {
+    const settings = tpl.settings ?? []
+    if (settings.length === 0) continue
+    if (settings.some((s) => s.key in extrasObj)) {
+      return settings
+    }
+  }
+  return []
+}
+
+/** Updates one key inside form.extras JSON while keeping existing keys and deterministic sorting. */
+export function updateExtrasSetting(raw: string, key: string, value: unknown): string {
+  const base = parseExtrasObject(raw) ?? {}
+  const next = { ...base, [key]: value }
+  return JSON.stringify(sortKeys(next), null, 2)
 }
 
 /** CodeMirror stores lines LF-joined; normalising up front keeps a load from reading as an edit. */

@@ -27,6 +27,8 @@
   "nav.usersHint": "Profiles, linked handles, quotas, model layer and invites",
   "nav.tenancy": "Tenancy",
   "nav.tenancyHint": "Groups, members, shared memory pools and grants",
+  "nav.events": "Event Center",
+  "nav.eventsHint": "Inspect why channel messages were answered, ignored, dropped, or failed",
   "nav.usage": "Usage",
   "nav.usageHint": "Token ledger per tenant, agent and model for a day",
   "nav.logs": "Logs",

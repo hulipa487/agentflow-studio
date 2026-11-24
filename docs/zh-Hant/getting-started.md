@@ -148,6 +148,7 @@ AgentFlow Studio 儲存庫在 [`examples/`](https://github.com/hulipa487/agentfl
 
 | 情境 | 展示內容 |
 | --- | --- |
+| [`telegram-group-bot`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-group-bot) | 旗艦 Telegram 群組機器人範例：無需撰寫 TypeScript，在 Studio 的**範本設定**設定 `@` 提及、回覆、觸發詞、冷卻與分群上下文，在**頻道**測試權杖並熱啟輪詢，在**事件中心**檢視 `answered`/`ignored`/`dropped` 結果 |
 | [`qq-group-chat`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-chat) | 帶記憶與上下文的 QQ 群組機器人：每個群組一個工作階段，提示詞能區分發言人，近期上下文存在 `session.state` 裡，支援長期召回與 `/remember` 事實 |
 | [`telegram-rag`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-rag) | 依知識庫作答的 Telegram 機器人：嵌入存在 SQLite 裡，語意召回，附引用的回答，外加一個用於批次匯入的 Webhook |
 | [`github-pr-agents`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/github-pr-agents) | 為每個 PR 衍生一個程式碼代理的 GitHub 提取請求 Webhook：變更被複製進沙箱專案，用 Shell 命令檢查，並在評論中給出審查 |
@@ -158,7 +159,7 @@ AgentFlow Studio 儲存庫在 [`examples/`](https://github.com/hulipa487/agentfl
 ./agentflow loop test examples/telegram-rag/tests/answer.yaml
 ```
 
-從零開始建代理時，Studio 的 **新增代理** 對話方塊會以起始範本的形式提供這幾種形態（帶記憶的群組聊天、知識庫、單輪 API）。
+從零開始建代理時，Studio 的 **新增代理** 對話方塊會以起始範本的形式提供這幾種形態（含無需 TS **範本設定**的 **Telegram 群組機器人**、帶記憶的群組聊天、知識庫、單輪 API）。
 
 ### 接入真實模型
 
