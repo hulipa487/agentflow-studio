@@ -10,6 +10,22 @@ extras:
   store_all_messages: true
   retention_turns: 20
 
+tools:
+  "builtin:web_search":
+    ok: true
+    engine: google_search
+    results:
+      - title: "AgentFlow Release Changelog"
+        url: "https://example.com/changelog"
+        summary: "v1.4 build #88 released cleanly."
+  "builtin:browser":
+    ok: true
+    markdown: "# Changelog\n\nv1.4 build #88"
+  "builtin:fetch":
+    ok: true
+    status: 200
+    content: "AgentFlow changelog page."
+
 messages:
   # 1. Ordinary group message: stays quiet via session.skip("not_mentioned"),
   #    and enters working context because store_all_messages is true.
@@ -22,10 +38,10 @@ messages:
       name: Alice
       mentioned: false
 
-  # 2. Direct @-mention: recalls Alice's retained message in prompt and answers.
+  # 2. Direct @-mention: recalls Alice's retained message, runs Google web_search, and answers.
   - from: bob
     channel: telegram
-    text: "@helper_bot what just happened?"
+    text: "@helper_bot check the release build status"
     payload:
       chat_type: supergroup
       chat_id: "-1001"
@@ -43,16 +59,26 @@ messages:
       mentioned: true
 
 llm:
-  - match: "release build finished"
-    text: "Alice noted that the release build finished."
+  - match: "v1.4 build #88 released cleanly"
+    text: "Alice noted the release build finished, and Google search shows v1.4 build #88 released cleanly."
+  - match: "check the release build status"
+    tool_calls:
+      - id: call_google_1
+        name: "builtin:web_search"
+        args:
+          query: "AgentFlow release build status"
+          engine: google_search
 
 expect:
-  - "Alice noted that the release build finished."
+  - "Alice noted the release build finished, and Google search shows v1.4 build #88 released cleanly."
 
 expect_ops:
   - session.state.get
   - session.skip
   - session.state.get
+  - tools.list
+  - llm.chat
+  - tools.run
   - llm.chat
   - session.state.set
   - session.skip

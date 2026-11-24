@@ -3,6 +3,10 @@
 // Ordinary group rules live in Studio Starter Settings (agent.config().extras):
 //   respond_on_mention, respond_on_reply, respond_in_dm, trigger_phrase,
 //   cooldown_sec, store_all_messages, retention_turns.
+// Read-only web tools (builtin:web_search, builtin:browser, builtin:fetch) are
+// exposed when the `tools` capability and `skills` allow-list grant them.
+
+const MAX_TOOL_ROUNDS = 4;
 
 interface GroupTurn {
   who: string;
@@ -119,13 +123,23 @@ function shouldAnswer(
   return { ok: true, reason: triggered ? "trigger_phrase" : replyToBot ? "reply_to_bot" : "mentioned" };
 }
 
+function pushUserMessage(messages: ChatMessage[], content: string): void {
+  if (!content) return;
+  const n = messages.length;
+  if (n > 0 && messages[n - 1].role === "user") {
+    messages[n - 1].content = String(messages[n - 1].content || "") + "\n" + content;
+    return;
+  }
+  messages.push({ role: "user", content: content });
+}
+
 function buildMessages(
   msg: { text?: string; from?: string; payload?: Record<string, unknown> },
   cfg: GroupSettings,
   turns: GroupTurn[],
   instructions: string,
   historyBudget: number
-): Array<{ role: string; content: string }> {
+): ChatMessage[] {
   const p = (msg.payload || {}) as Record<string, unknown>;
   const who = String(p.name || p.username || msg.from || "member");
   const chatTitle = String(p.chat_title || "");
@@ -140,11 +154,11 @@ function buildMessages(
   // Task 2 customization hook: route support questions to a group-specific knowledge base here.
   // For example, match support keywords or p.chat_id and prepend memory.recall({ store: "knowledge", ... }) passages.
 
-  const messages: Array<{ role: string; content: string }> = [{ role: "system", content: sys }];
+  const messages: ChatMessage[] = [{ role: "system", content: sys }];
   const start = Math.max(0, turns.length - cfg.retention_turns);
   for (let i = start; i < turns.length; i++) {
     const t = turns[i];
-    messages.push({ role: "user", content: t.who + ": " + t.text });
+    pushUserMessage(messages, t.who + ": " + t.text);
     if (t.reply) {
       messages.push({ role: "assistant", content: t.reply });
     }
@@ -153,8 +167,57 @@ function buildMessages(
   if (replyToText) {
     userLine = "[Replying to: " + replyToText + "]\n" + userLine;
   }
-  messages.push({ role: "user", content: userLine });
+  pushUserMessage(messages, userLine);
   return token_budget(messages, historyBudget || 6000);
+}
+
+function loadTools() {
+  try {
+    return tools.list() || [];
+  } catch (_) {}
+  return [];
+}
+
+function runTurn(messages: ChatMessage[], model: string): string {
+  const available = loadTools();
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const opts: Record<string, unknown> = {};
+    if (model) {
+      opts.model = model;
+    }
+    if (available.length > 0) {
+      opts.tools = available;
+      opts.tool_choice = "auto";
+    }
+    const reply = available.length > 0 || model ? llm.chat(messages, opts) : llm.chat(messages);
+    const calls = reply.tool_calls || [];
+    if (calls.length === 0) {
+      return reply.text || "";
+    }
+    messages.push({
+      role: "assistant",
+      content: reply.text || "",
+      tool_calls: calls,
+      thinking_blocks: reply.thinking_blocks,
+    });
+    for (let i = 0; i < calls.length; i++) {
+      const call = calls[i];
+      let body: string;
+      try {
+        const result = tools.run(call.name, call.args || {});
+        body = json.encode(result);
+      } catch (err) {
+        body = json.encode({ ok: false, error: String(err) });
+      }
+      messages.push({
+        role: "tool",
+        tool_call_id: call.id,
+        content: body,
+      });
+    }
+  }
+  const finalReply = model ? llm.chat(messages, { model: model }) : llm.chat(messages);
+  return finalReply.text || "";
 }
 
 function loop(): void {
@@ -185,8 +248,7 @@ function loop(): void {
 
     const info = agent.info();
     const messages = buildMessages(msg, cfg, turns, info.instructions, info.history_budget);
-    const reply = llm.chat(messages);
-    const answer = reply.text || "";
+    const answer = runTurn(messages, info.model || "");
 
     session.send(answer);
     saveLastReplyMs(Date.now());

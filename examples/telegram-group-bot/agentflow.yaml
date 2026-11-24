@@ -1,7 +1,10 @@
 # Telegram group bot starter with Studio settings and per-group memory.
 #
 # Quick start:
-#   export OPENAI_API_KEY=...  TELEGRAM_BOT_TOKEN=...
+#   export CREDENTIALS_MASTER_KEY=...  CLOUDFLARE_ACCOUNT_ID=...
+#   for name in openai telegram gemini xai cloudflare; do
+#     agentflow cred set "$name" -config examples/telegram-group-bot/agentflow.yaml
+#   done
 #   agentflow validate -config examples/telegram-group-bot/agentflow.yaml
 #   agentflow -config examples/telegram-group-bot/agentflow.yaml
 #
@@ -11,6 +14,9 @@ version: "1"
 
 runtime:
   persistence: sqlite://./data/agentflow.db
+  credentials:
+    enabled: true            # master key from CREDENTIALS_MASTER_KEY
+    engine_wide: maintenance
   studio:
     enabled: true
   sessions:
@@ -21,7 +27,19 @@ models:
     provider: openai
     model: ${CHAT_MODEL:-gpt-4.1-mini}
     base_url: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-    api_key: ${OPENAI_API_KEY}
+    api_key: cred:openai
+
+search:
+  default: google_search
+  engines:
+    google_search:
+      api_key: cred:gemini
+    x_search:
+      api_key: cred:xai
+
+browser:
+  account_id: ${CLOUDFLARE_ACCOUNT_ID}
+  api_token: cred:cloudflare
 
 agents:
   group_bot:
@@ -30,7 +48,8 @@ agents:
     instructions: ./prompts/assistant.md
     memory: conversational
     history_budget: 6000
-    capabilities: [llm.chat, memory, session.state]
+    capabilities: [llm.chat, memory, session.state, tools]
+    skills: [builtin:web_search, builtin:browser, builtin:fetch]
     extras:
       respond_on_mention: true
       respond_on_reply: true
@@ -46,5 +65,5 @@ gateway:
     - type: telegram
       name: telegram
       agent: group_bot
-      token: ${TELEGRAM_BOT_TOKEN}
+      token: cred:telegram
       mode: polling

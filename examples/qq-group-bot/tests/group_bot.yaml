@@ -3,16 +3,32 @@ agent: qq_group_bot
 loop: ../loops/group_bot.ts
 extras:
   respond_on_mention: true
+  respond_on_reply: true
   respond_in_c2c: true
   respond_in_guild: false
+  bot_names: "Misaka, Astra"
   trigger_phrase: "!bot"
+  reply_on_relevant: true
   cooldown_sec: 15
   store_all_messages: true
   retention_turns: 20
 
+tools:
+  "builtin:web_search":
+    ok: true
+    engine: doubao
+    results:
+      - title: "AgentFlow Release Notes"
+        url: "https://example.com/releases"
+        summary: "Staging deploy v1.4 verified."
+  "builtin:fetch":
+    ok: true
+    status: 200
+    content: "AgentFlow v1.4 staging release notes."
+
 messages:
-  # 1. Ordinary group message (via group_all): stays quiet via session.skip("not_mentioned"),
-  #    and enters working context because store_all_messages is true.
+  # 1. Ordinary group chatter (via group_all): evaluated passively via [NO_REPLY]
+  #    -> skipped via session.skip("not_relevant") and retained in group context.
   - from: alice
     channel: qq
     text: "hey everyone, staging deploy finished"
@@ -22,17 +38,18 @@ messages:
       name: Alice
       mentioned: false
 
-  # 2. Direct @-mention in QQ group: recalls Alice's retained message and answers.
+  # 2. Plain-text message calling bot name ("Misaka") without @-tag:
+  #    recalls Alice's retained message, runs Doubao web_search, and answers.
   - from: bob
     channel: qq
-    text: "what just happened?"
+    text: "Misaka, check the staging release notes"
     payload:
       scene: group
       chat_id: "group:G100"
       name: Bob
-      mentioned: true
+      mentioned: false
 
-  # 3. Immediate follow-up mention within cooldown_sec: stays quiet via session.skip("cooldown").
+  # 3. Immediate follow-up mention within cooldown_sec: skipped via session.skip("cooldown").
   - from: carol
     channel: qq
     text: "summarize that too!"
@@ -42,7 +59,7 @@ messages:
       name: Carol
       mentioned: true
 
-  # 4. Private C2C message (responds when respond_in_c2c is true).
+  # 4. Private C2C message (unaffected by group cooldown).
   - from: dave
     channel: qq
     text: "hi in private chat"
@@ -55,18 +72,33 @@ messages:
 llm:
   - match: "hi in private chat"
     text: "Hi Dave, happy to help in private chat."
+  - match: "Staging deploy v1.4 verified"
+    text: "Alice noted the staging deploy finished, and Doubao search confirms v1.4 is verified."
+  - match: "Misaka, check the staging release notes"
+    tool_calls:
+      - id: call_doubao_1
+        name: "builtin:web_search"
+        args:
+          query: "AgentFlow staging v1.4 release notes"
+          engine: doubao
   - match: "staging deploy finished"
-    text: "Alice noted that the staging deploy finished."
+    text: "[NO_REPLY]"
 
 expect:
-  - "Alice noted that the staging deploy finished."
+  - "Alice noted the staging deploy finished, and Doubao search confirms v1.4 is verified."
   - "Hi Dave, happy to help in private chat."
 
 expect_ops:
   - session.state.get
-  - session.skip
-  - session.state.get
   - llm.chat
   - session.state.set
   - session.skip
+  - session.state.get
+  - tools.list
+  - llm.chat
+  - tools.run
+  - llm.chat
+  - session.state.set
+  - session.skip
+  - tools.list
   - llm.chat
