@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 const (
 	defaultUpdateRepo = "hulipa487/agentflow-studio"
 	defaultGitHubAPI  = "https://api.github.com"
+	defaultGitHubWeb  = "https://github.com"
 	maxUpdateBytes    = 256 << 20 // 256 MiB asset cap
 	maxChecksumBytes  = 1 << 20   // 1 MiB SHA256SUMS.txt cap
 	maxTarExtractSize = 512 << 20 // 512 MiB unpacked bundle cap
@@ -73,6 +75,7 @@ type updater struct {
 
 	repo           string
 	apiBase        string
+	webBase        string
 	currentVersion string
 	goos           string
 	goarch         string
@@ -96,6 +99,10 @@ func newUpdater(currentVersion string) *updater {
 	if apiBase == "" {
 		apiBase = defaultGitHubAPI
 	}
+	webBase := strings.TrimRight(strings.TrimSpace(os.Getenv("AGENTFLOW_STUDIO_UPDATE_WEB")), "/")
+	if webBase == "" {
+		webBase = defaultGitHubWeb
+	}
 	exe, _ := os.Executable()
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil && resolved != "" {
 		exe = resolved
@@ -103,6 +110,7 @@ func newUpdater(currentVersion string) *updater {
 	u := &updater{
 		repo:           repo,
 		apiBase:        apiBase,
+		webBase:        webBase,
 		currentVersion: currentVersion,
 		goos:           goruntime.GOOS,
 		goarch:         goruntime.GOARCH,
@@ -155,15 +163,20 @@ func (u *updater) status() updateStatus {
 }
 
 // check queries GitHub Releases for the newest non-draft release and updates
-// cached status. A 404 (no published releases yet) clears any error cleanly.
+// cached status. If the API fails or hits rate limits, it falls back to
+// following GitHub's /releases/latest web redirect. A 404 (no published
+// releases yet) clears any error cleanly.
 func (u *updater) check(ctx context.Context) (updateStatus, error) {
 	u.mu.Lock()
-	repo, apiBase, goos, goarch, cur := u.repo, u.apiBase, u.goos, u.goarch, u.currentVersion
+	repo, apiBase, webBase, goos, goarch, cur := u.repo, u.apiBase, u.webBase, u.goos, u.goarch, u.currentVersion
 	base := u.baseStatus()
 	u.mu.Unlock()
+	if webBase == "" {
+		webBase = defaultGitHubWeb
+	}
 
-	url := apiBase + "/repos/" + repo + "/releases/latest"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	rawURL := apiBase + "/repos/" + repo + "/releases/latest"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return base, err
 	}
@@ -172,28 +185,41 @@ func (u *updater) check(ctx context.Context) (updateStatus, error) {
 
 	res, err := u.httpClient.Do(req)
 	if err != nil {
-		u.recordError(base, err.Error())
-		return u.status(), err
+		if pageSt, pageErr := u.checkReleasePage(ctx, repo, webBase, goos, goarch, cur, base); pageErr == nil {
+			return pageSt, nil
+		} else {
+			msg := fmt.Sprintf("%v; release page fallback failed: %v", err, pageErr)
+			u.recordError(base, msg)
+			return u.status(), errors.New(msg)
+		}
 	}
-	defer res.Body.Close()
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	if res.StatusCode == http.StatusNotFound {
+		_ = res.Body.Close()
 		base.CheckedAt = now
 		u.setResult(base, "", "")
 		return base, nil
 	}
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		msg := fmt.Sprintf("GitHub Releases returned HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
-		u.recordError(base, msg)
-		return u.status(), errors.New(msg)
+		_ = res.Body.Close()
+		apiMsg := fmt.Sprintf("GitHub Releases returned HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
+		if pageSt, pageErr := u.checkReleasePage(ctx, repo, webBase, goos, goarch, cur, base); pageErr == nil {
+			return pageSt, nil
+		} else {
+			msg := fmt.Sprintf("%s; release page fallback failed: %v", apiMsg, pageErr)
+			u.recordError(base, msg)
+			return u.status(), errors.New(msg)
+		}
 	}
 
 	var rel githubRelease
-	if err := json.NewDecoder(io.LimitReader(res.Body, 2<<20)).Decode(&rel); err != nil {
-		u.recordError(base, err.Error())
-		return u.status(), err
+	decodeErr := json.NewDecoder(io.LimitReader(res.Body, 2<<20)).Decode(&rel)
+	_ = res.Body.Close()
+	if decodeErr != nil {
+		u.recordError(base, decodeErr.Error())
+		return u.status(), decodeErr
 	}
 
 	wantAsset := assetNameFor(goos, goarch)
@@ -209,7 +235,7 @@ func (u *updater) check(ctx context.Context) (updateStatus, error) {
 
 	var expectedSHA string
 	if downloadURL != "" && sumsURL != "" {
-		sums, err := u.fetchChecksums(ctx, sumsURL)
+		sums, err := u.fetchChecksums(ctx, sumsURL, false)
 		if err != nil {
 			u.recordError(base, fmt.Sprintf("checksums download failed: %v", err))
 			return u.status(), err
@@ -217,35 +243,183 @@ func (u *updater) check(ctx context.Context) (updateStatus, error) {
 		expectedSHA = sums[wantAsset]
 	}
 
+	next := finalizeUpdateStatus(base, rel.TagName, rel.HTMLURL, rel.Body, wantAsset, downloadURL, cur, now, rel.Draft)
+	u.setResult(next, downloadURL, expectedSHA)
+	return next, nil
+}
+
+func finalizeUpdateStatus(base updateStatus, tag, htmlURL, body, wantAsset, downloadURL, cur, checkedAt string, isDraft bool) updateStatus {
 	allowDev := os.Getenv("AGENTFLOW_STUDIO_UPDATE_ALLOW_DEV") == "1"
 	hasUpdate := false
-	if !rel.Draft && rel.TagName != "" && isSemver(rel.TagName) && downloadURL != "" {
+	if !isDraft && tag != "" && isSemver(tag) && downloadURL != "" {
 		if base.IsDev {
 			hasUpdate = allowDev
 		} else {
-			hasUpdate = compareVersions(rel.TagName, cur) > 0
+			hasUpdate = compareVersions(tag, cur) > 0
 		}
 	}
 
 	next := base
-	next.LatestVersion = rel.TagName
+	next.LatestVersion = tag
 	next.UpdateAvailable = hasUpdate
-	next.ReleaseURL = rel.HTMLURL
-	next.ReleaseNotes = strings.TrimSpace(rel.Body)
+	next.ReleaseURL = htmlURL
+	next.ReleaseNotes = strings.TrimSpace(body)
 	next.AssetName = wantAsset
-	next.CheckedAt = now
-	if downloadURL == "" && rel.TagName != "" {
+	next.CheckedAt = checkedAt
+	if downloadURL == "" && tag != "" {
 		next.CanSelfUpdate = false
 		if next.ManagedReason == "" {
 			next.ManagedReason = "missing_asset"
 		}
 	}
+	return next
+}
+
+// checkReleasePage resolves the latest published tag by following GitHub's
+// /releases/latest redirect (which avoids the REST API rate limit) and probes
+// the release download URL and SHA256SUMS.txt directly.
+func (u *updater) checkReleasePage(ctx context.Context, repo, webBase, goos, goarch, cur string, base updateStatus) (updateStatus, error) {
+	baseClient := u.httpClient
+	if baseClient == nil {
+		baseClient = &http.Client{Timeout: 20 * time.Second}
+	}
+	redirClient := *baseClient
+	redirClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return errors.New("too many redirects")
+		}
+		if strings.Contains(req.URL.Path, "/releases/tag/") {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
+
+	latestURL := strings.TrimRight(webBase, "/") + "/" + repo + "/releases/latest"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, latestURL, nil)
+	if err != nil {
+		return base, err
+	}
+	req.Header.Set("User-Agent", "agentflow-studio/"+cur)
+
+	res, err := redirClient.Do(req)
+	if err != nil {
+		return base, err
+	}
+	defer res.Body.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	if res.StatusCode == http.StatusNotFound {
+		base.CheckedAt = now
+		u.setResult(base, "", "")
+		return base, nil
+	}
+	if res.StatusCode >= 400 {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		return base, fmt.Errorf("release page returned HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var tag string
+	if res.StatusCode >= 300 && res.StatusCode < 400 {
+		tag = extractReleaseTag(res.Header.Get("Location"))
+	} else if res.Request != nil && res.Request.URL != nil {
+		tag = extractReleaseTag(res.Request.URL.String())
+	}
+	if tag == "" {
+		base.CheckedAt = now
+		u.setResult(base, "", "")
+		return base, nil
+	}
+
+	escapedTag := url.PathEscape(tag)
+	releaseURL := strings.TrimRight(webBase, "/") + "/" + repo + "/releases/tag/" + escapedTag
+	wantAsset := assetNameFor(goos, goarch)
+	var downloadURL, expectedSHA string
+	if wantAsset != "" {
+		candidateDL := strings.TrimRight(webBase, "/") + "/" + repo + "/releases/download/" + escapedTag + "/" + wantAsset
+		exists, err := u.headAssetExists(ctx, baseClient, candidateDL, cur)
+		if err != nil {
+			return base, err
+		}
+		if exists {
+			downloadURL = candidateDL
+			sumsURL := strings.TrimRight(webBase, "/") + "/" + repo + "/releases/download/" + escapedTag + "/SHA256SUMS.txt"
+			sums, err := u.fetchChecksums(ctx, sumsURL, true)
+			if err != nil {
+				return base, fmt.Errorf("checksums download failed: %w", err)
+			}
+			expectedSHA = sums[wantAsset]
+		}
+	}
+
+	next := finalizeUpdateStatus(base, tag, releaseURL, "", wantAsset, downloadURL, cur, now, false)
 	u.setResult(next, downloadURL, expectedSHA)
 	return next, nil
 }
 
-func (u *updater) fetchChecksums(ctx context.Context, url string) (map[string]string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (u *updater) headAssetExists(ctx context.Context, client *http.Client, rawURL, cur string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, rawURL, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("User-Agent", "agentflow-studio/"+cur)
+	res, err := client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	_ = res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if res.StatusCode == http.StatusMethodNotAllowed {
+		getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+		if err != nil {
+			return false, err
+		}
+		getReq.Header.Set("User-Agent", "agentflow-studio/"+cur)
+		getReq.Header.Set("Range", "bytes=0-0")
+		getRes, err := client.Do(getReq)
+		if err != nil {
+			return false, err
+		}
+		_ = getRes.Body.Close()
+		if getRes.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+		if getRes.StatusCode >= 400 {
+			return false, fmt.Errorf("asset probe returned HTTP %d", getRes.StatusCode)
+		}
+		return true, nil
+	}
+	if res.StatusCode >= 400 {
+		return false, fmt.Errorf("asset probe returned HTTP %d", res.StatusCode)
+	}
+	return true, nil
+}
+
+func extractReleaseTag(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	if u, err := url.Parse(rawURL); err == nil && u.Path != "" {
+		rawURL = u.Path
+	}
+	const marker = "/releases/tag/"
+	idx := strings.Index(rawURL, marker)
+	if idx < 0 {
+		return ""
+	}
+	tag := rawURL[idx+len(marker):]
+	if q := strings.IndexAny(tag, "?#/"); q >= 0 {
+		tag = tag[:q]
+	}
+	if decoded, err := url.PathUnescape(tag); err == nil {
+		tag = decoded
+	}
+	return strings.TrimSpace(tag)
+}
+
+func (u *updater) fetchChecksums(ctx context.Context, rawURL string, allowMissing bool) (map[string]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -255,6 +429,9 @@ func (u *updater) fetchChecksums(ctx context.Context, url string) (map[string]st
 		return nil, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound && allowMissing {
+		return nil, nil
+	}
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP %d", res.StatusCode)
 	}

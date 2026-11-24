@@ -10,7 +10,7 @@ import { Fact } from './parts'
 
 export function UpdatesSection() {
   const desktop = useDesktopShell()
-  const { status, checking, applying, error, autoCheck, loadStatus, check, apply, setAutoCheck } = useUpdater()
+  const { status, checking, applying, error, autoCheck, autoInstall, loadStatus, check, apply, setAutoCheck, setAutoInstall } = useUpdater()
 
   useEffect(() => {
     if (desktop) void loadStatus()
@@ -87,7 +87,11 @@ export function UpdatesSection() {
           </Fact>
         </div>
 
-        <Checkbox checked={autoCheck} onChange={setAutoCheck} label={t('settings.updateAutoCheck')} />
+        <div className="flex flex-col gap-1.5">
+          <Checkbox checked={autoCheck} onChange={setAutoCheck} label={t('settings.updateAutoCheck')} />
+          <Checkbox checked={autoInstall} onChange={setAutoInstall} label={t('settings.updateAutoInstall')} />
+          <p className="pl-6 text-xs text-faint">{t('settings.updateAutoInstallHint')}</p>
+        </div>
 
         {status?.update_available && status.release_notes && (
           <div className="rounded-ctl border border-line bg-bg/60 p-2.5">

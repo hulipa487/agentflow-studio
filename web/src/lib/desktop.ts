@@ -294,8 +294,7 @@ export function startDesktopBridge(): void {
     syncBackground()
     void importOldDesktopApp()
     void import('@/state/updater').then((m) => {
-      const st = m.useUpdater.getState()
-      if (st.autoCheck) void st.check(true)
+      m.startAutoUpdateLoop()
     })
   })
 }

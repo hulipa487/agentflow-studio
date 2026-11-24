@@ -231,3 +231,79 @@ func TestUpdaterRejectsChecksumMismatchAndTarTraversal(t *testing.T) {
 		t.Fatal("expected tar path traversal error")
 	}
 }
+
+func TestUpdaterFallsBackToLatestReleasePageOnRateLimit(t *testing.T) {
+	payload := makeTarGz(t, map[string][]byte{
+		"./agentflow-studio": []byte("new-binary-from-web-fallback-v0.2.0"),
+	})
+	sumLine := shaHex(payload) + "  agentflow-studio-linux-amd64.tar.gz\n"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/hulipa487/agentflow-studio/releases/latest":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"API rate limit exceeded"}`))
+		case "/hulipa487/agentflow-studio/releases/latest":
+			http.Redirect(w, r, "/hulipa487/agentflow-studio/releases/tag/v0.2.0", http.StatusFound)
+		case "/hulipa487/agentflow-studio/releases/tag/v0.2.0":
+			t.Fatal("fallback must not download the full HTML release page")
+		case "/hulipa487/agentflow-studio/releases/download/v0.2.0/SHA256SUMS.txt":
+			_, _ = w.Write([]byte(sumLine))
+		case "/hulipa487/agentflow-studio/releases/download/v0.2.0/agentflow-studio-linux-amd64.tar.gz":
+			if r.Method == http.MethodHead {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			_, _ = w.Write(payload)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "agentflow-studio")
+	if err := os.WriteFile(exe, []byte("old-binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	u := &updater{
+		repo:           defaultUpdateRepo,
+		apiBase:        srv.URL,
+		webBase:        srv.URL,
+		currentVersion: "v0.1.0",
+		goos:           "linux",
+		goarch:         "amd64",
+		exePath:        exe,
+		httpClient:     srv.Client(),
+		downloadClient: srv.Client(),
+	}
+	u.st = u.baseStatus()
+	relaunched := make(chan string, 1)
+	quitCalled := make(chan bool, 1)
+	u.relaunch = func(exePath, _ string, _ string) error {
+		relaunched <- exePath
+		return nil
+	}
+
+	st, err := u.check(context.Background())
+	if err != nil {
+		t.Fatalf("check via web fallback: %v", err)
+	}
+	wantReleaseURL := srv.URL + "/hulipa487/agentflow-studio/releases/tag/v0.2.0"
+	if !st.UpdateAvailable || st.LatestVersion != "v0.2.0" || !st.CanSelfUpdate || st.ReleaseURL != wantReleaseURL {
+		t.Fatalf("unexpected fallback status: %+v", st)
+	}
+
+	if err := u.apply(context.Background(), func() { quitCalled <- true }); err != nil {
+		t.Fatalf("apply via web fallback: %v", err)
+	}
+	if <-relaunched != exe {
+		t.Fatal("expected relaunch")
+	}
+	<-quitCalled
+	gotBytes, err := os.ReadFile(exe)
+	if err != nil || string(gotBytes) != "new-binary-from-web-fallback-v0.2.0" {
+		t.Fatalf("updated binary = %q (%v)", gotBytes, err)
+	}
+}
