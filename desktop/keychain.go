@@ -1,11 +1,17 @@
 package main
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
 )
 
-const keychainService = "agentflow-studio"
+const (
+	keychainService          = "agentflow-studio"
+	darwinSecretB64Prefix    = "af-b64:"
+	darwinMaxSecurityLineLen = 4095
+)
 
 var errKeychainUnavailable = errors.New("os keychain unavailable")
 
@@ -34,4 +40,41 @@ func validateAccount(account string) error {
 		return errors.New("account name contains invalid control characters")
 	}
 	return nil
+}
+
+func escapeSecurityArg(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	return strings.ReplaceAll(s, `"`, `\"`)
+}
+
+// encodeDarwinSecret wraps secrets as printable ASCII base64 so macOS
+// `security find-generic-password -w` never hex-encodes non-ASCII UTF-8 bytes
+// on read.
+func encodeDarwinSecret(secret string) string {
+	return darwinSecretB64Prefix + base64.StdEncoding.EncodeToString([]byte(secret))
+}
+
+func decodeDarwinSecret(raw string) (string, error) {
+	trimmed := strings.TrimRight(raw, "\r\n")
+	if strings.HasPrefix(trimmed, darwinSecretB64Prefix) {
+		dec, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(trimmed, darwinSecretB64Prefix))
+		if err != nil {
+			return "", fmt.Errorf("decode macOS keychain secret: %w", err)
+		}
+		return string(dec), nil
+	}
+	return trimmed, nil
+}
+
+func buildDarwinSetCommand(service, account, secret string) (string, error) {
+	line := fmt.Sprintf(
+		"add-generic-password -U -s %q -a \"%s\" -w \"%s\"\n",
+		service,
+		escapeSecurityArg(account),
+		encodeDarwinSecret(secret),
+	)
+	if len(line) > darwinMaxSecurityLineLen {
+		return "", fmt.Errorf("secret exceeds macOS security -i command length limit (%d > %d)", len(line), darwinMaxSecurityLineLen)
+	}
+	return line, nil
 }

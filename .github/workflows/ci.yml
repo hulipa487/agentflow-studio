@@ -83,6 +83,31 @@ jobs:
             TAGS="$TAGS,webkit2_41"
           elif [ "$RUNNER_OS" = "Windows" ]; then
             export CGO_ENABLED=0
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            ORIG_DEFAULT=$((security default-keychain -d user 2>/dev/null || true) | sed -e 's/^[[:space:]]*//' -e 's/^"//' -e 's/"$//')
+            ORIG_LIST=()
+            while IFS= read -r line; do
+              kc=$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' -e 's/^"//' -e 's/"$//')
+              if [ -n "$kc" ]; then
+                ORIG_LIST+=("$kc")
+              fi
+            done < <(security list-keychains -d user 2>/dev/null || true)
+            KC="${RUNNER_TEMP:-/tmp}/af-studio-ci-$$.keychain-db"
+            cleanup_keychain() {
+              if [ "${#ORIG_LIST[@]}" -gt 0 ]; then
+                security list-keychains -d user -s "${ORIG_LIST[@]}" >/dev/null 2>&1 || true
+              fi
+              if [ -n "$ORIG_DEFAULT" ]; then
+                security default-keychain -d user -s "$ORIG_DEFAULT" >/dev/null 2>&1 || true
+              fi
+              security delete-keychain "$KC" >/dev/null 2>&1 || true
+            }
+            trap cleanup_keychain EXIT
+            security create-keychain -p "ci-test" "$KC"
+            security set-keychain-settings -t 3600 -u "$KC"
+            security unlock-keychain -p "ci-test" "$KC"
+            security default-keychain -d user -s "$KC"
+            security list-keychains -d user -s "$KC" "${ORIG_LIST[@]}"
           fi
           go test -tags "$TAGS" ./...
       - name: Build desktop

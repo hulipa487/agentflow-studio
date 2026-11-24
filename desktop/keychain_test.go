@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -51,5 +52,53 @@ func TestSecretStoreRoundTrip(t *testing.T) {
 	}
 	if err := store.Delete(account); err != nil {
 		t.Fatalf("idempotent second Delete failed: %v", err)
+	}
+}
+
+func TestDarwinSecretCodecAndCommand(t *testing.T) {
+	secrets := []string{
+		"tok-initial-0123456789-abcdef",
+		"tok-rotated-!@#$%^&*()-unicode-你好",
+		`quoted "value" with \backslashes\`,
+		"line1\nline2\r\n",
+		"",
+	}
+	for _, secret := range secrets {
+		enc := encodeDarwinSecret(secret)
+		if !strings.HasPrefix(enc, darwinSecretB64Prefix) {
+			t.Fatalf("encodeDarwinSecret(%q) = %q, missing prefix %q", secret, enc, darwinSecretB64Prefix)
+		}
+		for i := 0; i < len(enc); i++ {
+			if enc[i] < 0x20 || enc[i] > 0x7e {
+				t.Fatalf("encodeDarwinSecret(%q) contains non-printable-ASCII byte %#x at %d", secret, enc[i], i)
+			}
+		}
+		got, err := decodeDarwinSecret(enc + "\n")
+		if err != nil || got != secret {
+			t.Fatalf("decodeDarwinSecret(enc(%q)) = (%q, %v), want (%q, nil)", secret, got, err, secret)
+		}
+	}
+
+	legacy, err := decodeDarwinSecret("legacy-plain-token\r\n")
+	if err != nil || legacy != "legacy-plain-token" {
+		t.Fatalf("legacy decode = (%q, %v), want (%q, nil)", legacy, err, "legacy-plain-token")
+	}
+
+	if _, err := decodeDarwinSecret(darwinSecretB64Prefix + "!!!not-base64!!!"); err == nil {
+		t.Fatal("expected error for malformed base64 keychain secret")
+	}
+
+	cmd, err := buildDarwinSetCommand(keychainService, `acct"with\slash`, "tok-rotated-!@#$%^&*()-unicode-你好")
+	if err != nil {
+		t.Fatalf("buildDarwinSetCommand failed: %v", err)
+	}
+	wantAccount := `acct\"with\\slash`
+	if !strings.HasPrefix(cmd, `add-generic-password -U -s "agentflow-studio" -a "`+wantAccount+`" -w "`+darwinSecretB64Prefix) || !strings.HasSuffix(cmd, "\"\n") {
+		t.Fatalf("unexpected command line: %q", cmd)
+	}
+
+	tooLong := strings.Repeat("a", darwinMaxSecurityLineLen)
+	if _, err := buildDarwinSetCommand(keychainService, "prod", tooLong); err == nil {
+		t.Fatal("expected length limit error from buildDarwinSetCommand")
 	}
 }

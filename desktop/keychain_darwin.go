@@ -4,7 +4,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -33,11 +32,6 @@ func isSecItemNotFound(err error) bool {
 	return errors.As(err, &exitErr) && exitErr.ExitCode() == 44
 }
 
-func escapeSecurityArg(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	return strings.ReplaceAll(s, `"`, `\"`)
-}
-
 func (s darwinSecretStore) Get(account string) (string, bool, error) {
 	if err := validateAccount(account); err != nil {
 		return "", false, err
@@ -45,14 +39,25 @@ func (s darwinSecretStore) Get(account string) (string, bool, error) {
 	if !s.Available() {
 		return "", false, errKeychainUnavailable
 	}
-	out, err := exec.Command(macSecurityBin, "find-generic-password", "-s", keychainService, "-a", account, "-w").Output()
-	if err != nil {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(macSecurityBin, "find-generic-password", "-s", keychainService, "-a", account, "-w")
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
 		if isSecItemNotFound(err) {
 			return "", false, nil
 		}
+		msg := strings.TrimSpace(stderr.String())
+		if msg != "" {
+			return "", false, fmt.Errorf("%w: %s", err, msg)
+		}
 		return "", false, err
 	}
-	return strings.TrimRight(string(out), "\r\n"), true, nil
+	secret, err := decodeDarwinSecret(stdout.String())
+	if err != nil {
+		return "", false, err
+	}
+	return secret, true, nil
 }
 
 func (s darwinSecretStore) Set(account, secret string) error {
@@ -62,24 +67,27 @@ func (s darwinSecretStore) Set(account, secret string) error {
 	if !s.Available() {
 		return errKeychainUnavailable
 	}
-	// Pass the secret over stdin (`security -i`) as hex so it never appears in
-	// argv or trips shell quoting.
-	line := fmt.Sprintf(
-		"add-generic-password -U -s %q -a \"%s\" -X %s\n",
-		keychainService,
-		escapeSecurityArg(account),
-		hex.EncodeToString([]byte(secret)),
-	)
+	// Pass the secret over stdin (`security -i`) encoded as printable-ASCII base64
+	// so it never appears in argv, survives shell quoting, and avoids `security -w`
+	// auto-hex-encoding non-ASCII UTF-8 bytes on read.
+	line, err := buildDarwinSetCommand(keychainService, account, secret)
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command(macSecurityBin, "-i")
 	cmd.Stdin = strings.NewReader(line)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
+	err = cmd.Run()
+	msg := strings.TrimSpace(stderr.String())
+	if err != nil {
 		if msg != "" {
 			return fmt.Errorf("%w: %s", err, msg)
 		}
 		return err
+	}
+	if strings.Contains(msg, "security: ") {
+		return errors.New(msg)
 	}
 	return nil
 }
