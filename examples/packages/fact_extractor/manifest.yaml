@@ -1,6 +1,0 @@
-name: fact_extractor
-version: "1"
-prelude_api: 2
-description: Example after_turn heuristic that extracts simple declarative facts.
-files:
-  - fact_extractor.ts

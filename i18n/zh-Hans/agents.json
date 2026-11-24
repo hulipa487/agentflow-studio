@@ -6,7 +6,7 @@
   "agents.newAgent": "新建智能体",
   "agents.loading": "加载智能体中…",
   "agents.emptyTitle": "还没有智能体",
-  "agents.emptyGuidance": "从模板开始：echo 智能体不需要模型。",
+  "agents.emptyGuidance": "从模板或空白智能体开始。",
   "agents.emptyAction": "创建第一个智能体",
   "agents.noMatch": "没有符合筛选条件的智能体。",
   "agents.colAgent": "智能体",

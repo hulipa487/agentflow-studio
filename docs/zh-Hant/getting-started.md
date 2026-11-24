@@ -144,23 +144,21 @@ curl -X POST localhost:8080/webhook/ -d '{"from":"alice","text":"hello"}'   # �
 
 ### 或者從情境開始
 
-AgentFlow Studio 儲存庫在 [`examples/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples) 下提供完整的範例部署：每個都有組態、迴圈與提示詞、迴圈測試，以及一份 README。挑最接近你需求的那份複製走，或讓執行檔直接指向它：
+AgentFlow Studio 儲存庫在 [`examples/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples) 下提供完整的範例部署：每個都有組態、TypeScript 迴圈、人格提示詞、`.env.example`，以及一份 README。挑最接近你需求的那份複製走，或讓執行檔直接指向它：
 
 | 情境 | 展示內容 |
 | --- | --- |
-| [`telegram-group-bot`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-group-bot) | 旗艦 Telegram 群組機器人範例：無需撰寫 TypeScript，在 Studio 的**範本設定**設定 `@` 提及、回覆、觸發詞、冷卻與分群上下文，在**頻道**測試權杖並熱啟輪詢，在**事件中心**檢視 `answered`/`ignored`/`dropped` 結果 |
-| [`qq-group-bot`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-bot) | 旗艦 QQ 群組機器人範例：無需撰寫 TypeScript，在 Studio 的**範本設定**設定 `@` 提及、私聊/頻道場景、觸發詞、冷卻與分群上下文，在**頻道**測試憑證並熱啟 WebSocket，在**事件中心**檢視處理結果 |
-| [`qq-group-chat`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-chat) | 帶記憶與上下文的 QQ 群組機器人：每個群組一個工作階段，提示詞能區分發言人，近期上下文存在 `session.state` 裡，支援長期召回與 `/remember` 事實 |
-| [`telegram-rag`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-rag) | 依知識庫作答的 Telegram 機器人：嵌入存在 SQLite 裡，語意召回，附引用的回答，外加一個用於批次匯入的 Webhook |
-| [`github-pr-agents`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/github-pr-agents) | 為每個 PR 衍生一個程式碼代理的 GitHub 提取請求 Webhook：變更被複製進沙箱專案，用 Shell 命令檢查，並在評論中給出審查 |
-| [`chat-completions`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/chat-completions) | 由代理支撐的單輪 OpenAI 相容 `/v1/chat/completions` 端點 |
+| [`qq-group-bot-fts`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-bot-fts) | QQ 群組機器人（FTS5）：SQLite FTS5 關鍵字召回（`plugin:recency`）、分群共用上下文、主動 `[NO_REPLY]` 參與、豆包搜尋與 `fetch` |
+| [`qq-group-bot-vec`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-bot-vec) | QQ 群組機器人（Embedding）：`bge-m3` SQLite 向量語意召回（`plugin:semantic`）、分群共用上下文、主動 `[NO_REPLY]` 參與、豆包搜尋與 `fetch` |
+| [`telegram-group-bot-fts`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-group-bot-fts) | Telegram 群組機器人（FTS5）：SQLite FTS5 關鍵字召回（`plugin:recency`）、分群共用上下文、主動 `[NO_REPLY]` 參與、Google/X 搜尋、`fetch` 與 `browser` |
+| [`telegram-group-bot-vec`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-group-bot-vec) | Telegram 群組機器人（Embedding）：`bge-m3` SQLite 向量語意召回（`plugin:semantic`）、分群共用上下文、主動 `[NO_REPLY]` 參與、Google/X 搜尋、`fetch` 與 `browser` |
 
 ```
-./agentflow -config examples/telegram-rag/agentflow.yaml
-./agentflow loop test examples/telegram-rag/tests/answer.yaml
+./agentflow validate -config examples/qq-group-bot-fts/agentflow.yaml
+./agentflow run -config examples/qq-group-bot-fts/agentflow.yaml
 ```
 
-從零開始建代理時，Studio 的 **新增代理** 對話方塊會以起始範本的形式提供這幾種形態（含無需 TS **範本設定**的 **Telegram 群組機器人** 與 **QQ 群組機器人**、帶記憶的群組聊天、知識庫、單輪 API）。
+在建構器中建立代理時，Studio 的 **新增代理** 對話方塊會提供同樣四個起始範本（**QQ 群組機器人 (FTS5)**、**QQ 群組機器人 (Embedding)**、**Telegram 群組機器人 (FTS5)** 與 **Telegram 群組機器人 (Embedding)**），內建無需撰寫 TS 的 **範本設定**。
 
 ### 接入真實模型
 

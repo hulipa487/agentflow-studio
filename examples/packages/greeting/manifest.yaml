@@ -1,6 +1,0 @@
-name: greeting
-version: "1"
-prelude_api: 2
-description: Shared greeting helper for loops.
-files:
-  - greeting.ts

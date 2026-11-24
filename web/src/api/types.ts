@@ -27,7 +27,9 @@ export interface Template {
   title: string
   description: string
   capabilities?: string[]
+  skills?: string[]
   memory?: string
+  memory_inline?: Record<string, unknown> | null
   instructions?: string
   extras?: Record<string, unknown>
   settings?: TemplateSetting[]

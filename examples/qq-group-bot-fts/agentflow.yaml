@@ -1,0 +1,88 @@
+version: "1"
+runtime:
+  persistence: sqlite://./data/agentflow.db
+  studio:
+    enabled: true
+  credentials:
+    enabled: false
+gateway:
+  listen: ":8080"
+  channels:
+    - name: c-qq-bot
+      type: qq
+      mode: websocket
+      agent: qq-group-bot
+      secret: ${QQ_APP_SECRET}
+      app_id: ${QQ_APP_ID}
+      scenes:
+        - c2c
+        - group
+        - group_all
+        - guild
+      markdown: true
+agents:
+  qq-group-bot:
+    loop: ./loops/qq-group-bot.ts
+    model: gemini-4-hydrogen
+    instructions: ./prompts/qq-group-bot.md
+    history_budget: 6000
+    memory:
+      stores:
+        dialogue:
+          backend: main_db
+          table: dialogue
+          retention: 30d
+          window: 1000
+          requires: [kv, text_search]
+          scope: agent
+        facts:
+          backend: main_db
+          table: facts
+          retention: forever
+          requires: [kv, text_search]
+          scope: agent
+      write:
+        - plugin:routing_table
+      recall: plugin:recency
+    safety: default
+    skills:
+      - builtin:fetch
+      - builtin:web_search
+    capabilities:
+      - llm.chat
+      - memory
+      - tools
+      - net.http
+      - session.state
+    budget:
+      tokens_per_day: 0
+    extras:
+      bot_names: 御坂,yuban,御坂さん
+      cooldown_sec: 0
+      max_tool_rounds: 3
+      proactive_cooldown_sec: 0
+      proactive_eval_cooldown_sec: 0
+      proactive_hourly_max: 64
+      proactive_min_chars: 4
+      proactive_wait_turns: 0
+      recall_k: 24
+      reply_on_relevant: true
+      respond_in_c2c: true
+      respond_in_guild: false
+      respond_on_mention: true
+      respond_on_reply: true
+      retention_turns: 20
+      store_all_messages: true
+      timezone_offset_hours: 8
+search:
+  default: doubao
+  engines:
+    doubao:
+      api_key: ${DOUBAO_KEY}
+      timeout: 30s
+models:
+  gemini-4-hydrogen:
+    provider: anthropic
+    model: gemini-4-hydrogen
+    api_key: ${MODEL_API_KEY}
+    base_url: https://llm.qhpink.cn

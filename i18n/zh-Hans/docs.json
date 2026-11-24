@@ -39,15 +39,5 @@
   "docs.englishOnly": "此指南暂无译文，现以英文显示。",
   "docs.examples": "示例",
   "docs.openInBuilder": "在构建器中打开",
-  "docs.exampleNotBundled": "此版本未内置该示例循环。",
-  "docs.example.chat": "带记忆的对话循环",
-  "docs.example.daemon": "常驻守护型智能体（persistent: true）",
-  "docs.example.delegate": "父智能体把任务交给临时子智能体",
-  "docs.example.echo": "最小 echo 循环：不接模型、不用工具，直接回显入站文本",
-  "docs.example.files": "基于用户文件存储的笔记循环",
-  "docs.example.openai_memory": "为 OpenAI 兼容渠道加上记忆的透传循环",
-  "docs.example.openai_passthrough": "让智能体看起来像一个标准的 OpenAI 兼容模型端点",
-  "docs.example.scheduled": "会话定时器与定时轮次",
-  "docs.example.stream": "流式返回模型的文本增量",
-  "docs.example.tool_loop": "多轮工具执行循环"
+  "docs.exampleNotBundled": "此版本未内置该示例循环。"
 }

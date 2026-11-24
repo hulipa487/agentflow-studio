@@ -1,0 +1,88 @@
+version: "1"
+runtime:
+  persistence: sqlite://./data/agentflow.db
+  studio:
+    enabled: true
+  credentials:
+    enabled: false
+gateway:
+  listen: ":8080"
+  channels:
+    - name: c-telegram-bot
+      type: telegram
+      mode: polling
+      agent: telegram-group-bot
+      token: ${TELEGRAM_BOT_TOKEN}
+agents:
+  telegram-group-bot:
+    loop: ./loops/telegram-group-bot.ts
+    model: gemini-4-hydrogen
+    instructions: ./prompts/telegram-group-bot.md
+    history_budget: 6000
+    memory:
+      stores:
+        dialogue:
+          backend: main_db
+          table: dialogue
+          retention: 30d
+          window: 1000
+          requires: [kv, text_search]
+          scope: agent
+        facts:
+          backend: main_db
+          table: facts
+          retention: forever
+          requires: [kv, text_search]
+          scope: agent
+      write:
+        - plugin:routing_table
+      recall: plugin:recency
+    safety: default
+    skills:
+      - builtin:fetch
+      - builtin:web_search
+      - builtin:browser
+    capabilities:
+      - llm.chat
+      - memory
+      - tools
+      - net.http
+      - session.state
+    budget:
+      tokens_per_day: 0
+    extras:
+      bot_names: 御坂,yuban,御坂さん
+      cooldown_sec: 0
+      max_tool_rounds: 3
+      proactive_cooldown_sec: 0
+      proactive_eval_cooldown_sec: 0
+      proactive_hourly_max: 64
+      proactive_min_chars: 4
+      proactive_wait_turns: 0
+      recall_k: 24
+      reply_on_relevant: true
+      respond_in_dm: true
+      respond_on_mention: true
+      respond_on_reply: true
+      retention_turns: 20
+      store_all_messages: true
+      timezone_offset_hours: 8
+      trigger_phrase: ""
+search:
+  default: google_search
+  engines:
+    google_search:
+      api_key: ${GEMINI_API_KEY}
+      timeout: 30s
+    x_search:
+      api_key: ${XAI_API_KEY}
+      timeout: 30s
+browser:
+  account_id: ${CLOUDFLARE_ACCOUNT_ID}
+  api_token: ${CLOUDFLARE_API_TOKEN}
+models:
+  gemini-4-hydrogen:
+    provider: anthropic
+    model: gemini-4-hydrogen
+    api_key: ${MODEL_API_KEY}
+    base_url: https://llm.qhpink.cn

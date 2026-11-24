@@ -39,15 +39,5 @@
   "docs.englishOnly": "此指南尚無譯文，目前以英文顯示。",
   "docs.examples": "範例",
   "docs.openInBuilder": "在建構器中開啟",
-  "docs.exampleNotBundled": "此版本未內建該範例迴圈。",
-  "docs.example.chat": "帶記憶的對話迴圈",
-  "docs.example.daemon": "常駐守護型代理（persistent: true）",
-  "docs.example.delegate": "父代理把工作交給臨時子代理",
-  "docs.example.echo": "最小 echo 迴圈：不接模型、不用工具，直接回顯傳入文字",
-  "docs.example.files": "以使用者檔案儲存區為基礎的筆記迴圈",
-  "docs.example.openai_memory": "為 OpenAI 相容頻道加上記憶的透傳迴圈",
-  "docs.example.openai_passthrough": "讓代理看起來像標準的 OpenAI 相容模型端點",
-  "docs.example.scheduled": "工作階段計時器與排程輪次",
-  "docs.example.stream": "串流回傳模型的文字增量",
-  "docs.example.tool_loop": "多輪工具執行迴圈"
+  "docs.exampleNotBundled": "此版本未內建該範例迴圈。"
 }

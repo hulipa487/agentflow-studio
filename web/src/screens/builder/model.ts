@@ -36,6 +36,8 @@ export interface BuilderForm {
   ssh: string
   /** '' is no memory; MEMORY_INLINE keeps the definition's inline profile. */
   memory: string
+  /** Inline memory profile definition when memory is MEMORY_INLINE. */
+  memoryInline: Record<string, unknown> | null
   extras: string
 }
 
@@ -159,7 +161,9 @@ export function initialForm(name: string, detail: AgentDetail | null, tpl: Templ
       safety: 'default',
       history_budget: 6000,
       capabilities: tpl.capabilities ? [...tpl.capabilities] : [...(catalog.default_capabilities ?? [])],
+      skills: tpl.skills ? [...tpl.skills] : [],
       memory: tpl.memory ?? '',
+      memory_inline: tpl.memory_inline ?? null,
       extras: tpl.extras ?? null,
     }
   }
@@ -169,6 +173,7 @@ export function initialForm(name: string, detail: AgentDetail | null, tpl: Templ
   if (safety === '' && safetyOptions(catalog).includes('default')) safety = 'default'
 
   const extras = ag.extras ?? null
+  const memoryInline = ag.memory_inline && Object.keys(ag.memory_inline).length > 0 ? ag.memory_inline : null
   return {
     name,
     model: ag.model ?? '',
@@ -181,7 +186,8 @@ export function initialForm(name: string, detail: AgentDetail | null, tpl: Templ
     credentials: (ag.credentials ?? []).join(', '),
     shell: ag.shell ?? '',
     ssh: ag.ssh ?? '',
-    memory: ag.memory_inline && Object.keys(ag.memory_inline).length > 0 ? MEMORY_INLINE : (ag.memory ?? ''),
+    memory: memoryInline ? MEMORY_INLINE : (ag.memory ?? ''),
+    memoryInline,
     extras: extras && Object.keys(extras).length > 0 ? JSON.stringify(sortKeys(extras), null, 2) : '',
   }
 }
@@ -217,7 +223,8 @@ export function buildYAML(form: BuilderForm, detail: AgentDetail | null): string
   const ssh = form.ssh.trim()
   if (ssh !== '') write('ssh', ssh)
   if (form.memory === MEMORY_INLINE) {
-    if (detail?.agent?.memory_inline) write('memory', detail.agent.memory_inline)
+    const inlineProfile = form.memoryInline ?? detail?.agent?.memory_inline
+    if (inlineProfile) write('memory', inlineProfile)
   } else if (form.memory !== '') {
     write('memory', form.memory)
   }

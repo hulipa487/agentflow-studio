@@ -3,8 +3,8 @@ import { analyzeSource } from './analysis'
 import { SeverityError } from './token'
 
 // Validate the live repository examples directly so loop syntax checks stay
-// in sync with every shipped loop and scenario.
-const examples = import.meta.glob<string>(['../../../examples/loops/*.ts', '../../../examples/*/loops/*.ts'], {
+// in sync with every shipped chatbot starter.
+const examples = import.meta.glob<string>(['../../../examples/*/loops/*.ts'], {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -13,8 +13,13 @@ const examples = import.meta.glob<string>(['../../../examples/loops/*.ts', '../.
 describe('example loops', () => {
   const files = Object.keys(examples).sort()
 
-  it('finds the examples', () => {
-    expect(files.length).toBeGreaterThan(0)
+  it('finds all four chatbot example loops', () => {
+    expect(files).toEqual([
+      '../../../examples/qq-group-bot-fts/loops/qq-group-bot.ts',
+      '../../../examples/qq-group-bot-vec/loops/qq-group-bot.ts',
+      '../../../examples/telegram-group-bot-fts/loops/telegram-group-bot.ts',
+      '../../../examples/telegram-group-bot-vec/loops/telegram-group-bot.ts',
+    ])
   })
 
   it.each(files)('%s lints without errors', (path) => {

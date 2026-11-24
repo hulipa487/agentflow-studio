@@ -6,7 +6,7 @@
   "agents.newAgent": "New agent",
   "agents.loading": "Loading agents…",
   "agents.emptyTitle": "No agents yet",
-  "agents.emptyGuidance": "Start from a template: an echo agent needs no model.",
+  "agents.emptyGuidance": "Start from a template or a blank agent.",
   "agents.emptyAction": "Create your first agent",
   "agents.noMatch": "No agents match this filter.",
   "agents.colAgent": "Agent",

@@ -144,23 +144,21 @@ For an LLM-backed bot, point a real model at it (next block) and set an agent's 
 
 ### Or start from a scenario
 
-AgentFlow Studio hosts complete sample deployments under [`examples/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples): a config, its loops and prompts, loop tests and a README each. Copy the one closest to what you want, or point the runtime binary at it:
+AgentFlow Studio hosts complete sample deployments under [`examples/`](https://github.com/hulipa487/agentflow-studio/tree/main/examples): a config, its TypeScript loop, persona prompt, `.env.example` and a README each. Copy the one closest to what you want, or point the runtime binary at it:
 
 | Scenario | What it shows |
 | --- | --- |
-| [`telegram-group-bot`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-group-bot) | Flagship Telegram group bot starter: configure `@`-mentions, replies, trigger phrases, cooldowns, and per-group context with zero TypeScript in Studio's **Starter settings**, verify tokens/Privacy Mode and go live in **Channels**, and inspect `answered`/`ignored`/`dropped` outcomes in **Event Center** |
-| [`qq-group-bot`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-bot) | Flagship QQ group bot starter: configure `@`-mentions, C2C/Guild scenes, trigger phrases, cooldowns, and per-group context with zero TypeScript in Studio's **Starter settings**, verify AppID/AppSecret and go live in **Channels**, and inspect outcomes in **Event Center** |
-| [`qq-group-chat`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-chat) | A QQ group chatbot with memory and context: one session per group, speaker-aware prompts, recent context in `session.state`, long-term recall and `/remember` facts |
-| [`telegram-rag`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-rag) | A Telegram bot that answers from a knowledge base: embeddings in SQLite, semantic recall, cited answers, and a webhook for bulk loading |
-| [`github-pr-agents`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/github-pr-agents) | A GitHub pull request webhook that spawns a code agent per PR: the change copied into a sandbox project, inspected with shell commands, and reviewed in a comment |
-| [`chat-completions`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/chat-completions) | A single-turn OpenAI-compatible `/v1/chat/completions` endpoint backed by an agent |
+| [`qq-group-bot-fts`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-bot-fts) | QQ Group Chatbot (FTS5): SQLite FTS5 keyword recall (`plugin:recency`), shared per-group context, proactive `[NO_REPLY]` participation, Doubao search, and `fetch` |
+| [`qq-group-bot-vec`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/qq-group-bot-vec) | QQ Group Chatbot (Embedding): `bge-m3` SQLite vector semantic recall (`plugin:semantic`), shared per-group context, proactive `[NO_REPLY]` participation, Doubao search, and `fetch` |
+| [`telegram-group-bot-fts`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-group-bot-fts) | Telegram Group Chatbot (FTS5): SQLite FTS5 keyword recall (`plugin:recency`), shared per-group context, proactive `[NO_REPLY]` participation, Google/X search, `fetch`, and `browser` |
+| [`telegram-group-bot-vec`](https://github.com/hulipa487/agentflow-studio/tree/main/examples/telegram-group-bot-vec) | Telegram Group Chatbot (Embedding): `bge-m3` SQLite vector semantic recall (`plugin:semantic`), shared per-group context, proactive `[NO_REPLY]` participation, Google/X search, `fetch`, and `browser` |
 
 ```
-./agentflow -config examples/telegram-rag/agentflow.yaml
-./agentflow loop test examples/telegram-rag/tests/answer.yaml
+./agentflow validate -config examples/qq-group-bot-fts/agentflow.yaml
+./agentflow run -config examples/qq-group-bot-fts/agentflow.yaml
 ```
 
-Studio's **New agent** dialog offers the same shapes as starter templates (**Telegram group bot** and **QQ group bot** with zero-TS **Starter settings**, group chat with memory, knowledge base, single-turn API) for an agent built from scratch.
+Studio's **New agent** dialog offers the same four templates (**QQ Group Chatbot (FTS5)**, **QQ Group Chatbot (Embedding)**, **Telegram Group Chatbot (FTS5)**, and **Telegram Group Chatbot (Embedding)**) with zero-TS **Starter settings** when creating an agent in the builder.
 
 ### Connect a real model
 

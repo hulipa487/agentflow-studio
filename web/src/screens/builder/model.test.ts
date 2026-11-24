@@ -254,38 +254,52 @@ describe('memoryOptions', () => {
 
 describe('starter settings schema and template seeding', () => {
   const tgTpl: Template = {
-    name: 'telegram-group-bot',
-    title: 'Telegram group bot',
-    description: 'Group bot starter',
-    capabilities: ['llm.chat', 'memory', 'session.state'],
-    memory: 'conversational',
+    name: 'telegram-group-bot-fts',
+    title: 'Telegram Group Chatbot (FTS5)',
+    description: 'Telegram group bot starter',
+    capabilities: ['llm.chat', 'memory', 'tools', 'net.http', 'session.state'],
+    skills: ['builtin:fetch', 'builtin:web_search', 'builtin:browser'],
+    memory_inline: {
+      stores: {
+        dialogue: { backend: 'main_db', table: 'dialogue', requires: ['kv', 'text_search'], scope: 'agent' },
+      },
+      write: ['plugin:routing_table'],
+      recall: 'plugin:recency',
+    },
     instructions: 'Answer mentions politely.',
-    extras: { respond_on_mention: true, cooldown_sec: 15, trigger_phrase: '' },
+    extras: { respond_on_mention: true, respond_in_dm: true, cooldown_sec: 15, trigger_phrase: '' },
     settings: [
       { key: 'respond_on_mention', label: 'Reply on mention', type: 'bool', default: true },
+      { key: 'respond_in_dm', label: 'Reply in direct messages', type: 'bool', default: true },
       { key: 'cooldown_sec', label: 'Cooldown', type: 'number', default: 15, min: 0, max: 3600 },
       { key: 'trigger_phrase', label: 'Trigger phrase', type: 'string', default: '' },
     ],
     loop: '// af-prelude-version: 2\nfunction loop() {}\n',
   }
 
-  it('seeds capabilities, memory, and extras from a template', () => {
-    const form = initialForm('', null, tgTpl, { ...catalog, templates: [tgTpl] })
-    expect(form.capabilities).toEqual(['llm.chat', 'memory', 'session.state'])
-    expect(form.memory).toBe('conversational')
+  it('seeds capabilities, skills, inline memory, and extras from a template and writes them to YAML', () => {
+    const form = initialForm('tg_bot', null, tgTpl, { ...catalog, templates: [tgTpl] })
+    expect(form.capabilities).toEqual(['llm.chat', 'memory', 'tools', 'net.http', 'session.state'])
+    expect(form.skills).toEqual(['builtin:fetch', 'builtin:web_search', 'builtin:browser'])
+    expect(form.memory).toBe(MEMORY_INLINE)
+    expect(form.memoryInline).toEqual(tgTpl.memory_inline)
     const parsed = parseExtrasObject(form.extras)
-    expect(parsed).toEqual({ cooldown_sec: 15, respond_on_mention: true, trigger_phrase: '' })
+    expect(parsed).toEqual({ cooldown_sec: 15, respond_in_dm: true, respond_on_mention: true, trigger_phrase: '' })
+    const yaml = buildYAML(form, null)
+    expect(yaml).toContain('skills: ["builtin:fetch","builtin:web_search","builtin:browser"]')
+    expect(yaml).toContain('memory: {"recall":"plugin:recency"')
   })
 
   it('matches starter settings and syncs changes back into extras JSON', () => {
     const c = { ...catalog, templates: [tgTpl] }
     const form = initialForm('', null, tgTpl, c)
     const settings = matchingTemplateSettings(c, parseExtrasObject(form.extras))
-    expect(settings.map((s) => s.key)).toEqual(['respond_on_mention', 'cooldown_sec', 'trigger_phrase'])
+    expect(settings.map((s) => s.key)).toEqual(['respond_on_mention', 'respond_in_dm', 'cooldown_sec', 'trigger_phrase'])
 
     const nextExtras = updateExtrasSetting(form.extras, 'cooldown_sec', 30)
     expect(parseExtrasObject(nextExtras)).toEqual({
       cooldown_sec: 30,
+      respond_in_dm: true,
       respond_on_mention: true,
       trigger_phrase: '',
     })
@@ -293,11 +307,12 @@ describe('starter settings schema and template seeding', () => {
 
   it('picks the best-matching starter template when presets share common setting keys', () => {
     const qqTpl: Template = {
-      name: 'qq-group-bot',
-      title: 'QQ group bot',
+      name: 'qq-group-bot-fts',
+      title: 'QQ Group Chatbot (FTS5)',
       description: 'QQ group bot starter',
-      capabilities: ['llm.chat', 'memory', 'session.state'],
-      memory: 'conversational',
+      capabilities: ['llm.chat', 'memory', 'tools', 'net.http', 'session.state'],
+      skills: ['builtin:fetch', 'builtin:web_search'],
+      memory_inline: tgTpl.memory_inline,
       extras: { respond_on_mention: true, respond_in_c2c: true, respond_in_guild: false, cooldown_sec: 15 },
       settings: [
         { key: 'respond_on_mention', label: 'Reply on mention', type: 'bool', default: true },
@@ -318,6 +333,7 @@ describe('starter settings schema and template seeding', () => {
     const tgForm = initialForm('', null, tgTpl, both)
     expect(matchingTemplateSettings(both, parseExtrasObject(tgForm.extras)).map((s) => s.key)).toEqual([
       'respond_on_mention',
+      'respond_in_dm',
       'cooldown_sec',
       'trigger_phrase',
     ])
