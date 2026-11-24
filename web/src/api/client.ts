@@ -264,8 +264,8 @@ export class Client {
 
   /**
    * Runs one playground turn and calls onEvent for every SSE event (trace,
-   * reply, error, done). Resolves when the stream ends; abort the signal to
-   * stop listening.
+   * reply, approval, error, done). Resolves when the stream ends; abort the
+   * signal to stop listening.
    */
   async chat(req: T.ChatRequest, onEvent: (ev: T.ChatEvent) => void, signal?: AbortSignal): Promise<void> {
     const res = await this.raw('POST', '/admin/api/studio/chat', req, signal, 'text/event-stream')
@@ -279,6 +279,27 @@ export class Client {
       if (!ev.type) ev.type = event
       onEvent(ev)
     })
+  }
+
+  /** Lists pending runtime execution approvals, optionally filtered by session key. */
+  studioApprovals(sessionKey?: string, signal?: AbortSignal): Promise<T.ApprovalRecord[]> {
+    const qs = sessionKey ? query({ session_key: sessionKey }) : ''
+    return this.json<{ ok: boolean; approvals: T.ApprovalRecord[] | null }>(
+      'GET',
+      `/admin/api/studio/approvals${qs}`,
+      undefined,
+      signal,
+    ).then((r) => r.approvals ?? [])
+  }
+
+  /** Submits the Studio operator's approve/deny decision for a pending approval. */
+  async decideStudioApproval(id: string, approve: boolean): Promise<T.ApprovalRecord> {
+    const r = await this.json<{ ok: boolean; approval: T.ApprovalRecord }>(
+      'POST',
+      `/admin/api/studio/approvals/${enc(id)}/decision`,
+      { approve },
+    )
+    return r.approval
   }
 
   // ---- channels -------------------------------------------------------------

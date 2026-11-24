@@ -1,6 +1,6 @@
 // Center pane: the thread header with its status, the transcript, the composer.
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react'
-import { Download, Paperclip, Send, Square, X } from 'lucide-react'
+import { Check, Download, Paperclip, Send, ShieldAlert, Square, X } from 'lucide-react'
 import type { MediaPart } from '@/api/types'
 import { Button, CopyButton, Dot, IconButton, Panel, cx, toneText } from '@/components/ui'
 import { t } from '@/i18n'
@@ -9,7 +9,12 @@ import { MOD } from '@/nav'
 import { statusText, type Message, type Status } from './model'
 import { useStickToBottom } from './useStickToBottom'
 
-const ROLE_LABEL_KEY = { you: 'playground.roleYou', agent: 'playground.roleAgent', error: 'playground.roleError' } as const
+const ROLE_LABEL_KEY = {
+  you: 'playground.roleYou',
+  agent: 'playground.roleAgent',
+  approval: 'playground.roleApproval',
+  error: 'playground.roleError',
+} as const
 
 type MediaLoader = (handle: string, signal?: AbortSignal) => Promise<Blob>
 
@@ -131,7 +136,90 @@ function AttachmentView({ part, loadMedia }: { part: MediaPart; loadMedia?: Medi
   )
 }
 
-function Bubble({ m, loadMedia }: { m: Message; loadMedia?: MediaLoader }) {
+function Bubble({
+  m,
+  loadMedia,
+  onDecideApproval,
+}: {
+  m: Message
+  loadMedia?: MediaLoader
+  onDecideApproval?: (id: string, approve: boolean) => void
+}) {
+  if (m.role === 'approval' && m.approval) {
+    const { prompt, state, error } = m.approval
+    const hasArgs = prompt.args_preview && Object.keys(prompt.args_preview).length > 0
+    const canDecide = !!onDecideApproval && (state === 'pending' || state === 'error')
+    return (
+      <div className="flex justify-start px-2">
+        <div className="min-w-[240px] max-w-[min(100%,560px)] rounded-card border border-warning/50 bg-surface px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-warning" />
+            <span className="text-xs font-medium text-warning">{t('playground.approvalRequired')}</span>
+            <span className="ml-auto font-mono text-xs text-faint">{clockTime(m.at)}</span>
+          </div>
+          <div className="mt-1 flex flex-wrap items-baseline gap-2">
+            <code className="font-mono text-sm font-medium text-text">{prompt.action}</code>
+            {prompt.destination && (
+              <span className="rounded border border-line bg-bg px-1.5 py-0.5 font-mono text-xs text-muted">
+                {t('playground.approvalDestination')}: {prompt.destination}
+              </span>
+            )}
+          </div>
+          {prompt.description && <div className="mt-1 text-xs text-muted">{prompt.description}</div>}
+          {hasArgs && (
+            <pre className="mt-2 max-h-[160px] overflow-auto rounded border border-line bg-bg p-2 font-mono text-xs text-text">
+              {JSON.stringify(prompt.args_preview, null, 2)}
+            </pre>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {prompt.expires_at > 0 && (
+              <span className="font-mono text-xs text-faint">
+                {t('playground.approvalExpires', { time: clockTime(new Date(prompt.expires_at * 1000)) })}
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-1.5">
+              {state === 'approved' ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
+                  <Check className="h-3.5 w-3.5" />
+                  {t('playground.approvalApproved')}
+                </span>
+              ) : state === 'denied' ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-danger">
+                  <X className="h-3.5 w-3.5" />
+                  {t('playground.approvalDenied')}
+                </span>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    icon={X}
+                    loading={state === 'submitting'}
+                    disabled={!canDecide}
+                    onClick={() => onDecideApproval?.(prompt.id, false)}
+                  >
+                    {t('playground.approvalDeny')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    icon={Check}
+                    loading={state === 'submitting'}
+                    disabled={!canDecide}
+                    onClick={() => onDecideApproval?.(prompt.id, true)}
+                  >
+                    {t('playground.approvalApprove')}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+          {error && <div className="mt-1.5 text-xs text-danger">{error}</div>}
+        </div>
+      </div>
+    )
+  }
+
   const mine = m.role === 'you'
   const failed = m.role === 'error'
   const hasAttachments = (m.attachments?.length ?? 0) > 0
@@ -193,6 +281,8 @@ export const ChatPane = forwardRef<
     onAttachments?: (next: MediaPart[]) => void
     onSend: () => void
     onStop: () => void
+    /** Optional operator approval decision callback for inline needs_confirm prompts. */
+    onDecideApproval?: (id: string, approve: boolean) => void
     /** Optional loader for authenticated media handles (Studio preview/download). */
     loadMedia?: MediaLoader
     /** Extra header buttons, before Stop. */
@@ -202,7 +292,7 @@ export const ChatPane = forwardRef<
     /** What the empty transcript suggests. */
     emptyHint?: string
   }
->(function ChatPane({ agent, thread, status, messages, sending, stopping, draft, onDraft, attachments, onAttachments, onSend, onStop, loadMedia, actions, hint, emptyHint }, handle) {
+>(function ChatPane({ agent, thread, status, messages, sending, stopping, draft, onDraft, attachments, onAttachments, onSend, onStop, onDecideApproval, loadMedia, actions, hint, emptyHint }, handle) {
   const { ref, onScroll, pin } = useStickToBottom<HTMLDivElement>(messages, agent + '\n' + thread)
   const input = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -271,7 +361,7 @@ export const ChatPane = forwardRef<
               </div>
             )}
             {messages.map((m) => (
-              <Bubble key={m.id} m={m} loadMedia={loadMedia} />
+              <Bubble key={m.id} m={m} loadMedia={loadMedia} onDecideApproval={onDecideApproval} />
             ))}
           </div>
         )}

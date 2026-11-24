@@ -452,7 +452,7 @@ store.scopes(table) -> [ "user:<uuid>", ... ]   // 仅限维护来源
 ```ts
 tools.list() -> [ { type: "function", function: { name, description, parameters } } ]
 tools.run(name, args, opts?) -> result
-// opts：{ confirmed: true, confirm_id: "..." }
+// opts: { idempotency_key?: "..." }
 ```
 
 在 TypeScript/JS 顶层、`loop()` 之前声明一个模型可见的工具：
@@ -474,7 +474,7 @@ tool.def({
 
 声明的工具会并入 `tools.list()`，并由 `tools.run` 分派；抛错的处理器返回 `{ ok: false, error: ... }`，而不是把循环搞死。可见性和 Go 注册的工具完全一样，跟随智能体的 `skills` 和 `tools.policy.default` —— 被隐藏的声明工具既不列出也不可分派。Go 策略（`forbidden`、`needs_confirm`）管不到循环自己声明的处理器。
 
-如果某个工具（Go 的，或通过覆盖声明的）带 `needs_confirm: true`，运行时会拦下第一次 `tools.run`，问用户，再带 `confirmed: true` 重新调用；循环只看最终结果。等待提示是有界的（十分钟）。
+如果某个工具（Go 的，或通过覆盖声明的）带 `needs_confirm: true`，运行时会拦下调用，创建一条绑定会话、工作区、合资格审批人、动作修订版本、参数与目标地址的单次审批记录，并暂停等待已验证确认（渠道 `[ref:<id>]` / `confirm.decision` 或 Studio 内联脱敏审批卡片）。脚本输入不能伪造或传入 `confirmed: true`；`opts.idempotency_key` 会在运行时存储中持久化写入意图，从而在重试时重播已完成结果，并在中断导致结果不确定时故障关闭（提示等待上限为十分钟）。
 
 ### 6.8 `shell`
 
@@ -599,12 +599,12 @@ json.decode(text) -> value
 
 ```ts
 api.list() -> [ { name, version, description, runtime: "script" | "wasm", actions } ]
-api.call(pkg, action, args?) -> result
-api.batch(calls) -> [ { ok, data?, error? } ]   // calls: [{ api, action, args }]
+api.call(pkg, action, args?, opts?) -> result   // opts: { idempotency_key?: "..." }
+api.batch(calls) -> [ { ok, data?, error? } ]   // calls: [{ api, action, args, idempotency_key? }]
 api.<pkg>.<action>(args?) -> result              // api.call 的 Proxy 简写
 ```
 
-外部 API 是独立的 TypeScript（`goja`）或 WebAssembly（`wazero`）包，在 `apis:` 下配置（`apis` 能力，在默认集合里）。每个包在自己的隔离运行时、自己的权限和超时下运行。`api.call` 和 `api.<pkg>.<action>` 出错会抛，而 `api.batch` 返回逐次调用的 `{ ok, data, error }`。标记为 `expose_as_tool: true` 的操作，在智能体同时拥有 `apis` 和 `tools` 时，也会作为 `api:<pkg>.<action>` 工具出现。
+外部 API 是独立的 TypeScript（`goja`）或 WebAssembly（`wazero`）包，在 `apis:` 下配置（`apis` 能力，在默认集合里）。每个包在自己的隔离运行时、自己的权限和超时下运行。直接调用 `api.call` 与 `api.batch` 会通过与 `api:<pkg>.<action>` 工具封装相同的能力、`tools.policy`、托管模式 `kind`、审批和 `idempotency_key` 校验。`api.call` 和 `api.<pkg>.<action>` 出错会抛，而 `api.batch` 返回逐次调用的 `{ ok, data, error }`（任何需要确认的批量子项都会单独失败，必须改用 `api.call` 调用）。标记为 `expose_as_tool: true` 的操作，在智能体同时拥有 `apis` 和 `tools` 时，也会作为 `api:<pkg>.<action>` 工具出现。
 
 ---
 

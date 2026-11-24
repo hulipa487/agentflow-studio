@@ -1,6 +1,6 @@
 // The Playground's data model and the pure rules ported from the desktop
 // app's playground.go: trace filters, row tones, cost and detail lines.
-import type { MediaPart, TraceEvent } from '@/api/types'
+import type { ApprovalPrompt, MediaPart, TraceEvent } from '@/api/types'
 import type { Tone } from '@/components/ui'
 import { t, type Params } from '@/i18n'
 
@@ -31,7 +31,13 @@ export const FILTER_LABEL_KEY: Record<TraceFilter, string> = {
   'Errors only': 'playground.filterErrors',
 }
 
-export type Role = 'you' | 'agent' | 'error'
+export type Role = 'you' | 'agent' | 'approval' | 'error'
+
+export interface MessageApproval {
+  prompt: ApprovalPrompt
+  state: 'pending' | 'submitting' | 'approved' | 'denied' | 'error'
+  error?: string
+}
 
 export interface Message {
   id: number
@@ -46,6 +52,8 @@ export interface Message {
   note?: string
   /** Media attachments returned with an agent reply. */
   attachments?: MediaPart[]
+  /** Runtime-owned approval card streamed mid-turn. */
+  approval?: MessageApproval
 }
 
 let lastMessageID = 0

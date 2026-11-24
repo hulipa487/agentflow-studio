@@ -71,6 +71,7 @@ YAML 定義*拓撲* —— 有什麼、怎麼接。行為放在 TypeScript/JS �
 | `scheduler.workers` | int | 8 | 操作池大小。這是唯一能設定它的地方 |
 | `persistence` | string | sqlite://./data/agentflow.db | 訊息日誌、Token 帳冊及其逐次明細，以及引擎的鍵值列（檔案樹、工作階段狀態、路由狀態、Shell 控制代碼）存放的位置。排程器計時器*不*在這裡：計時服務在記憶體裡，所以重新啟動會忘掉所有計時器，直到迴圈重新註冊 |
 | `topology` | string | single | 部署層級：`single`（單一行程）或 `regional`（一個區域內多個執行個體共用一個 PostgreSQL）。不設定即 `single`。層級決定其他哪些設定合法；啟動時會拒絕它兌現不了的設定。見[拓撲](#topology) |
+| `mode` | string | self_hosted | 執行安全模式：`self_hosted` 或 `hosted`。`hosted` 模式強制開啟 `plugins.enforce_capabilities: true`、拒絕 stdio `mcp.servers.*.command`，並預設拒絕未分類的動作（`kind: ""`） |
 | `zone` | string | "" | 區域內的可用區標籤（字母、數字與 `. _ -`，最多 32 個字元）。會出現在指標與 `/admin/api/state` 裡；它只是標籤，絕不參與路由決策 |
 | `shutdown_grace` | duration | 區域 5s · 單一執行個體 0 | 關閉時先回報未就緒、繼續服務多久才關閉監聽器，好讓負載平衡器排空、讓進行中的輪次跑完。`0` 表示不等待 |
 | `sessions.idle_unload` | duration | 30m | 工作階段閒置這麼久後卸載。它的 VM 區域變數隨之消失；`session.state.*` 仍在，下一則訊息會重建工作階段。工作階段 ID 不回收，租約釋放。`0` 關閉卸載 |
@@ -756,7 +757,7 @@ mcp:
       token: ${MCP_AFFILIATE_TOKEN}   # 以 Authorization: Bearer 傳送
 ```
 
-伺服器宣告 `command`（作為子行程衍生，經 stdio 通訊）**或** `url`（一個 Streamable HTTP 端點，直接撥號）二選一。兩者都在啟動時連線一次，連不上的伺服器會被跳過並給出警告，而不是讓執行停下來。HTTP 傳輸正是讓整合能完全住在這個儲存庫之外的原因 —— 一個獨立部署、獨立版本化的服務，執行環境藉此支援自有或授權的連接器而無須隨附它們。`token` 只作用於 HTTP 傳輸，每次請求都作為 Bearer 憑證送出；不需要的端點留空即可。
+伺服器宣告 `command`（作為子行程衍生，經 stdio 通訊）**或** `url`（一個 Streamable HTTP 端點，直接撥號）二選一。兩者都在啟動時連線一次，連不上的伺服器會被跳過並給出警告，而不是讓執行停下來。HTTP 傳輸正是讓整合能完全住在這個儲存庫之外的原因 —— 一個獨立部署、獨立版本化的服務，執行環境藉此支援自有或授權的連接器而無須隨附它們。`token` 只作用於 HTTP 傳輸，並且僅向已組態的來源傳送 Bearer 憑證（跨來源重新導向會被拒絕）；不需要的端點留空即可。在 `runtime.mode: hosted` 下，會在驗證與啟動時拒絕由主機啟動的 stdio `command:` 伺服器。
 
 連線時發現的工具以 `mcp:<server>/<tool>` 進入登錄表。伺服器中斷後，呼叫回傳結構化的 `unavailable`。
 
@@ -800,10 +801,11 @@ apis:
     actions:
       charge:
         description: "Charge a customer"
+        kind: write                  # read | write | destructive（hosted 模式必填）
         expose_as_tool: true         # 註冊為工具 api:billing.charge（需 apis 能力）
 ```
 
-將外部 API 套件註冊到執行環境的隔離擴充登錄表（在 `apis` 能力下於迴圈透過 `api.*` 呼叫）。每個套件每次呼叫都會在全新 Goja VM 中執行（`runtime: script`，支援 TypeScript/JS），或在 `wazero` 沙盒內的已編譯 `.wasm` 模組中執行（`runtime: wasm`，受 `timeout` 與 `memory_mb` 限制）；所有傳出 HTTP 均受 `capabilities.http.allowed_hosts` 與主機端注入的 `capabilities.http.credentials` 約束。
+將外部 API 套件註冊到執行環境的隔離擴充登錄表（在 `apis` 能力下於迴圈透過 `api.*` 呼叫）。每個套件每次呼叫都會在全新 Goja VM 中執行（`runtime: script`，支援 TypeScript/JS），或在 `wazero` 沙盒內的已編譯 `.wasm` 模組中執行（`runtime: wasm`，受 `timeout` 與 `memory_mb` 限制）；所有傳出 HTTP 均受 `capabilities.http.allowed_hosts` 與主機端注入的 `capabilities.http.credentials` 約束。動作原則（`kind`、`requires_capability`、`needs_confirm` 與 `tools.policy`）在 `api:<pkg>.<action>` 工具封裝與直接的 `api.call` / `api.batch` 呼叫之間以完全一致的方式強制執行。
 
 指定 `dir` 會載入 `<dir>/manifest.yaml`（並在套件目錄內解析 `entry`），或直接內嵌宣告 `runtime`、`entry` 與 `actions`。設為 `expose_as_tool: true` 的動作也會自動註冊為模型工具 `api:<pkg>.<action>`。取代原內建法律檢索工具的兩個外部 API 參考實作（TypeScript/Goja 版 `hklii` 與 Go/Wasm 版 `npc`）位於 `examples/apis/hklii` 與 `examples/apis/npc`。
 
@@ -923,12 +925,13 @@ tools:
                                                            # 或使用 prompts: 中的 {prompt: }
         params:                            # 淺層合併到 parameters.properties
           query: { description: "What to look up, in the user's words" }
-        needs_confirm: false               # 原則欄位：needs_confirm、permission
+        needs_confirm: false               # 原則欄位：kind、needs_confirm、permission
+        kind: read                         # read | write | destructive
         autonomous: true                   #   （cost_level / user_visible / autonomous
                                            #    會被解析但沒有任何東西讀取，啟動時會警告）
 ```
 
-覆寫在啟動時一次性地烤進登錄表，在所有工具都註冊完（內建、shell、MCP、APIs）之後、任何代理集合公開之前。`params` 條目點名一個 schema 沒有宣告的參數時會被跳過並給出警告，絕不報錯。原則欄位依工具生效；`permission: forbidden` 把工具從每個公開集合裡移除 —— 也是其中唯一真正生效的一個。`cost_level`、`user_visible` 與 `autonomous` 會被接受、複製到工具上，然後沒有任何地方讀取它們；`tools.policy.write` 同樣只解析不使用。設定了其中任何一個時，引擎會在啟動時警告。
+覆寫在啟動時一次性地烤進登錄表，在所有工具都註冊完（內建、shell、MCP、APIs）之後、任何代理集合公開之前。`params` 條目點名一個 schema 沒有宣告的參數時會被跳過並給出警告，絕不報錯。原則欄位依工具生效；`kind`（`read`、`write`、`destructive`）用於分類副作用以供託管模式授權驗證，而 `permission: forbidden` 把工具從每個公開集合裡移除。`cost_level`、`user_visible` 與 `autonomous` 會被接受、複製到工具上，然後沒有任何地方讀取它們；`tools.policy.write` 同樣只解析不使用。設定了其中任何一個時，引擎會在啟動時警告。
 
 **觸達指令碼宣告的工具**：覆寫也可以點名迴圈用 `tool.def` 宣告的工具 —— 見下文。那些條目不在啟動時烤入（程式碼區塊載入之前工具並不存在）；它們在迴圈建構清單時解析，對著活躍的提示詞登錄表，所以編輯一個基於 `file:` 的提示詞，會在下一次 `tools.list()` 時生效。拼錯的*提示詞鍵*對兩類工具都仍是啟動錯誤。一個既沒註冊、也沒被任何已載入迴圈宣告的工具名，無法在啟動時抓到，所以啟動時會記一列「保留給指令碼宣告」（列出這些名字，讓拼錯在任何代理跑起來之前就可見），之後在某個迴圈首次宣告工具卻沒認領它時，依名字警告一次。
 
@@ -1014,7 +1017,7 @@ plugins:
     - agent.spawn
     - agent.send
     - agent.request
-  enforce_capabilities: true    # 預設；false 會恢復強制執行之前的行為
+  enforce_capabilities: true    # 預設；僅當 runtime.mode 為 self_hosted 時允許 false
 ```
 
 `plugins.dir` 也會**依名字覆寫內建實作**：檔案 `<dir>/<name>.ts`（或 `.js`，例如 `./plugins/recency.ts`）會在所有地方取代同名內建實作 —— 迴圈／路由參照（`loop: plugin:recency`，包括熱重載監聽路徑）以及載入每個工作階段的支援片段。覆寫檔案受監看：被覆寫的支援片段在每次工作階段啟動時重讀（第一次以及每次重載重新啟動），編輯它會重新啟動所有作用中工作階段，所以無需重新啟動行程即可生效。未被覆寫的片段是內嵌的，沒有檔案可改。

@@ -90,6 +90,7 @@ export const RunPanel = forwardRef<
           onDraft={setDraft}
           onSend={onRun}
           onStop={() => void s.stop()}
+          onDecideApproval={(id, approve) => void s.decideApproval(id, approve)}
           loadMedia={(h, sig) => client.mediaBlob(h, sig)}
           hint={t('builder.runHint', { mod: MOD })}
           emptyHint={t('builder.runEmptyHint')}

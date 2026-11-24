@@ -576,7 +576,7 @@ enumerates user scopes without reading one user's turn.
 ```ts
 tools.list() -> [ { type: "function", function: { name, description, parameters } } ]
 tools.run(name, args, opts?) -> result
-// opts: { confirmed: true, confirm_id: "..." }
+// opts: { idempotency_key?: "..." }
 ```
 
 Declare a model-visible tool in TypeScript/JS at top level, before `loop()`:
@@ -604,9 +604,14 @@ dispatchable. The Go policy (`forbidden`, `needs_confirm`) does not gate the
 loop's own declared handlers.
 
 If a tool (Go or declared through an override) has `needs_confirm: true`, the
-runtime intercepts the first `tools.run`, asks the user, and re-invokes with
-`confirmed: true`; the loop sees only the final result. The prompt wait is
-bounded (ten minutes).
+runtime intercepts the call, mints a single-use approval record bound to the
+session, workspace, eligible approver, action revision, arguments, and target
+destination, and pauses for verified confirmation (channel `[ref:<id>]` /
+`confirm.decision` or Studio inline approval with redacted argument preview).
+Script inputs cannot forge or pass `confirmed: true`, and `opts.idempotency_key`
+records durable write intent in the runtime store so retries replay completed
+results and fail closed on uncertain interruptions (the prompt wait is bounded to
+ten minutes).
 
 ### 6.8 `shell`
 
@@ -758,18 +763,21 @@ Everything crossing the bridge is JSON-encoded. Consequences:
 
 ```ts
 api.list() -> [ { name, version, description, runtime: "script" | "wasm", actions } ]
-api.call(pkg, action, args?) -> result
-api.batch(calls) -> [ { ok, data?, error? } ]   // calls: [{ api, action, args }]
+api.call(pkg, action, args?, opts?) -> result   // opts: { idempotency_key?: "..." }
+api.batch(calls) -> [ { ok, data?, error? } ]   // calls: [{ api, action, args, idempotency_key? }]
 api.<pkg>.<action>(args?) -> result              // Proxy shorthand for api.call
 ```
 
 External APIs are standalone TypeScript (`goja`) or WebAssembly (`wazero`)
 packages configured under `apis:` (`apis` capability, in the default set). Each
 package runs in its own isolated runtime under its own permissions and timeout.
-`api.call` and `api.<pkg>.<action>` throw on error, while `api.batch` returns
-per-call `{ ok, data, error }` results. Actions marked `expose_as_tool: true`
-also appear as `api:<pkg>.<action>` tools when the agent has both `apis` and
-`tools`.
+Direct `api.call` and `api.batch` calls pass through the same capability,
+`tools.policy`, hosted-mode `kind`, approval, and `idempotency_key` checks as
+`api:<pkg>.<action>` tool wrappers. `api.call` and `api.<pkg>.<action>` throw
+on error, while `api.batch` returns per-call `{ ok, data, error }` results (any
+batch item requiring confirmation fails individually and must be called via
+`api.call`). Actions marked `expose_as_tool: true` also appear as
+`api:<pkg>.<action>` tools when the agent has both `apis` and `tools`.
 
 ---
 

@@ -177,6 +177,7 @@ export function Workspace({ client, agents, reloadAgents }: { client: Client; ag
             onAttachments={setAttachments}
             onSend={send}
             onStop={() => void s.stop()}
+            onDecideApproval={(id, approve) => void s.decideApproval(id, approve)}
             loadMedia={(h, sig) => client.mediaBlob(h, sig)}
           />
         }

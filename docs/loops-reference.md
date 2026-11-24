@@ -241,7 +241,7 @@ Store queries accept `{ kind: "all" | "prefix" | "text" | "vector" | "time_range
 ```ts
 tools.list() -> [ToolSpec]
 tools.run(name, args, opts?) -> ToolResult
-// opts: { confirmed: true, confirm_id: "..." }
+// opts: { idempotency_key?: "..." }
 
 tool.def({
   name: "script:shout",
@@ -257,7 +257,7 @@ tool.def({
 });
 ```
 
-If a tool declares `needs_confirm: true`, the first call returns a `needs_confirm` response. The runtime asks the user, then re-invokes the tool with `opts.confirmed = true`. Your loop sees only the final result. (The prompt wait is bounded: ten minutes, after which the call is denied — a confirm-gated tool on a scheduler turn has no channel to answer on, and an unbounded wait parked the session for good.)
+If a tool declares `needs_confirm: true`, the runtime mints a single-use approval record bound to the session, workspace, eligible approver, action revision, normalized arguments, and destination, pauses for verified confirmation (authorized channel reply or Studio approval card), and claims the approval atomically for one run. Script options cannot pass `confirmed: true`; `opts.idempotency_key` persists durable write intent across retries and fails closed on uncertain timeouts/cancellations. Your loop sees only the final result. (The prompt wait is bounded: ten minutes, after which the call is denied — a confirm-gated tool on a scheduler turn has no channel to answer on, and an unbounded wait parked the session for good.)
 
 **The tool loop is the loop's.** The engine executes a tool when asked and returns the result; it does not drive the conversation. Calling `llm.chat` with `tools`, running what came back through `tools.run`, and sending the results as a `role: "tool"` turn before asking again is the chunk's job — including going round a *second* time, which is the easy one to forget: a model that asks for another tool after seeing the first result will not get it unless the chunk checks `reply.tool_calls` again. The same applies to what a loop persists: a tool call and its result are history the next turn should see, and a chunk that stores only the assistant's text recalls a conversation in which the model refers to a tool result that is no longer there.
 
@@ -271,12 +271,12 @@ If a tool declares `needs_confirm: true`, the first call returns a `needs_confir
 
 ```ts
 api.list() -> [APIDescriptor]                 // { name, version, description, runtime: "script"|"wasm", actions }
-api.call(pkg, action, args?) -> unknown
-api.batch(calls) -> [{ ok, data?, error? }]   // calls: [{ api, action, args }]
-api.<pkg>.<action>(args?) -> unknown          // read-only Proxy shorthand for api.call(pkg, action, args)
+api.call(pkg, action, args?, opts?) -> unknown  // opts: { idempotency_key?: "..." }
+api.batch(calls) -> [{ ok, data?, error? }]     // calls: [{ api, action, args, idempotency_key? }]
+api.<pkg>.<action>(args?) -> unknown            // read-only Proxy shorthand for api.call(pkg, action, args)
 ```
 
-External APIs are pluggable packages implemented either as sandboxed TypeScript (`goja`) scripts (`apis/<pkg>/...`) or WebAssembly (`wazero`) modules — isolated from session state and invoked over the host boundary. Actions declared with `expose_as_tool: true` can also surface to LLMs as `api:<pkg>.<action>` tools when the agent holds both `apis` and `tools` (or called directly from any loop holding `apis`). Each action executes under its own package permissions and timeout; errors from `api.call` / `api.<pkg>.<action>` throw, whereas `api.batch` returns per-call `{ ok, data, error }` results.
+External APIs are pluggable packages implemented either as sandboxed TypeScript (`goja`) scripts (`apis/<pkg>/...`) or WebAssembly (`wazero`) modules — isolated from session state and invoked over the host boundary. Both direct `api.call` / `api.batch` calls and `expose_as_tool: true` tool wrappers (`api:<pkg>.<action>`) enforce the same capability, `tools.policy`, hosted-mode `kind`, approval, and `idempotency_key` policy at the shared execution boundary. Each action executes under its own package permissions and timeout; errors from `api.call` / `api.<pkg>.<action>` throw, whereas `api.batch` returns per-call `{ ok, data, error }` results (batch items requiring approval fail individually).
 
 #### `shell` — cap: `shell.exec`
 
@@ -437,7 +437,7 @@ The bridge throws `Error` values unwrapped from Go responses so stack traces poi
 
 ### Confirmation and permissions
 
-Tools and shell builtins can declare `needs_confirm`. The first `tools.run` returns a result with `needs_confirm: true` and a `confirm_id`; the actor asks the user, then re-invokes the tool with `opts.confirmed = true` and the same `confirm_id`. Your loop sees only the final result, so in most cases you do not need to handle confirmation manually.
+Tools, shell builtins, and External API actions can declare `needs_confirm`. When confirmation is required, the runtime creates a single-use approval record bound to the session, workspace, eligible approver, action revision, normalized arguments, and destination, asks the user (or streams a redacted approval prompt to Studio), and atomically consumes that approval for one execution; scripts cannot pass `confirmed: true`. Use `opts.idempotency_key` on side-effecting calls to reconcile or replay uncertain outcomes cleanly. Your loop sees only the final result, so in most cases you do not need to handle confirmation manually.
 
 ### Restrictions and caveats
 

@@ -74,6 +74,7 @@ A `profiles/*.yaml` file is an agent config plus a `name` and a `spawn` flag: `s
 | `scheduler.workers` | int | 8 | Op-pool size. This is the only place it is set |
 | `persistence` | string | sqlite://./data/agentflow.db | Where the message journal, the token ledger and its per-call detail, and the engine’s key/value rows (file trees, session state, route state, shell handles) live. Scheduler timers are *not* here: the timer service is in memory, so a restart forgets every timer until its loop re-registers it |
 | `topology` | string | single | The deployment tier: `single` (one process) or `regional` (several instances in one region sharing one PostgreSQL). Unset means `single`. The tier decides which other settings are valid; boot refuses one it cannot honour. See [Topology](#topology) |
+| `mode` | string | self_hosted | Execution security posture: `self_hosted` or `hosted`. `hosted` mandates `plugins.enforce_capabilities: true`, rejects stdio `mcp.servers.*.command`, and denies unclassified actions (`kind: ""`) by default |
 | `zone` | string | "" | Availability-zone label inside the region (letters, digits and `. _ -`, at most 32 characters). Reported in metrics and `/admin/api/state`; it is a label, never a routing decision |
 | `shutdown_grace` | duration | 5s regional · 0 single | How long a shutdown first reports unready and keeps serving before the listeners close, so a load balancer can drain and an in-flight turn can finish. `0` disables the wait |
 | `sessions.idle_unload` | duration | 30m | Unload a conversation after this long without activity. Its VM locals are gone; `session.state.*` survives, and the next message recreates the session. The session id is not retired and its lease is released. `0` disables unloading |
@@ -809,7 +810,7 @@ mcp:
       token: ${MCP_AFFILIATE_TOKEN}   # sent as Authorization: Bearer
 ```
 
-A server declares **either** `command` (spawned as a child process, spoken to over stdio) or `url` (a Streamable HTTP endpoint, dialled). Both are connected once at boot, and a server that fails to connect is skipped with a warning rather than stopping the run. The HTTP transport is what lets an integration live outside this repository entirely — a separately deployed, separately versioned service, which is how the runtime supports proprietary or licensed connectors without shipping them. `token` applies to the HTTP transport only and is sent as a bearer credential on every request; leave it unset for an endpoint that needs none.
+A server declares **either** `command` (spawned as a child process, spoken to over stdio) or `url` (a Streamable HTTP endpoint, dialled). Both are connected once at boot, and a server that fails to connect is skipped with a warning rather than stopping the run. The HTTP transport is what lets an integration live outside this repository entirely — a separately deployed, separately versioned service, which is how the runtime supports proprietary or licensed connectors without shipping them. `token` applies to the HTTP transport only and is sent as a bearer credential exclusively to that configured origin (cross-origin redirects are refused); leave it unset for an endpoint that needs none. In `runtime.mode: hosted`, host-launched stdio `command:` servers are refused at validation and boot.
 
 Tools discovered at connect enter the registry as `mcp:<server>/<tool>`. If the server disconnects, invocations return structured `unavailable`.
 
@@ -853,10 +854,11 @@ apis:
     actions:
       charge:
         description: "Charge a customer"
+        kind: write                  # read | write | destructive (required in hosted mode)
         expose_as_tool: true         # registers as tool api:billing.charge (cap: apis)
 ```
 
-Registers External API packages into the runtime's isolated extension registry (`api.*` inside loops under the `apis` capability). Each package runs either TypeScript/JS in a fresh Goja VM per invocation (`runtime: script`) or a compiled `.wasm` module under `wazero` (`runtime: wasm`, bounded by `timeout` and `memory_mb`), with outbound HTTP restricted to `capabilities.http.allowed_hosts` and host-injected `capabilities.http.credentials`.
+Registers External API packages into the runtime's isolated extension registry (`api.*` inside loops under the `apis` capability). Each package runs either TypeScript/JS in a fresh Goja VM per invocation (`runtime: script`) or a compiled `.wasm` module under `wazero` (`runtime: wasm`, bounded by `timeout` and `memory_mb`), with outbound HTTP restricted to `capabilities.http.allowed_hosts` and host-injected `capabilities.http.credentials`. Action policies (`kind`, `requires_capability`, `needs_confirm`, and `tools.policy`) are enforced identically across both `api:<pkg>.<action>` tool calls and direct `api.call` / `api.batch` calls.
 
 Set `dir` to load `<dir>/manifest.yaml` (resolving `entry` inside the package directory), or declare `runtime`, `entry`, and `actions` inline. Actions with `expose_as_tool: true` also register as model tools named `api:<pkg>.<action>`. Reference External API packages replacing the retired built-in legal tools (`hklii` in TypeScript/Goja and `npc` in Go/Wasm) live in `examples/apis/hklii` and `examples/apis/npc`.
 
@@ -976,12 +978,13 @@ tools:
                                                            # or {prompt: } from prompts:
         params:                            # shallow-merged into parameters.properties
           query: { description: "What to look up, in the user's words" }
-        needs_confirm: false               # policy fields: needs_confirm, permission
+        needs_confirm: false               # policy fields: kind, needs_confirm, permission
+        kind: read                         # read | write | destructive
         autonomous: true                   #   (cost_level / user_visible / autonomous are
                                            #    parsed and read by nothing — boot warns)
 ```
 
-Overrides are baked into the registry once at boot, after every tool is registered (builtins, shell, MCP, APIs) and before any agent set is exposed. A `params` entry naming a param the schema does not declare is skipped with a warning, never an error. Policy fields apply per tool; `permission: forbidden` removes the tool from every exposed set — and is the only one of them with an effect. `cost_level`, `user_visible` and `autonomous` are accepted, copied onto the tool, and consulted by nothing; `tools.policy.write` is likewise parsed and unused. The engine warns at boot when one is set.
+Overrides are baked into the registry once at boot, after every tool is registered (builtins, shell, MCP, APIs) and before any agent set is exposed. A `params` entry naming a param the schema does not declare is skipped with a warning, never an error. Policy fields apply per tool; `kind` (`read`, `write`, `destructive`) classifies side effects for hosted-mode authorization, and `permission: forbidden` removes the tool from every exposed set. `cost_level`, `user_visible` and `autonomous` are accepted, copied onto the tool, and consulted by nothing; `tools.policy.write` is likewise parsed and unused. The engine warns at boot when one is set.
 
 **Reaching script-declared tools**: an override may also name a tool a loop declares with `tool.def` — see below. Those entries are not baked at boot (the tool does not exist until a chunk loads); they are resolved when the loop builds its list, against the live prompt registry, so editing a `file:`-backed prompt shows up on the next `tools.list()`. A misspelled *prompt key* is still a boot error for either kind of tool. A tool name that is neither registered nor declared by any loaded loop cannot be caught at boot, so it is logged once at boot as held for a script declaration (one informational line naming them, so a typo is visible before any agent takes a turn) and then warned about once per name the first time a loop declares its tools without claiming it.
 
@@ -1067,7 +1070,7 @@ plugins:
     - agent.spawn
     - agent.send
     - agent.request
-  enforce_capabilities: true    # default; false restores pre-enforcement behavior
+  enforce_capabilities: true    # default; false allowed only when runtime.mode is self_hosted
 ```
 
 `plugins.dir` also **shadows builtins by name**: a file `<dir>/<name>.ts` (or `.js`, e.g. `./plugins/recency.ts`) replaces the embedded builtin of that name everywhere — loop/route refs (`loop: plugin:recency`, including the hot-reload watch path) and the support chunks loaded into every session. The shadow files are watched: a shadowed support chunk is re-read at every session start (the first one and each reload restart), and an edit restarts every live session, so it takes effect without a process restart. An unshadowed chunk is embedded and has no file to edit.

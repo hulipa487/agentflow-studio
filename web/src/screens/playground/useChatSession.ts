@@ -4,7 +4,7 @@
 // answer from an earlier turn, thread or agent is never applied.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, type Client } from '@/api/client'
-import type { ChatEvent, MediaPart, Reply, Thread, TraceEvent } from '@/api/types'
+import type { ApprovalPrompt, ChatEvent, MediaPart, Reply, Thread, TraceEvent } from '@/api/types'
 import { t } from '@/i18n'
 import { newThreadID, shortID } from '@/lib/format'
 import { toastError } from '@/state/ui'
@@ -39,6 +39,8 @@ export interface ChatSession {
   stop: () => Promise<void>
   /** Starts a turn; false when one is already running or both text and attachments are blank. */
   send: (text: string, actAs?: string, attachments?: MediaPart[]) => boolean
+  /** Approves or denies an inline runtime approval prompt. */
+  decideApproval: (id: string, approve: boolean) => Promise<void>
   /** True while a turn is in flight, readable before the next render. */
   busy: () => boolean
 }
@@ -282,6 +284,24 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
             )
           }
           break
+        case 'approval':
+          if (ev.approval) {
+            const ap: ApprovalPrompt = ev.approval
+            setMessages((m) => {
+              if (m.some((x) => x.approval?.prompt.id === ap.id)) return m
+              const entry: Message = {
+                id: messageID(),
+                role: 'approval',
+                text: ap.action,
+                at: new Date(),
+                approval: { prompt: ap, state: 'pending' },
+              }
+              const idx = m.findIndex((x) => x.id === pending)
+              if (idx >= 0) return [...m.slice(0, idx), entry, ...m.slice(idx)]
+              return [...m, entry]
+            })
+          }
+          break
         case 'error': {
           // The last word of a turn that failed: the message could not be
           // handed to the agent, or its loop failed while answering.
@@ -353,6 +373,42 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
     return true
   }
 
+  const decideApproval = useCallback(
+    async (id: string, approve: boolean) => {
+      setMessages((m) =>
+        m.map((x) =>
+          x.approval?.prompt.id === id
+            ? { ...x, approval: { ...x.approval, state: 'submitting', error: undefined } }
+            : x,
+        ),
+      )
+      try {
+        const rec = await client.decideStudioApproval(id, approve)
+        if (!alive.current) return
+        const nextState = rec.status === 'approved' ? 'approved' : 'denied'
+        setMessages((m) =>
+          m.map((x) =>
+            x.approval?.prompt.id === id
+              ? { ...x, approval: { ...x.approval, state: nextState, error: undefined } }
+              : x,
+          ),
+        )
+      } catch (err) {
+        toastError(err)
+        if (!alive.current) return
+        const msg = errorMessage(err)
+        setMessages((m) =>
+          m.map((x) =>
+            x.approval?.prompt.id === id
+              ? { ...x, approval: { ...x.approval, state: 'error', error: msg } }
+              : x,
+          ),
+        )
+      }
+    },
+    [client],
+  )
+
   return {
     agent,
     thread,
@@ -370,6 +426,7 @@ export function useChatSession(client: Client, initialAgent: string, opts: { thr
     loadThreads,
     stop,
     send,
+    decideApproval,
     busy: () => inFlight.current,
   }
 }

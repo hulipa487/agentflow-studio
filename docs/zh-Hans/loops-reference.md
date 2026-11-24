@@ -238,7 +238,7 @@ store.delete(table, key)
 ```ts
 tools.list() -> [ToolSpec]
 tools.run(name, args, opts?) -> ToolResult
-// opts: { confirmed: true, confirm_id: "..." }
+// opts: { idempotency_key?: "..." }
 
 tool.def({
   name: "script:shout",
@@ -254,7 +254,7 @@ tool.def({
 });
 ```
 
-如果工具声明了 `needs_confirm: true`，第一次调用会返回 `needs_confirm` 响应。运行时去问用户，然后带 `opts.confirmed = true` 重新调用。你的循环只看到最终结果。（等待是有界的：十分钟，超时即拒绝 —— 调度器轮次上的确认式工具没有渠道可应答，无界等待会把会话永久挂住。）
+如果工具声明了 `needs_confirm: true`，运行时会创建一条绑定会话、工作区、合资格审批人、动作修订版本、归一化参数和目标地址的单次审批记录，暂停等待已验证确认（授权渠道回复或 Studio 审批卡片），并在一次执行时原子认领该审批。脚本选项不能传入 `confirmed: true`；`opts.idempotency_key` 会在重试时持久化写入意图并在超时或取消后结果不确定时故障关闭。你的循环只看到最终结果。（等待是有界的：十分钟，超时即拒绝 —— 调度器轮次上的确认式工具没有渠道可应答，无界等待会把会话永久挂住。）
 
 **工具循环是循环自己的事。** 引擎只在被要求时执行工具并返回结果，不驱动对话。用 `tools` 调 `llm.chat`、把返回的东西通过 `tools.run` 跑一遍、把它们作为 `role: "tool"` 轮次发回去再问一次 —— 这都是代码块的工作，包括*第二*轮，而这正是最容易忘的：看到第一个结果后还要再要工具调用的模型，只有代码块再检查一次 `reply.tool_calls` 才能拿到它。循环持久化什么也是同理：工具调用及其结果是下一轮该看到的历史，只存助手文本的代码块，会让模型在后续对话里引用一个已经不存在的工具结果。
 
@@ -268,12 +268,12 @@ tool.def({
 
 ```ts
 api.list() -> [APIDescriptor]                 // { name, version, description, runtime: "script"|"wasm", actions }
-api.call(pkg, action, args?) -> unknown
-api.batch(calls) -> [{ ok, data?, error? }]   // calls: [{ api, action, args }]
-api.<pkg>.<action>(args?) -> unknown          // api.call(pkg, action, args) 的只读 Proxy 简写
+api.call(pkg, action, args?, opts?) -> unknown  // opts: { idempotency_key?: "..." }
+api.batch(calls) -> [{ ok, data?, error? }]     // calls: [{ api, action, args, idempotency_key? }]
+api.<pkg>.<action>(args?) -> unknown            // api.call(pkg, action, args) 的只读 Proxy 简写
 ```
 
-外部 API 是可插拔的包，用沙箱化的 TypeScript（`goja`）脚本（`apis/<pkg>/...`）或 WebAssembly（`wazero`）模块实现 —— 与会话状态隔离，经宿主边界调用。声明为 `expose_as_tool: true` 的操作在智能体同时持有 `apis` 和 `tools` 时，也会作为 `api:<pkg>.<action>` 工具出现在 LLM 面前（持有 `apis` 的循环也可以直接调用）。每个操作都在自己的包权限和超时下执行；`api.call` / `api.<pkg>.<action>` 的错误会抛出，而 `api.batch` 返回逐次调用的 `{ ok, data, error }`。
+外部 API 是可插拔的包，用沙箱化的 TypeScript（`goja`）脚本（`apis/<pkg>/...`）或 WebAssembly（`wazero`）模块实现 —— 与会话状态隔离，经宿主边界调用。直接的 `api.call` / `api.batch` 调用与声明为 `expose_as_tool: true` 的工具封装（`api:<pkg>.<action>`）在共享执行边界上强制执行相同的能力、`tools.policy`、托管模式 `kind`、审批和 `idempotency_key` 策略。每个操作都在自己的包权限和超时下执行；`api.call` / `api.<pkg>.<action>` 的错误会抛出，而 `api.batch` 返回逐次调用的 `{ ok, data, error }`（需要审批的子项会单独失败）。
 
 #### `shell` —— 能力：`shell.exec`
 
@@ -434,7 +434,7 @@ try {
 
 ### 确认与权限
 
-工具和 Shell 内置项可以声明 `needs_confirm`。第一次 `tools.run` 返回带 `needs_confirm: true` 和 `confirm_id` 的结果；actor 去问用户，然后带 `opts.confirmed = true` 和同一个 `confirm_id` 重新调用。你的循环只看最终结果，所以多数情况下不必手工处理确认。
+工具、Shell 内置项与外部 API 动作可以声明 `needs_confirm`。需要确认时，运行时会创建一条绑定会话、工作区、合资格审批人、动作修订版本、归一化参数和目标地址的单次审批记录，向用户询问（或向 Studio 推送脱敏审批提示），并在单次执行时原子消耗该审批；脚本不能传入 `confirmed: true`。在有副作用的调用上使用 `opts.idempotency_key` 以便在不确定结果时对账或重播。你的循环只看最终结果，所以多数情况下不必手工处理确认。
 
 ### 限制与注意事项
 

@@ -92,6 +92,33 @@ describe('client', () => {
     expect(events[2].done?.thread).toBe('t1')
   })
 
+  it('streams approval prompts and submits studio approval decisions', async () => {
+    const stream = [
+      'event: trace\ndata: {"trace":{"seq":1,"kind":"turn.start"}}\n\n',
+      'event: approval\ndata: {"type":"approval","approval":{"id":"ap-1","session_key":"echo|studio:t1","agent":"echo","action":"builtin:fs.write","destination":"sandbox:app","args_preview":{"api_key":"[REDACTED]"},"expires_at":1800000000}}\n\n',
+      'event: done\ndata: {"type":"done","done":{"thread":"t1","events":1,"timed_out":false}}\n\n',
+    ]
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sse(stream))
+      .mockResolvedValueOnce(json(200, { ok: true, approvals: [{ id: 'ap-1', status: 'pending', session_key: 'echo|studio:t1', agent: 'echo', action: 'builtin:fs.write', expires_at: 1800000000, created_at: 1700000000 }] }))
+      .mockResolvedValueOnce(json(200, { ok: true, approval: { id: 'ap-1', status: 'approved', session_key: 'echo|studio:t1', agent: 'echo', action: 'builtin:fs.write', expires_at: 1800000000, created_at: 1700000000 } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const c = new Client({ url: 'http://x', token: 't', viaProxy: false })
+    const events: ChatEvent[] = []
+    await c.chat({ agent: 'echo', thread: 't1', text: 'write' }, (ev) => events.push(ev))
+    expect(events.map((e) => e.type)).toEqual(['trace', 'approval', 'done'])
+    expect(events[1].approval?.args_preview?.api_key).toBe('[REDACTED]')
+
+    const list = await c.studioApprovals('echo|studio:t1')
+    expect(list).toHaveLength(1)
+    expect(list[0].id).toBe('ap-1')
+
+    const decided = await c.decideStudioApproval('ap-1', true)
+    expect(decided.status).toBe('approved')
+  })
+
   it('reads the log tail line by line', async () => {
     const lines: string[] = []
     await readSSE(sse(['data: 10:00:00 INF up\n\ndata: 10:00:01 ERR boom\n\n', 'data: tail without blank line\n']), (_e, d) => lines.push(d))

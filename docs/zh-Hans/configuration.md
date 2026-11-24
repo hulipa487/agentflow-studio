@@ -71,6 +71,7 @@ YAML 定义*拓扑* —— 有什么、怎么连。行为放在 TypeScript/JS �
 | `scheduler.workers` | int | 8 | 操作池大小。这是唯一能设置它的地方 |
 | `persistence` | string | sqlite://./data/agentflow.db | 消息日志、Token 台账及其逐次明细，以及引擎的键值行（文件树、会话状态、路由状态、Shell 句柄）存放的位置。调度器计时器*不*在这里：计时服务在内存里，所以重启会忘掉所有计时器，直到循环重新注册 |
 | `topology` | string | single | 部署层级：`single`（单进程）或 `regional`（一个区域内多个实例共用一个 PostgreSQL）。不设置即 `single`。层级决定其他哪些设置合法；启动时会拒绝它兑现不了的设置。见[拓扑](#topology) |
+| `mode` | string | self_hosted | 执行安全模式：`self_hosted` 或 `hosted`。`hosted` 模式强制开启 `plugins.enforce_capabilities: true`、拒绝 stdio `mcp.servers.*.command`，并默认拒绝未分类的动作（`kind: ""`） |
 | `zone` | string | "" | 区域内的可用区标签（字母、数字和 `. _ -`，最多 32 个字符）。会出现在指标和 `/admin/api/state` 里；它只是标签，绝不参与路由决策 |
 | `shutdown_grace` | duration | 区域 5s · 单实例 0 | 关闭时先报告未就绪、继续服务多久才关闭监听器，好让负载均衡器排空、让在途的轮次跑完。`0` 表示不等待 |
 | `sessions.idle_unload` | duration | 30m | 会话闲置这么久后卸载。它的 VM 局部变量随之消失；`session.state.*` 仍在，下一条消息会重建会话。会话 ID 不回收，租约释放。`0` 关闭卸载 |
@@ -756,7 +757,7 @@ mcp:
       token: ${MCP_AFFILIATE_TOKEN}   # 以 Authorization: Bearer 发送
 ```
 
-服务器声明 `command`（作为子进程派生，经 stdio 通信）**或** `url`（一个 Streamable HTTP 端点，直接拨号）二选一。两者都在启动时连接一次，连不上的服务器会被跳过并给出警告，而不是让运行停下来。HTTP 传输正是让集成能完全住在本仓库之外的原因 —— 一个独立部署、独立版本化的服务，运行时借此支持自有或授权的连接器而无须随附它们。`token` 只作用于 HTTP 传输，每次请求都作为 Bearer 凭据发送；不需要的端点留空即可。
+服务器声明 `command`（作为子进程派生，经 stdio 通信）**或** `url`（一个 Streamable HTTP 端点，直接拨号）二选一。两者都在启动时连接一次，连不上的服务器会被跳过并给出警告，而不是让运行停下来。HTTP 传输正是让集成能完全住在本仓库之外的原因 —— 一个独立部署、独立版本化的服务，运行时借此支持自有或授权的连接器而无须随附它们。`token` 只作用于 HTTP 传输，并且仅向已配置的来源发送 Bearer 凭据（跨源重定向会被拒绝）；不需要的端点留空即可。在 `runtime.mode: hosted` 下，会在校验和启动时拒绝由宿主拉起的 stdio `command:` 服务器。
 
 连接时发现的工具以 `mcp:<server>/<tool>` 进入注册表。服务器断开后，调用返回结构化的 `unavailable`。
 
@@ -800,10 +801,11 @@ apis:
     actions:
       charge:
         description: "Charge a customer"
+        kind: write                  # read | write | destructive（hosted 模式必填）
         expose_as_tool: true         # 注册为工具 api:billing.charge（需 apis 能力）
 ```
 
-把外部 API 扩展包注册到运行时的隔离扩展注册表（循环中在 `apis` 能力下通过 `api.*` 调用）。每个扩展包都在每次调用时运行在全新的 Goja VM 中（`runtime: script`，支持 TypeScript/JS），或运行在 `wazero` 沙盒内的已编译 `.wasm` 模块中（`runtime: wasm`，受 `timeout` 与 `memory_mb` 限制）；所有出站 HTTP 均受 `capabilities.http.allowed_hosts` 与宿主注入的 `capabilities.http.credentials` 约束。
+把外部 API 扩展包注册到运行时的隔离扩展注册表（循环中在 `apis` 能力下通过 `api.*` 调用）。每个扩展包都在每次调用时运行在全新的 Goja VM 中（`runtime: script`，支持 TypeScript/JS），或运行在 `wazero` 沙盒内的已编译 `.wasm` 模块中（`runtime: wasm`，受 `timeout` 与 `memory_mb` 限制）；所有出站 HTTP 均受 `capabilities.http.allowed_hosts` 与宿主注入的 `capabilities.http.credentials` 约束。动作策略（`kind`、`requires_capability`、`needs_confirm` 与 `tools.policy`）在 `api:<pkg>.<action>` 工具封装和直接的 `api.call` / `api.batch` 调用之间以完全一致的方式强制执行。
 
 指定 `dir` 会加载 `<dir>/manifest.yaml`（并在包目录内解析 `entry`），也可直接内联声明 `runtime`、`entry` 与 `actions`。配置了 `expose_as_tool: true` 的动作还会自动注册为模型工具 `api:<pkg>.<action>`。替代原内置法律检索工具的两个外部 API 参考实现（基于 TypeScript/Goja 的 `hklii` 与基于 Go/Wasm 的 `npc`）位于 `examples/apis/hklii` 和 `examples/apis/npc`。
 
@@ -923,12 +925,13 @@ tools:
                                                            # 或来自 prompts: 的 {prompt: }
         params:                            # 浅合并到 parameters.properties 中
           query: { description: "What to look up, in the user's words" }
-        needs_confirm: false               # 策略字段：needs_confirm、permission
+        needs_confirm: false               # 策略字段：kind、needs_confirm、permission
+        kind: read                         # read | write | destructive
         autonomous: true                   #   （cost_level / user_visible / autonomous 会被
                                            #    解析但无人读取——启动时警告）
 ```
 
-覆盖在启动时一次性地烤进注册表，在所有工具都注册完（内置、shell、MCP、APIs）之后、任何智能体集合暴露之前。`params` 条目点名一个 schema 没有声明的参数时会被跳过并给出警告，绝不报错。策略字段按工具生效；`permission: forbidden` 把工具从每个暴露集合里移除 —— 也是其中唯一真正生效的一个。`cost_level`、`user_visible` 和 `autonomous` 会被接受、复制到工具上，然后没有任何地方读取它们；`tools.policy.write` 同样只解析不使用。设置了其中任何一个时，引擎会在启动时警告。
+覆盖在启动时一次性地烤进注册表，在所有工具都注册完（内置、shell、MCP、APIs）之后、任何智能体集合暴露之前。`params` 条目点名一个 schema 没有声明的参数时会被跳过并给出警告，绝不报错。策略字段按工具生效；`kind`（`read`、`write`、`destructive`）用于分类副作用以供托管模式授权校验，而 `permission: forbidden` 把工具从每个暴露集合里移除。`cost_level`、`user_visible` 和 `autonomous` 会被接受、复制到工具上，然后没有任何地方读取它们；`tools.policy.write` 同样只解析不使用。设置了其中任何一个时，引擎会在启动时警告。
 
 **触达脚本声明的工具**：覆盖也可以点名循环用 `tool.def` 声明的工具 —— 见下文。那些条目不在启动时烤入（代码块加载之前工具并不存在）；它们在循环构建列表时解析，对着活跃的提示词注册表，所以编辑一个基于 `file:` 的提示词，会在下一次 `tools.list()` 时生效。拼错的*提示词键*对两类工具都仍是启动错误。一个既没注册、也没被任何已加载循环声明的工具名，无法在启动时抓到，所以启动时会记一行「保留给脚本声明」（列出这些名字，让拼错在任何智能体跑起来之前就可见），之后在某个循环首次声明工具却没认领它时，按名字警告一次。
 
@@ -1014,7 +1017,7 @@ plugins:
     - agent.spawn
     - agent.send
     - agent.request
-  enforce_capabilities: true    # 默认值；false 恢复强制执行之前的行为
+  enforce_capabilities: true    # 默认值；仅当 runtime.mode 为 self_hosted 时允许 false
 ```
 
 `plugins.dir` 也会**按名字覆写内置实现**：文件 `<dir>/<name>.ts`（或 `.js`，例如 `./plugins/recency.ts`）会在所有地方替换同名内置实现 —— 循环/路由引用（`loop: plugin:recency`，包括热重载监听路径）以及加载进每个会话的支持片段。覆写文件受监听：被覆写的支持片段在每次会话启动时重读（第一次以及每次重载重启），编辑它会重启所有活跃会话，所以无需重启进程即可生效。未被覆写的片段是内嵌的，没有文件可改。

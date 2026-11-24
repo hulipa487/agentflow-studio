@@ -88,14 +88,14 @@ export const preludeEntries: readonly ApiEntry[] = [
   // tools / tool
   { path: 'tools', signature: 'tools', summary: 'Model-visible tools and dispatcher.', kind: 'table' },
   { path: 'tools.list', signature: 'tools.list(): ToolSpec[]', summary: 'Tool specs visible to this agent after skills and policy.', capability: 'tools', kind: 'function', insert: 'list()', yields: true },
-  { path: 'tools.run', signature: 'tools.run(name, args, opts?): unknown', summary: 'Run a tool. needs_confirm tools suspend for confirmation and re-run with confirmed=true.', capability: 'tools', kind: 'function', insert: 'run(${1:name}, ${2:args})', yields: true },
+  { path: 'tools.run', signature: 'tools.run(name, args, opts?): unknown', summary: 'Run a tool. Interactive approval tools suspend for runtime confirmation. opts: { idempotency_key }.', capability: 'tools', kind: 'function', insert: 'run(${1:name}, ${2:args})', yields: true },
   { path: 'tool', signature: 'tool', summary: 'Declare script-implemented tools.', kind: 'table' },
   { path: 'tool.def', signature: 'tool.def(spec)', summary: 'Declare a model-visible tool at chunk top level before loop().', capability: 'tools', kind: 'function', insert: 'def({\n  name: ${1:"script:tool"},\n  description: ${2:"..."},\n  params: ${3:{ type: "object", properties: {} }},\n  handler(args) {\n    $0\n  },\n})' },
 
   // external APIs (Goja / wazero)
   { path: 'api', signature: 'api', summary: 'Configured external APIs (Goja TypeScript modules and Wasm/wazero modules). Call api.list(), api.call(), api.batch(), or api.<pkg>.<action>(args).', capability: 'apis', kind: 'table' },
   { path: 'api.list', signature: 'api.list(): APIDescriptor[]', summary: 'List configured external API packages and their actions.', capability: 'apis', kind: 'function', insert: 'list()', yields: true },
-  { path: 'api.call', signature: 'api.call(pkg, action, args?): unknown', summary: 'Invoke an external API action by package and action name.', capability: 'apis', kind: 'function', insert: 'call(${1:pkg}, ${2:action}, ${3:{}})', yields: true },
+  { path: 'api.call', signature: 'api.call(pkg, action, args?, opts?): unknown', summary: 'Invoke an external API action by package and action name. opts: { idempotency_key }.', capability: 'apis', kind: 'function', insert: 'call(${1:pkg}, ${2:action}, ${3:{}})', yields: true },
   { path: 'api.batch', signature: 'api.batch(calls): BatchAPIResult[]', summary: 'Run multiple external API calls concurrently from Go and return ordered results.', capability: 'apis', kind: 'function', insert: 'batch(${1:calls})', yields: true },
 
   // shell
@@ -119,7 +119,7 @@ export const preludeEntries: readonly ApiEntry[] = [
 
   // http / os
   { path: 'http', signature: 'http', summary: 'Outbound HTTP with a private-address guard.', kind: 'table' },
-  { path: 'http.request', signature: 'http.request(req): HTTPResponse', summary: 'Execute an HTTP request (supports auth_service credentials resolved in Go).', capability: 'net.http', kind: 'function', insert: 'request({ url: ${1:"..."} })', yields: true },
+  { path: 'http.request', signature: 'http.request(req): HTTPResponse', summary: 'Execute an HTTP request (supports auth_service credentials resolved in Go and optional idempotency_key).', capability: 'net.http', kind: 'function', insert: 'request({ url: ${1:"..."} })', yields: true },
   { path: 'http.get', signature: 'http.get(url, opts?): HTTPResponse', summary: 'HTTP GET helper.', capability: 'net.http', kind: 'function', insert: 'get(${1:url})', yields: true },
   { path: 'http.post', signature: 'http.post(url, body, opts?): HTTPResponse', summary: 'HTTP POST helper.', capability: 'net.http', kind: 'function', insert: 'post(${1:url}, ${2:body})', yields: true },
   { path: 'os', signature: 'os', summary: 'UTC clock and allow-listed environment access.', kind: 'table' },

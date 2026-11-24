@@ -239,7 +239,7 @@ store.delete(table, key)
 ```ts
 tools.list() -> [ToolSpec]
 tools.run(name, args, opts?) -> ToolResult
-// opts: { confirmed: true, confirm_id: "..." }
+// opts: { idempotency_key?: "..." }
 
 tool.def({
   name: "script:shout",
@@ -255,7 +255,7 @@ tool.def({
 });
 ```
 
-如果工具宣告了 `needs_confirm: true`，第一次呼叫會回傳 `needs_confirm` 回應。執行環境去問使用者，然後帶 `opts.confirmed = true` 重新呼叫。你的迴圈只看最終結果。（等待是有界的：十分鐘，逾時即拒絕 —— 排程器輪次上的確認式工具沒有頻道可應答，無界等待會把工作階段永久掛住。）
+如果工具宣告了 `needs_confirm: true`，執行環境會建立一筆綁定工作階段、工作區、合資格核准者、動作修訂版、正規化參數與目標位址的單次核准紀錄，暫停等待已驗證確認（授權頻道回覆或 Studio 核准卡片），並在單次執行時原子認領該核准。指令碼選項不能傳入 `confirmed: true`；`opts.idempotency_key` 會在重試時持久化寫入意圖，並在逾時或取消後結果不確定時故障關閉。你的迴圈只看最終結果。（等待是有界的：十分鐘，逾時即拒絕 —— 排程器輪次上的確認式工具沒有頻道可應答，無界等待會把工作階段永久掛住。）
 
 **工具迴圈是迴圈自己的事。** 引擎只在被要求時執行工具並回傳結果，不驅動對話。用 `tools` 呼叫 `llm.chat`、把回傳的東西透過 `tools.run` 跑一遍、把它們作為 `role: "tool"` 輪次送回去再問一次 —— 這都是程式碼區塊的工作，包括*第二*輪，而這正是最容易忘的：看到第一個結果後還要再要工具呼叫的模型，只有程式碼區塊再檢查一次 `reply.tool_calls` 才能拿到它。迴圈持久化什麼也是同理：工具呼叫及其結果是下一輪該看到的歷史，只存助理文字的程式碼區塊，會讓模型在後續對話裡參照一個已經不存在的工具結果。
 
@@ -269,12 +269,12 @@ tool.def({
 
 ```ts
 api.list() -> [APIDescriptor]                 // { name, version, description, runtime: "script"|"wasm", actions }
-api.call(pkg, action, args?) -> unknown
-api.batch(calls) -> [{ ok, data?, error? }]   // calls: [{ api, action, args }]
-api.<pkg>.<action>(args?) -> unknown          // api.call(pkg, action, args) 的唯讀 Proxy 簡寫
+api.call(pkg, action, args?, opts?) -> unknown  // opts: { idempotency_key?: "..." }
+api.batch(calls) -> [{ ok, data?, error? }]     // calls: [{ api, action, args, idempotency_key? }]
+api.<pkg>.<action>(args?) -> unknown            // api.call(pkg, action, args) 的唯讀 Proxy 簡寫
 ```
 
-外部 API 是可插拔的套件，用沙箱化的 TypeScript（`goja`）指令碼（`apis/<pkg>/...`）或 WebAssembly（`wazero`）模組實作 —— 與工作階段狀態隔離，經宿主邊界呼叫。宣告為 `expose_as_tool: true` 的操作在代理同時持有 `apis` 與 `tools` 時，也會作為 `api:<pkg>.<action>` 工具出現在 LLM 面前（持有 `apis` 的迴圈也可以直接呼叫）。每個操作都在自己的套件權限與逾時下執行；`api.call` / `api.<pkg>.<action>` 的錯誤會拋出，而 `api.batch` 回傳逐次呼叫的 `{ ok, data, error }`。
+外部 API 是可插拔的套件，用沙箱化的 TypeScript（`goja`）指令碼（`apis/<pkg>/...`）或 WebAssembly（`wazero`）模組實作 —— 與工作階段狀態隔離，經宿主邊界呼叫。直接的 `api.call` / `api.batch` 呼叫與宣告為 `expose_as_tool: true` 的工具封裝（`api:<pkg>.<action>`）在共用執行邊界上強制執行相同的能力、`tools.policy`、託管模式 `kind`、核准與 `idempotency_key` 原則。每個操作都在自己的套件權限與逾時下執行；`api.call` / `api.<pkg>.<action>` 的錯誤會拋出，而 `api.batch` 回傳逐次呼叫的 `{ ok, data, error }`（需要核准的子項目會單獨失敗）。
 
 #### `shell` —— 能力：`shell.exec`
 
@@ -435,7 +435,7 @@ try {
 
 ### 確認與權限
 
-工具與 Shell 內建項可以宣告 `needs_confirm`。第一次 `tools.run` 回傳帶 `needs_confirm: true` 與 `confirm_id` 的結果；actor 去問使用者，然後帶 `opts.confirmed = true` 和同一個 `confirm_id` 重新呼叫。你的迴圈只看最終結果，所以多數情況下不必手動處理確認。
+工具、Shell 內建項與外部 API 動作可以宣告 `needs_confirm`。需要確認時，執行環境會建立一筆綁定工作階段、工作區、合資格核准者、動作修訂版、正規化參數與目標位址的單次核准紀錄，向使用者詢問（或向 Studio 推送脫敏核准提示），並在單次執行時原子消耗該核准；指令碼不能傳入 `confirmed: true`。在有副作用的呼叫上使用 `opts.idempotency_key` 以便在不確定結果時對帳或重播。你的迴圈只看最終結果，所以多數情況下不必手動處理確認。
 
 ### 限制與注意事項
 

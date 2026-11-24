@@ -143,11 +143,41 @@ export interface ChatResult {
   timed_out: boolean
 }
 
-/** One SSE event of a playground turn: trace, reply, error or done. */
+/** Runtime-owned redacted approval prompt streamed when a gated action needs confirmation. */
+export interface ApprovalPrompt {
+  id: string
+  session_key: string
+  agent: string
+  action: string
+  destination?: string
+  description?: string
+  args_preview?: Record<string, unknown>
+  expires_at: number
+}
+
+export type ApprovalStatus =
+  | 'pending'
+  | 'approved'
+  | 'denied'
+  | 'claimed'
+  | 'expired'
+  | 'succeeded'
+  | 'failed'
+  | 'uncertain'
+
+export interface ApprovalRecord extends ApprovalPrompt {
+  status: ApprovalStatus
+  created_at: number
+  decided_at?: number
+  decided_by?: string
+}
+
+/** One SSE event of a playground turn: trace, reply, approval, error or done. */
 export interface ChatEvent {
   type: string
   trace?: TraceEvent
   reply?: Reply
+  approval?: ApprovalPrompt
   done?: ChatResult
   error?: string
 }

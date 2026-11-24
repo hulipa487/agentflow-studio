@@ -452,7 +452,7 @@ store.scopes(table) -> [ "user:<uuid>", ... ]   // 僅限維護來源
 ```ts
 tools.list() -> [ { type: "function", function: { name, description, parameters } } ]
 tools.run(name, args, opts?) -> result
-// opts: { confirmed: true, confirm_id: "..." }
+// opts: { idempotency_key?: "..." }
 ```
 
 在 TypeScript/JS 頂層、`loop()` 之前宣告一個模型可見的工具：
@@ -474,7 +474,7 @@ tool.def({
 
 宣告的工具會併入 `tools.list()`，並由 `tools.run` 分派；拋錯的處理常式回傳 `{ ok: false, error: ... }`，而不是把迴圈搞死。可見性和 Go 註冊的工具完全一樣，跟隨代理的 `skills` 與 `tools.policy.default` —— 被隱藏的宣告工具既不列出也不可分派。Go 原則（`forbidden`、`needs_confirm`）管不到迴圈自己宣告的處理常式。
 
-如果某個工具（Go 的，或透過覆寫宣告的）帶 `needs_confirm: true`，執行環境會攔下第一次 `tools.run`，問使用者，再帶 `confirmed: true` 重新呼叫；迴圈只看最終結果。等待提示是有界的（十分鐘）。
+如果某個工具（Go 的，或透過覆寫宣告的）帶 `needs_confirm: true`，執行環境會攔下呼叫，建立一筆綁定工作階段、工作區、合資格核准者、動作修訂版、參數與目標位址的單次核准紀錄，並暫停等待已驗證確認（頻道 `[ref:<id>]` / `confirm.decision` 或 Studio 內嵌脫敏核准卡片）。指令碼輸入不能偽造或傳入 `confirmed: true`；`opts.idempotency_key` 會在執行環境儲存中持久化寫入意圖，使重試能重播已完成結果，並在因中斷而結果不確定時故障關閉（等待提示上限為十分鐘）。
 
 ### 6.8 `shell`
 
@@ -599,12 +599,12 @@ json.decode(text) -> value
 
 ```ts
 api.list() -> [ { name, version, description, runtime: "script" | "wasm", actions } ]
-api.call(pkg, action, args?) -> result
-api.batch(calls) -> [ { ok, data?, error? } ]   // calls: [{ api, action, args }]
+api.call(pkg, action, args?, opts?) -> result   // opts: { idempotency_key?: "..." }
+api.batch(calls) -> [ { ok, data?, error? } ]   // calls: [{ api, action, args, idempotency_key? }]
 api.<pkg>.<action>(args?) -> result              // api.call 的 Proxy 簡寫
 ```
 
-外部 API 是獨立的 TypeScript（`goja`）或 WebAssembly（`wazero`）套件，在 `apis:` 下設定（`apis` 能力，在預設集合裡）。每個套件在自己的隔離執行環境、自己的權限與逾時下執行。`api.call` 與 `api.<pkg>.<action>` 出錯會拋，而 `api.batch` 回傳逐次呼叫的 `{ ok, data, error }`。標記為 `expose_as_tool: true` 的操作，在代理同時擁有 `apis` 與 `tools` 時，也會作為 `api:<pkg>.<action>` 工具出現。
+外部 API 是獨立的 TypeScript（`goja`）或 WebAssembly（`wazero`）套件，在 `apis:` 下設定（`apis` 能力，在預設集合裡）。每個套件在自己的隔離執行環境、自己的權限與逾時下執行。直接呼叫 `api.call` 與 `api.batch` 會通過與 `api:<pkg>.<action>` 工具封裝相同的能力、`tools.policy`、託管模式 `kind`、核准與 `idempotency_key` 驗證。`api.call` 與 `api.<pkg>.<action>` 出錯會拋，而 `api.batch` 回傳逐次呼叫的 `{ ok, data, error }`（任何需要確認的批次項目會單獨失敗，必須改用 `api.call` 呼叫）。標記為 `expose_as_tool: true` 的操作，在代理同時擁有 `apis` 與 `tools` 時，也會作為 `api:<pkg>.<action>` 工具出現。
 
 ---
 
