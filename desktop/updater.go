@@ -902,7 +902,10 @@ func assetNameFor(goos, goarch string) string {
 	case "windows":
 		return "agentflow-studio-windows-" + goarch + ".exe"
 	case "darwin":
-		return "agentflow-studio-darwin-" + goarch + ".tar.gz"
+		if goarch != "arm64" {
+			return ""
+		}
+		return "agentflow-studio-darwin-arm64.tar.gz"
 	case "linux":
 		return "agentflow-studio-linux-" + goarch + ".tar.gz"
 	default:

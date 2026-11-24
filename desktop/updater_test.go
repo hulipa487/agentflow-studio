@@ -49,6 +49,9 @@ func TestAssetNameAndSHA256Sums(t *testing.T) {
 	if got := assetNameFor("darwin", "arm64"); got != "agentflow-studio-darwin-arm64.tar.gz" {
 		t.Fatalf("darwin/arm64 asset = %q", got)
 	}
+	if got := assetNameFor("darwin", "amd64"); got != "" {
+		t.Fatalf("unexpected darwin/amd64 asset = %q", got)
+	}
 	if got := assetNameFor("linux", "amd64"); got != "agentflow-studio-linux-amd64.tar.gz" {
 		t.Fatalf("linux/amd64 asset = %q", got)
 	}
