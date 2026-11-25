@@ -5,9 +5,10 @@ import type { Channel, ChannelDraft } from '@/api/types'
 import { splitList } from '@/lib/format'
 import { t } from '@/i18n'
 
-export const CHANNEL_TYPES = ['webhook', 'telegram', 'qq', 'ghhook', 'bridge', 'openai']
+export const CHANNEL_TYPES = ['webhook', 'telegram', 'qq', 'email', 'ghhook', 'bridge', 'openai']
 export const TELEGRAM_MODES = ['polling', 'webhook', 'auto']
 export const QQ_MODES = ['websocket', 'webhook']
+export const EMAIL_MODES = ['idle', 'polling']
 /** QQ scenes in display order, each with the key of its label; the runtime listens to the first three when none are listed. */
 export const QQ_SCENES = [
   { id: 'c2c', labelKey: 'channels.scene.c2c' },
@@ -75,6 +76,24 @@ export interface ChannelForm {
   scenes: string[]
   apiBase: string
   markdown: boolean
+  // email
+  emailMode: string
+  imapHost: string
+  imapPort: string
+  smtpHost: string
+  smtpPort: string
+  username: string
+  password: string
+  clearPassword: boolean
+  smtpUsername: string
+  smtpPassword: string
+  clearSMTPPassword: boolean
+  fromAddress: string
+  mailbox: string
+  pollInterval: string
+  markSeen: boolean
+  allowFrom: string
+  allowDomains: string
 }
 
 export function formFor(existing: Channel | null, agents: string[]): ChannelForm {
@@ -108,6 +127,23 @@ export function formFor(existing: Channel | null, agents: string[]): ChannelForm
     scenes: [...QQ_DEFAULT_SCENES],
     apiBase: '',
     markdown: false,
+    emailMode: 'idle',
+    imapHost: '',
+    imapPort: '993',
+    smtpHost: '',
+    smtpPort: '465',
+    username: '',
+    password: '',
+    clearPassword: false,
+    smtpUsername: '',
+    smtpPassword: '',
+    clearSMTPPassword: false,
+    fromAddress: '',
+    mailbox: 'INBOX',
+    pollInterval: '',
+    markSeen: true,
+    allowFrom: '',
+    allowDomains: '',
   }
   if (!existing) return form
   // A file may use the agent: shorthand for an openai channel's single agent.
@@ -143,6 +179,19 @@ export function formFor(existing: Channel | null, agents: string[]): ChannelForm
     scenes: existing.type === 'qq' && (existing.scenes ?? []).length > 0 ? (existing.scenes ?? []).map((s) => s.toLowerCase()) : [...QQ_DEFAULT_SCENES],
     apiBase: existing.api_base ?? '',
     markdown: existing.markdown ?? false,
+    emailMode: existing.type === 'email' && EMAIL_MODES.includes(existing.mode) ? existing.mode : 'idle',
+    imapHost: existing.imap_host ?? '',
+    imapPort: (existing.imap_port ?? 0) > 0 ? String(existing.imap_port) : '993',
+    smtpHost: existing.smtp_host ?? '',
+    smtpPort: (existing.smtp_port ?? 0) > 0 ? String(existing.smtp_port) : '465',
+    username: existing.username ?? '',
+    smtpUsername: existing.smtp_username ?? '',
+    fromAddress: existing.from_address ?? '',
+    mailbox: existing.mailbox ?? 'INBOX',
+    pollInterval: existing.poll_interval ?? '',
+    markSeen: existing.mark_seen ?? true,
+    allowFrom: (existing.allow_from ?? []).join(', '),
+    allowDomains: (existing.allow_domains ?? []).join(', '),
   }
 }
 
@@ -218,6 +267,50 @@ export function buildDraft(f: ChannelForm): DraftResult {
       if (f.markdown) draft.markdown = true
       // The gateway needs no route; only webhook mode mounts one.
       if (f.qqMode === 'websocket') delete draft.path
+      break
+    }
+    case 'email': {
+      draft.mode = f.emailMode || 'idle'
+      draft.imap_host = f.imapHost.trim()
+      if (draft.imap_host === '') return { error: t('channels.error.imapHostRequired') }
+      const imapPortRaw = f.imapPort.trim()
+      if (imapPortRaw !== '') {
+        const n = Number(imapPortRaw)
+        if (!INTEGER.test(imapPortRaw) || !Number.isSafeInteger(n) || n < 1 || n > 65535) {
+          return { error: t('channels.error.invalidPort') }
+        }
+        draft.imap_port = n
+      }
+      draft.smtp_host = f.smtpHost.trim()
+      if (draft.smtp_host === '') return { error: t('channels.error.smtpHostRequired') }
+      const smtpPortRaw = f.smtpPort.trim()
+      if (smtpPortRaw !== '') {
+        const n = Number(smtpPortRaw)
+        if (!INTEGER.test(smtpPortRaw) || !Number.isSafeInteger(n) || n < 1 || n > 65535) {
+          return { error: t('channels.error.invalidPort') }
+        }
+        draft.smtp_port = n
+      }
+      draft.username = f.username.trim()
+      if (draft.username === '') return { error: t('channels.error.emailUsernameRequired') }
+      if (f.password) draft.password = f.password
+      if (f.clearPassword) draft.clear_password = true
+      const smtpUser = f.smtpUsername.trim()
+      if (smtpUser) draft.smtp_username = smtpUser
+      if (f.smtpPassword) draft.smtp_password = f.smtpPassword
+      if (f.clearSMTPPassword) draft.clear_smtp_password = true
+      const fromAddr = f.fromAddress.trim()
+      if (fromAddr) draft.from_address = fromAddr
+      const mailbox = f.mailbox.trim()
+      if (mailbox) draft.mailbox = mailbox
+      const poll = f.pollInterval.trim()
+      if (poll) draft.poll_interval = poll
+      draft.mark_seen = f.markSeen
+      const allowFrom = splitList(f.allowFrom)
+      if (allowFrom.length) draft.allow_from = allowFrom
+      const allowDomains = splitList(f.allowDomains)
+      if (allowDomains.length) draft.allow_domains = allowDomains
+      delete draft.path
       break
     }
     case 'bridge': {

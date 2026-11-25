@@ -296,6 +296,18 @@ export interface Channel {
   scenes?: string[]
   api_base?: string
   markdown?: boolean
+  imap_host?: string
+  imap_port?: number
+  smtp_host?: string
+  smtp_port?: number
+  username?: string
+  smtp_username?: string
+  from_address?: string
+  mailbox?: string
+  poll_interval?: string
+  mark_seen?: boolean
+  allow_from?: string[] | null
+  allow_domains?: string[] | null
   /** openai: how callers authenticate (key, user_token or none). */
   auth?: string
   max_request_bytes?: number
@@ -308,10 +320,14 @@ export interface Channel {
   has_token: boolean
   has_secret: boolean
   has_secret_token: boolean
+  has_password?: boolean
+  has_smtp_password?: boolean
   has_keys?: boolean
   token_ref: string
   secret_ref: string
   secret_token_ref: string
+  password_ref?: string
+  smtp_password_ref?: string
   /** The ${ENV} / cred: references among an openai channel's keys. */
   key_refs?: string[]
   live: boolean
@@ -358,6 +374,22 @@ export interface ChannelDraft {
   scenes?: string[]
   api_base?: string
   markdown?: boolean
+  imap_host?: string
+  imap_port?: number
+  smtp_host?: string
+  smtp_port?: number
+  username?: string
+  password?: string
+  clear_password?: boolean
+  smtp_username?: string
+  smtp_password?: string
+  clear_smtp_password?: boolean
+  from_address?: string
+  mailbox?: string
+  poll_interval?: string
+  mark_seen?: boolean
+  allow_from?: string[]
+  allow_domains?: string[]
   media_allow?: string[]
   media_max_bytes?: number
 }
@@ -951,6 +983,19 @@ export interface QQBotInfo {
   gateway_url?: string
   shards?: number
   api_base?: string
+}
+
+export interface EmailConnectionInfo {
+  imap_host: string
+  imap_port: number
+  smtp_host: string
+  smtp_port: number
+  username: string
+  mailbox: string
+  messages: number
+  idle_support: boolean
+  imap_ok: boolean
+  smtp_ok: boolean
 }
 
 export type StudioEventOutcome = 'answered' | 'ignored' | 'dropped' | 'failed' | 'received'

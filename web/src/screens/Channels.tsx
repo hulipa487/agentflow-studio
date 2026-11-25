@@ -114,6 +114,46 @@ function ChannelFacts({ ch }: { ch: Channel }) {
         )
       }
       break
+    case 'email':
+      facts.push(
+        <Fact key="mode" label={t('channels.fact.mode')}>
+          <Value>{ch.mode || 'idle'}</Value>
+        </Fact>,
+        <Fact key="imap" label={t('channels.fact.imap')}>
+          <Value title={`${ch.imap_host || '—'}:${ch.imap_port || 993} (${ch.mailbox || 'INBOX'})`}>
+            {`${ch.imap_host || '—'}:${ch.imap_port || 993}`}
+          </Value>
+        </Fact>,
+        <Fact key="smtp" label={t('channels.fact.smtp')}>
+          <Value title={`${ch.smtp_host || '—'}:${ch.smtp_port || 465}`}>
+            {`${ch.smtp_host || '—'}:${ch.smtp_port || 465}`}
+          </Value>
+        </Fact>,
+        <Fact key="username" label={t('channels.fact.username')}>
+          <Value title={ch.username || '—'}>{ch.username || '—'}</Value>
+        </Fact>,
+        <Fact key="password" label={t('channels.fact.password')}>
+          <SecretChip set={ch.has_password ?? false} secretRef={ch.password_ref ?? ''} />
+        </Fact>,
+        <Fact key="mark_seen" label={t('channels.fact.markSeen')}>
+          <Value>{ch.mark_seen === false ? t('channels.fact.markSeenOff') : t('channels.fact.markSeenOn')}</Value>
+        </Fact>,
+      )
+      if ((ch.allow_from ?? []).length > 0) {
+        facts.push(
+          <Fact key="allow_from" label={t('channels.fact.allowFrom')}>
+            <Value title={(ch.allow_from ?? []).join(', ')}>{(ch.allow_from ?? []).join(', ')}</Value>
+          </Fact>,
+        )
+      }
+      if ((ch.allow_domains ?? []).length > 0) {
+        facts.push(
+          <Fact key="allow_domains" label={t('channels.fact.allowDomains')}>
+            <Value title={(ch.allow_domains ?? []).join(', ')}>{(ch.allow_domains ?? []).join(', ')}</Value>
+          </Fact>,
+        )
+      }
+      break
     case 'ghhook':
       facts.push(
         <Fact key="secret" label={t('channels.fact.secret')}>

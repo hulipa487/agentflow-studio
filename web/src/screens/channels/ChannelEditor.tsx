@@ -4,12 +4,13 @@
 import { useState } from 'react'
 import { Check, RotateCw } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
-import type { Channel, ChannelList, QQBotInfo, TelegramBotInfo } from '@/api/types'
+import type { Channel, ChannelList, EmailConnectionInfo, QQBotInfo, TelegramBotInfo } from '@/api/types'
 import { Banner, Button, Checkbox, Chip, Field, Input, Modal, Select, StatusChip, type Tone } from '@/components/ui'
 import { useClient } from '@/state/session'
 import { t } from '@/i18n'
 import {
   CHANNEL_TYPES,
+  EMAIL_MODES,
   JOURNAL_MODES,
   OPENAI_AUTH_MODES,
   QQ_MODES,
@@ -84,9 +85,34 @@ export function ChannelEditor({
   const [busy, setBusy] = useState<'validate' | 'save' | 'test' | null>(null)
   const [botInfo, setBotInfo] = useState<TelegramBotInfo | null>(null)
   const [qqInfo, setQQInfo] = useState<QQBotInfo | null>(null)
+  const [emailInfo, setEmailInfo] = useState<EmailConnectionInfo | null>(null)
 
   const set = <K extends keyof ChannelForm>(key: K, value: ChannelForm[K]) => setForm((f) => ({ ...f, [key]: value }))
-  const text = (key: 'name' | 'path' | 'allowUsers' | 'timeout' | 'deliverURL' | 'mediaAllow' | 'mediaMax' | 'agents' | 'maxRequestBytes' | 'appID' | 'apiBase') => ({
+  const text = (
+    key:
+      | 'name'
+      | 'path'
+      | 'allowUsers'
+      | 'timeout'
+      | 'deliverURL'
+      | 'mediaAllow'
+      | 'mediaMax'
+      | 'agents'
+      | 'maxRequestBytes'
+      | 'appID'
+      | 'apiBase'
+      | 'imapHost'
+      | 'imapPort'
+      | 'smtpHost'
+      | 'smtpPort'
+      | 'username'
+      | 'smtpUsername'
+      | 'fromAddress'
+      | 'mailbox'
+      | 'pollInterval'
+      | 'allowFrom'
+      | 'allowDomains',
+  ) => ({
     value: form[key],
     onChange: (e: { target: { value: string } }) => set(key, e.target.value),
   })
@@ -95,6 +121,8 @@ export function ChannelEditor({
   const hasToken = existing?.has_token ?? false
   const hasSecret = existing?.has_secret ?? false
   const hasSecretToken = existing?.has_secret_token ?? false
+  const hasPassword = existing?.has_password ?? false
+  const hasSMTPPassword = existing?.has_smtp_password ?? false
   const hasKeys = existing?.has_keys ?? false
   const staleAgent = existing && existing.agent && !agents.includes(existing.agent) ? existing.agent : ''
 
@@ -182,6 +210,39 @@ export function ChannelEditor({
     }
   }
 
+  const testEmail = async () => {
+    if (busy) return
+    setBusy('test')
+    setNotice(null)
+    try {
+      const portOrZero = (raw: string) => {
+        const n = Number(raw.trim())
+        return Number.isInteger(n) && n > 0 ? n : undefined
+      }
+      const info = await client.testEmailConnection({
+        index: existing?.index,
+        imap_host: form.imapHost.trim() || undefined,
+        imap_port: portOrZero(form.imapPort),
+        smtp_host: form.smtpHost.trim() || undefined,
+        smtp_port: portOrZero(form.smtpPort),
+        username: form.username.trim() || undefined,
+        password: form.password.trim() || undefined,
+        smtp_username: form.smtpUsername.trim() || undefined,
+        smtp_password: form.smtpPassword.trim() || undefined,
+        clear_smtp_password: form.clearSMTPPassword || undefined,
+        mailbox: form.mailbox.trim() || undefined,
+      })
+      if (!alive.current) return
+      setEmailInfo(info)
+    } catch (err) {
+      if (!alive.current) return
+      setEmailInfo(null)
+      setNotice({ tone: 'danger', text: errorMessage(err) })
+    } finally {
+      if (alive.current) setBusy(null)
+    }
+  }
+
   const reloadAfterConflict = () => {
     setConflict(false)
     // A new channel is appended, so the form survives the reload. An edit is
@@ -221,6 +282,7 @@ export function ChannelEditor({
   const bridge = form.type === 'bridge'
   const openai = form.type === 'openai'
   const qq = form.type === 'qq'
+  const email = form.type === 'email'
   const toggleScene = (id: string, on: boolean) =>
     set('scenes', on ? [...form.scenes.filter((s) => s !== id), id] : form.scenes.filter((s) => s !== id))
 
@@ -277,7 +339,7 @@ export function ChannelEditor({
               <Select value={form.agent} onChange={(v) => set('agent', v)} options={agents} mono placeholder={form.agent === '' ? t('channels.chooseAgent') : undefined} />
             </Field>
           )}
-          {!(qq && form.qqMode === 'websocket') && (
+          {!email && !(qq && form.qqMode === 'websocket') && (
             <Field
               label={t('channels.field.path')}
               hint={
@@ -410,6 +472,105 @@ export function ChannelEditor({
                       <Chip>{t('channels.qq.shards', { n: qqInfo.shards })}</Chip>
                     )}
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {email && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label={t('channels.field.emailMode')} hint={t('channels.hint.emailMode')}>
+              <Select value={form.emailMode} onChange={(v) => set('emailMode', v)} options={EMAIL_MODES} />
+            </Field>
+            <Field label={t('channels.field.mailbox')} hint={t('channels.hint.mailbox')}>
+              <Input mono placeholder="INBOX" {...text('mailbox')} />
+            </Field>
+            <Field label={t('channels.field.imapHost')}>
+              <Input mono placeholder="imap.example.com" {...text('imapHost')} />
+            </Field>
+            <Field label={t('channels.field.imapPort')}>
+              <Input mono inputMode="numeric" placeholder="993" {...text('imapPort')} />
+            </Field>
+            <Field label={t('channels.field.smtpHost')}>
+              <Input mono placeholder="smtp.example.com" {...text('smtpHost')} />
+            </Field>
+            <Field label={t('channels.field.smtpPort')}>
+              <Input mono inputMode="numeric" placeholder="465" {...text('smtpPort')} />
+            </Field>
+            <Field label={t('channels.field.emailUsername')}>
+              <Input mono placeholder="bot@example.com" {...text('username')} />
+            </Field>
+            <SecretField
+              label={t('channels.field.emailPassword')}
+              value={form.password}
+              onChange={(v) => set('password', v)}
+              placeholder={secretPlaceholder(hasPassword, existing?.password_ref, t('channels.placeholder.emailPassword'))}
+              stored={hasPassword}
+              clear={form.clearPassword}
+              onClear={(v) => set('clearPassword', v)}
+              clearLabel={t('channels.clearPassword')}
+            />
+            <Field label={t('channels.field.smtpUsername')} hint={t('channels.hint.smtpUsername')}>
+              <Input mono placeholder="bot@example.com" {...text('smtpUsername')} />
+            </Field>
+            <SecretField
+              label={t('channels.field.smtpPassword')}
+              hint={t('channels.hint.smtpPassword')}
+              value={form.smtpPassword}
+              onChange={(v) => set('smtpPassword', v)}
+              placeholder={secretPlaceholder(hasSMTPPassword, existing?.smtp_password_ref, t('channels.placeholder.smtpPassword'))}
+              stored={hasSMTPPassword}
+              clear={form.clearSMTPPassword}
+              onClear={(v) => set('clearSMTPPassword', v)}
+              clearLabel={t('channels.clearSMTPPassword')}
+            />
+            <Field label={t('channels.field.fromAddress')} hint={t('channels.hint.fromAddress')}>
+              <Input mono placeholder={t('channels.placeholder.emailFromAddress')} {...text('fromAddress')} />
+            </Field>
+            <Field label={t('channels.field.pollInterval')} hint={t('channels.hint.pollInterval')}>
+              <Input mono placeholder="30s" {...text('pollInterval')} />
+            </Field>
+            <Field label={t('channels.field.allowFrom')} hint={t('channels.hint.allowFrom')}>
+              <Input mono placeholder={t('channels.placeholder.emailAllowFrom')} {...text('allowFrom')} />
+            </Field>
+            <Field label={t('channels.field.allowDomains')} hint={t('channels.hint.allowDomains')}>
+              <Input mono placeholder={t('channels.placeholder.emailAllowDomains')} {...text('allowDomains')} />
+            </Field>
+            <Checkbox
+              className="sm:col-span-2"
+              checked={form.markSeen}
+              onChange={(v) => set('markSeen', v)}
+              label={t('channels.emailMarkSeen')}
+              hint={t('channels.hint.emailMarkSeen')}
+            />
+            <div className="flex flex-col gap-2 rounded-ctl border border-line bg-surface2 p-2.5 sm:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs text-muted">{t('channels.email.liveHint')}</div>
+                <Button
+                  size="sm"
+                  onClick={testEmail}
+                  loading={busy === 'test'}
+                  disabled={
+                    busy !== null ||
+                    reloading ||
+                    form.imapHost.trim() === '' ||
+                    form.smtpHost.trim() === '' ||
+                    form.username.trim() === '' ||
+                    (form.password.trim() === '' && !hasPassword)
+                  }
+                >
+                  {t('channels.email.testConnection')}
+                </Button>
+              </div>
+              {emailInfo && (
+                <div className="flex flex-wrap items-center gap-2 border-t border-line/60 pt-2 text-xs">
+                  <StatusChip tone={emailInfo.imap_ok ? 'success' : 'danger'}>{t('channels.email.imapOk')}</StatusChip>
+                  <StatusChip tone={emailInfo.smtp_ok ? 'success' : 'danger'}>{t('channels.email.smtpOk')}</StatusChip>
+                  <Chip tone={emailInfo.idle_support ? 'accent' : 'neutral'}>
+                    {emailInfo.idle_support ? t('channels.email.idleSupported') : t('channels.email.idleUnsupported')}
+                  </Chip>
+                  <Chip>{t('channels.email.mailboxCount', { mailbox: emailInfo.mailbox, n: emailInfo.messages })}</Chip>
                 </div>
               )}
             </div>

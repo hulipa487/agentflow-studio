@@ -341,6 +341,24 @@ export class Client {
     return r.bot
   }
 
+  /** Tests IMAP login/mailbox select and SMTP authentication without modifying mailbox flags. */
+  async testEmailConnection(req: {
+    index?: number
+    imap_host?: string
+    imap_port?: number
+    smtp_host?: string
+    smtp_port?: number
+    username?: string
+    password?: string
+    smtp_username?: string
+    smtp_password?: string
+    clear_smtp_password?: boolean
+    mailbox?: string
+  }): Promise<T.EmailConnectionInfo> {
+    const r = await this.json<{ ok: boolean; email: T.EmailConnectionInfo }>('POST', '/admin/api/studio/channels/email/test', req)
+    return r.email
+  }
+
   /** Lists recent message journal events annotated with Event Center outcomes and trace links. */
   async studioEvents(filter: T.StudioEventFilter = {}, signal?: AbortSignal): Promise<T.StudioEvent[]> {
     const r = await this.json<{ ok: boolean; events: T.StudioEvent[] | null }>(

@@ -114,4 +114,41 @@ describe('Studio Telegram test & Event Center client APIs', () => {
     expect(bot.username).toBe('QQGroupBot')
     expect(String(mockFetch.mock.calls[0][0])).toBe('http://127.0.0.1:8080/admin/api/studio/channels/qq/test')
   })
+
+  it('posts email test connection requests without leaking secrets', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          email: {
+            imap_host: 'imap.example.com',
+            imap_port: 993,
+            smtp_host: 'smtp.example.com',
+            smtp_port: 465,
+            username: 'bot@example.com',
+            mailbox: 'INBOX',
+            messages: 4,
+            idle_support: true,
+            imap_ok: true,
+            smtp_ok: true,
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    globalThis.fetch = mockFetch as unknown as typeof fetch
+
+    const client = new Client({ url: 'http://127.0.0.1:8080', token: 'tok', viaProxy: false })
+    const info = await client.testEmailConnection({
+      index: 0,
+      imap_host: 'imap.example.com',
+      smtp_host: 'smtp.example.com',
+      username: 'bot@example.com',
+    })
+    expect(info.imap_ok).toBe(true)
+    expect(info.smtp_ok).toBe(true)
+    expect(info.idle_support).toBe(true)
+    expect(info.messages).toBe(4)
+    expect(String(mockFetch.mock.calls[0][0])).toBe('http://127.0.0.1:8080/admin/api/studio/channels/email/test')
+  })
 })

@@ -125,3 +125,115 @@ describe('qq channel form', () => {
     expect(f).toMatchObject({ qqMode: 'webhook', appID: '42', scenes: ['dm'], apiBase: 'https://proxy.example.com' })
   })
 })
+
+describe('email channel form', () => {
+  const emailForm = (over: Partial<ChannelForm> = {}): ChannelForm => ({
+    ...formFor(null, ['assistant']),
+    name: 'support-mail',
+    type: 'email',
+    imapHost: 'imap.example.com',
+    smtpHost: 'smtp.example.com',
+    username: 'bot@example.com',
+    ...over,
+  })
+
+  it('defaults to idle mode, standard ports, INBOX, and markSeen on', () => {
+    const f = formFor(null, ['assistant'])
+    expect(f.emailMode).toBe('idle')
+    expect(f.imapPort).toBe('993')
+    expect(f.smtpPort).toBe('465')
+    expect(f.mailbox).toBe('INBOX')
+    expect(f.markSeen).toBe(true)
+  })
+
+  it('builds an email draft with ports, allowlists, mark_seen, secrets, and no HTTP path', () => {
+    const r = buildDraft(
+      emailForm({
+        path: '/ignored/',
+        emailMode: 'polling',
+        imapPort: '143',
+        smtpPort: '587',
+        password: '${IMAP_PW}',
+        smtpUsername: 'mailer@example.com',
+        smtpPassword: '${SMTP_PW}',
+        fromAddress: 'Support <support@example.com>',
+        mailbox: 'Support',
+        pollInterval: '45s',
+        markSeen: false,
+        allowFrom: 'alice@partner.org, bob@partner.org',
+        allowDomains: 'example.com, trusted.io',
+        mediaAllow: 'image/*, application/pdf',
+      }),
+    )
+    expect(r.error).toBeUndefined()
+    expect(r.draft?.path).toBeUndefined()
+    expect(r.draft).toMatchObject({
+      name: 'support-mail',
+      type: 'email',
+      mode: 'polling',
+      imap_host: 'imap.example.com',
+      imap_port: 143,
+      smtp_host: 'smtp.example.com',
+      smtp_port: 587,
+      username: 'bot@example.com',
+      password: '${IMAP_PW}',
+      smtp_username: 'mailer@example.com',
+      smtp_password: '${SMTP_PW}',
+      from_address: 'Support <support@example.com>',
+      mailbox: 'Support',
+      poll_interval: '45s',
+      mark_seen: false,
+      allow_from: ['alice@partner.org', 'bob@partner.org'],
+      allow_domains: ['example.com', 'trusted.io'],
+      media_allow: ['image/*', 'application/pdf'],
+    })
+  })
+
+  it('validates required host/username fields and TCP ports', () => {
+    expect(buildDraft(emailForm({ imapHost: ' ' })).error).toMatch(/IMAP host/)
+    expect(buildDraft(emailForm({ smtpHost: ' ' })).error).toMatch(/SMTP host/)
+    expect(buildDraft(emailForm({ username: ' ' })).error).toMatch(/username/)
+    expect(buildDraft(emailForm({ imapPort: '70000' })).error).toMatch(/1 and 65535/)
+  })
+
+  it('hydrates an existing email channel into the form cleanly', () => {
+    const f = formFor(
+      {
+        ...base,
+        name: 'mail',
+        path: '',
+        type: 'email',
+        mode: 'polling',
+        imap_host: 'imap.corp.net',
+        imap_port: 993,
+        smtp_host: 'smtp.corp.net',
+        smtp_port: 465,
+        username: 'desk@corp.net',
+        smtp_username: 'relay@corp.net',
+        from_address: 'Desk <desk@corp.net>',
+        mailbox: 'SupportBox',
+        poll_interval: '60s',
+        mark_seen: false,
+        allow_from: ['vip@client.org'],
+        allow_domains: ['corp.net'],
+      },
+      ['assistant'],
+    )
+    expect(f).toMatchObject({
+      type: 'email',
+      emailMode: 'polling',
+      imapHost: 'imap.corp.net',
+      imapPort: '993',
+      smtpHost: 'smtp.corp.net',
+      smtpPort: '465',
+      username: 'desk@corp.net',
+      smtpUsername: 'relay@corp.net',
+      fromAddress: 'Desk <desk@corp.net>',
+      mailbox: 'SupportBox',
+      pollInterval: '60s',
+      markSeen: false,
+      allowFrom: 'vip@client.org',
+      allowDomains: 'corp.net',
+    })
+  })
+})
